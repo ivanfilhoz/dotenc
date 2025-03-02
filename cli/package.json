@@ -1,0 +1,49 @@
+{
+  "name": "@dotenc/cli",
+  "version": "0.1.2",
+  "description": "🔐 Secure, encrypted environment variables that live in your codebase",
+  "type": "module",
+  "bin": {
+    "dotenc": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "build": "tsc && tsc-alias"
+  },
+  "keywords": [
+    "environment",
+    "variables",
+    "safe",
+    "secure",
+    "codebase",
+    "cli",
+    "command",
+    "line",
+    "tool",
+    "utility",
+    "env",
+    "box",
+    "dotenv",
+    "encrypted",
+    "codebase"
+  ],
+  "author": "Ivan Filho <i@ivanfilho.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.13.7",
+    "tsc-alias": "^1.8.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
+    "commander": "^13.1.0",
+    "inquirer": "^12.4.2",
+    "zod": "^3.24.2"
+  }
+}

@@ -1,7 +1,0 @@
-node_modules/
-dist/
-.DS_Store
-# Ignore local environment file
-.env
-.env.*
-safe-env.json
