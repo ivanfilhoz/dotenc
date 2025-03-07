@@ -51,7 +51,4 @@ export const addToken = async (
 	await fs.writeFile(tokensFile, JSON.stringify(tokens, null, 2), {
 		mode: 0o600,
 	})
-	console.debug(
-		`Token for project "${projectId}" and environment "${environment}" added successfully.`,
-	)
 }

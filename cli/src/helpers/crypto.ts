@@ -40,7 +40,6 @@ export async function encrypt(
 
 	// Write the encrypted file
 	await fs.writeFile(outputFile, result)
-	console.debug(`File encrypted successfully: ${outputFile}`)
 }
 
 /**
@@ -81,7 +80,6 @@ export async function decrypt(token: string, inputFile: string) {
 			decipher.final(),
 		])
 
-		console.debug(`File decrypted successfully: ${inputFile}`)
 		return decrypted.toString()
 	} catch (error) {
 		if (

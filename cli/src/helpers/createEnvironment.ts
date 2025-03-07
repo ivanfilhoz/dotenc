@@ -10,6 +10,4 @@ export const createEnvironment = async (name: string, token: string) => {
 	}
 
 	await encrypt(token, `# ${name} environment\n`, filePath)
-
-	console.debug(`Environment "${name}" created.`)
 }

@@ -17,7 +17,6 @@ export const setHomeConfig = async (config: HomeConfig) => {
 	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), {
 		mode: 0o600,
 	})
-	console.debug("config.json saved")
 }
 
 export const getHomeConfig = async () => {

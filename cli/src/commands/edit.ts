@@ -59,5 +59,4 @@ export const editCommand = async (environmentArg: string) => {
 	}
 
 	await fs.unlink(tempFilePath)
-	console.debug(`Temporary file deleted: ${tempFilePath}`)
 }

@@ -16,7 +16,6 @@ export const setProjectConfig = async (config: ProjectConfig) => {
 	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), {
 		mode: 0o600,
 	})
-	console.debug(`dotenc.json saved for projectId "${parsedConfig.projectId}".`)
 }
 
 export const getProjectConfig = async () => {

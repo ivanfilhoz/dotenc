@@ -20,16 +20,10 @@ export const createLocalEnvironment = async () => {
 			gitignorePath,
 			`\n# Ignore local environment file\n${envEntry}\n`,
 		)
-		console.debug("Updated .gitignore to ignore .env file.")
-	} else {
-		console.debug(".env file is already ignored in .gitignore.")
 	}
 
 	const envPath = path.join(process.cwd(), ".env")
-	if (existsSync(envPath)) {
-		console.debug(".env file already exists.")
-	} else {
-		await fs.writeFile(envPath, "")
-		console.debug("Created .env file.")
+	if (!existsSync(envPath)) {
+		await fs.writeFile(envPath, "# Local environment variables\n")
 	}
 }
