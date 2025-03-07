@@ -9,7 +9,8 @@ export const tokenImportCommand = async (
 	const { projectId } = await getProjectConfig()
 
 	if (!projectId) {
-		throw new Error('No project found. Run "dotenc init" to create one.')
+		console.error('No project found. Run "dotenc init" to create one.')
+		return
 	}
 
 	await addToken(projectId, environment, token)

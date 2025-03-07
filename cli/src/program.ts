@@ -35,7 +35,13 @@ program
 	.action(editCommand)
 
 program
-	.command("run <environment> <command> [args...]")
+	.command("run <command> [args...]")
+	.addOption(
+		new Option(
+			"-e, --environment <environment>",
+			"the environment to run the command in",
+		),
+	)
 	.description("run a command in an environment")
 	.action(runCommand)
 

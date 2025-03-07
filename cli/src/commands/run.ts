@@ -11,12 +11,19 @@ type Options = {
 }
 
 export const runCommand = async (
-	environmentArg: string,
 	command: string,
 	args: string[],
+	options: Options,
 ) => {
 	// Get the environment
-	const environment = environmentArg
+	const environment = options.env || process.env.DOTENC_ENV
+
+	if (!environment) {
+		console.error(
+			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo start a new environment, use "dotenc init [environment]".',
+		)
+		return
+	}
 
 	const environmentFilePath = path.join(
 		process.cwd(),
@@ -24,7 +31,8 @@ export const runCommand = async (
 	)
 
 	if (!existsSync(environmentFilePath)) {
-		throw new Error(`Environment file not found: ${environmentFilePath}`)
+		console.error(`Environment file not found: ${environmentFilePath}`)
+		return
 	}
 
 	const token = await getToken(environment)

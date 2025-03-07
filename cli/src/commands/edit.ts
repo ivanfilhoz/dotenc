@@ -7,7 +7,7 @@ import { createHash } from "../helpers/createHash"
 import { decrypt, encrypt } from "../helpers/crypto"
 import { getDefaultEditor } from "../helpers/getDefaultEditor"
 import { getToken } from "../helpers/token"
-import { chooseEnvironmentPrompt } from "./prompts/chooseEnvironment"
+import { chooseEnvironmentPrompt } from "../prompts/chooseEnvironment"
 
 export const editCommand = async (environmentArg: string) => {
 	let environment = environmentArg
@@ -24,7 +24,8 @@ export const editCommand = async (environmentArg: string) => {
 	)
 
 	if (!existsSync(environmentFilePath)) {
-		throw new Error(`Environment file not found: ${environmentFilePath}`)
+		console.error(`Environment file not found: ${environmentFilePath}`)
+		return
 	}
 
 	const token = await getToken(environment)
@@ -41,7 +42,8 @@ export const editCommand = async (environmentArg: string) => {
 		// This will block until the editor process is closed
 		execSync(`${editor} ${tempFilePath}`, { stdio: "inherit" })
 	} catch (error) {
-		throw new Error(`Failed to open editor: ${editor}`)
+		console.error(`Failed to open editor: ${editor}`)
+		return
 	}
 
 	const newContent = await fs.readFile(tempFilePath, "utf-8")

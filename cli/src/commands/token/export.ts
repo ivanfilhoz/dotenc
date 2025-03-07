@@ -6,7 +6,8 @@ export const tokenExportCommand = async (environmentArg: string) => {
 	const { projectId } = await getProjectConfig()
 
 	if (!projectId) {
-		throw new Error('No project found. Run "dotenc init" to create one.')
+		console.error('No project found. Run "dotenc init" to create one.')
+		return
 	}
 
 	const token = await getToken(environment)
