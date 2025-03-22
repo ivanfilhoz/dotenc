@@ -18,7 +18,7 @@ export const getKey = async (environment: string) => {
 	}
 
 	throw new Error(
-		"No key found. Please set the DOTENC_KEY environment variable or import the key using `dotenc import-key -e <environment> <key>`.",
+		"No key found. Please set the DOTENC_KEY environment variable or import the key using `dotenc key import <environment> <key>`.",
 	)
 }
 
