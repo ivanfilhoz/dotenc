@@ -1,6 +1,6 @@
 {
   "name": "@dotenc/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "🔐 Secure, encrypted environment variables that live in your codebase",
   "type": "module",
   "bin": {
