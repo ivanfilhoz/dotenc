@@ -1,7 +1,7 @@
+import { getKey } from "../../helpers/key"
 import { getProjectConfig } from "../../helpers/projectConfig"
-import { getToken } from "../../helpers/token"
 
-export const tokenExportCommand = async (environmentArg: string) => {
+export const keyExportCommand = async (environmentArg: string) => {
 	const environment = environmentArg
 	const { projectId } = await getProjectConfig()
 
@@ -10,6 +10,6 @@ export const tokenExportCommand = async (environmentArg: string) => {
 		return
 	}
 
-	const token = await getToken(environment)
-	console.log(`Token for the ${environment} environment: ${token}`)
+	const key = await getKey(environment)
+	console.log(`Key for the ${environment} environment: ${key}`)
 }

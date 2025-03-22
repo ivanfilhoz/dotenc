@@ -6,9 +6,9 @@ import { configCommand } from "./commands/config"
 import { debugCommand } from "./commands/debug"
 import { editCommand } from "./commands/edit"
 import { initCommand } from "./commands/init"
+import { keyExportCommand } from "./commands/key/export"
+import { keyImportCommand } from "./commands/key/import"
 import { runCommand } from "./commands/run"
-import { tokenExportCommand } from "./commands/token/export"
-import { tokenImportCommand } from "./commands/token/import"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,16 +45,16 @@ program
 	.description("run a command in an environment")
 	.action(runCommand)
 
-const token = program.command("token").description("Manage stored tokens")
-token
-	.command("import <environment> <token>")
-	.description("import a token for an environment")
-	.action(tokenImportCommand)
+const key = program.command("key").description("Manage stored keys")
+key
+	.command("import <environment> <key>")
+	.description("import a key for an environment")
+	.action(keyImportCommand)
 
-token
+key
 	.command("export <environment>")
-	.description("export a token from an environment")
-	.action(tokenExportCommand)
+	.description("export a key from an environment")
+	.action(keyExportCommand)
 
 program
 	.command("config <key> [value]")

@@ -3,8 +3,8 @@ import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { decrypt } from "../helpers/crypto"
+import { getKey } from "../helpers/key"
 import { parseEnv } from "../helpers/parseEnv"
-import { getToken } from "../helpers/token"
 
 type Options = {
 	env: string
@@ -39,9 +39,9 @@ export const runCommand = async (
 				return
 			}
 
-			const token = await getToken(environment)
+			const key = await getKey(environment)
 
-			const content = await decrypt(token, environmentFilePath)
+			const content = await decrypt(key, environmentFilePath)
 
 			const decryptedEnv = parseEnv(content)
 

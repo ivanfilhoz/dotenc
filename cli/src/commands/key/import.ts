@@ -1,10 +1,7 @@
+import { addKey } from "../../helpers/key"
 import { getProjectConfig } from "../../helpers/projectConfig"
-import { addToken } from "../../helpers/token"
 
-export const tokenImportCommand = async (
-	token: string,
-	environmentArg: string,
-) => {
+export const keyImportCommand = async (key: string, environmentArg: string) => {
 	const environment = environmentArg
 	const { projectId } = await getProjectConfig()
 
@@ -13,6 +10,6 @@ export const tokenImportCommand = async (
 		return
 	}
 
-	await addToken(projectId, environment, token)
-	console.log(`Token imported to the ${environment} environment.`)
+	await addKey(projectId, environment, key)
+	console.log(`Key imported to the ${environment} environment.`)
 }

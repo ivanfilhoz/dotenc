@@ -8,26 +8,22 @@ const AUTH_TAG_LENGTH = 16 // 128 bits, standard for GCM
 
 /**
  * Encrypts a file using AES-256-GCM.
- * @param {string} token - The encryption key (must be 32 bytes for AES-256).
+ * @param {string} key - The encryption key (must be 32 bytes for AES-256).
  * @param {string} input - The input string to encrypt.
  * @param {string} outputFile - Path to the output encrypted file.
  */
-export async function encrypt(
-	token: string,
-	input: string,
-	outputFile: string,
-) {
-	const tokenBuffer = Buffer.from(token, "base64")
+export async function encrypt(key: string, input: string, outputFile: string) {
+	const keyBuffer = Buffer.from(key, "base64")
 
-	if (tokenBuffer.length !== 32) {
-		throw new Error("Token must be 32 bytes (256 bits) for AES-256-GCM.")
+	if (keyBuffer.length !== 32) {
+		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
 
 	// Generate a random IV
 	const iv = crypto.randomBytes(IV_LENGTH)
 
 	// Create the cipher
-	const cipher = crypto.createCipheriv(ALGORITHM, tokenBuffer, iv)
+	const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv)
 
 	// Encrypt the data
 	const encrypted = Buffer.concat([cipher.update(input), cipher.final()])
@@ -44,14 +40,14 @@ export async function encrypt(
 
 /**
  * Decrypts a file using AES-256-GCM.
- * @param {string} token - The decryption key (must be 32 bytes for AES-256).
+ * @param {string} key - The decryption key (must be 32 bytes for AES-256).
  * @param {string} inputFile - The input file to decrypt.
  */
-export async function decrypt(token: string, inputFile: string) {
-	const tokenBuffer = Buffer.from(token, "base64")
+export async function decrypt(key: string, inputFile: string) {
+	const keyBuffer = Buffer.from(key, "base64")
 
-	if (tokenBuffer.length !== 32) {
-		throw new Error("Token must be 32 bytes (256 bits) for AES-256-GCM.")
+	if (keyBuffer.length !== 32) {
+		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
 
 	// Read the encrypted file
@@ -71,7 +67,7 @@ export async function decrypt(token: string, inputFile: string) {
 
 	try {
 		// Create the decipher
-		const decipher = crypto.createDecipheriv(ALGORITHM, tokenBuffer, iv)
+		const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv)
 		decipher.setAuthTag(authTag)
 
 		// Decrypt the ciphertext
@@ -88,7 +84,7 @@ export async function decrypt(token: string, inputFile: string) {
 		) {
 			throw new Error(
 				"Failed to decrypt file. This could be because:\n" +
-					"1. The encryption token may be incorrect\n" +
+					"1. The encryption key may be incorrect\n" +
 					"2. The encrypted file may be corrupted\n" +
 					"3. The encrypted file may have been tampered with",
 			)

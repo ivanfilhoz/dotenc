@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 import { createEnvironment } from "../helpers/createEnvironment"
 import { createLocalEnvironment } from "../helpers/createLocalEnvironment"
 import { createProject } from "../helpers/createProject"
-import { addToken } from "../helpers/token"
+import { addKey } from "../helpers/key"
 import { createEnvironmentPrompt } from "../prompts/createEnvironment"
 
 export const initCommand = async (environmentArg: string) => {
@@ -12,8 +12,8 @@ export const initCommand = async (environmentArg: string) => {
 	// Setup local environment
 	await createLocalEnvironment()
 
-	// Generate a random token
-	const token = crypto.randomBytes(32).toString("base64")
+	// Generate a random key
+	const key = crypto.randomBytes(32).toString("base64")
 
 	// Prompt for the environment name
 	let environment = environmentArg
@@ -25,10 +25,10 @@ export const initCommand = async (environmentArg: string) => {
 		)
 	}
 
-	await createEnvironment(environment, token)
+	await createEnvironment(environment, key)
 
-	// Store the token
-	await addToken(projectId, environment, token)
+	// Store the key
+	await addKey(projectId, environment, key)
 
 	// Output success message
 	console.log("Initialization complete!")

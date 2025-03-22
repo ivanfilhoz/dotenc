@@ -6,7 +6,7 @@ import path from "node:path"
 import { createHash } from "../helpers/createHash"
 import { decrypt, encrypt } from "../helpers/crypto"
 import { getDefaultEditor } from "../helpers/getDefaultEditor"
-import { getToken } from "../helpers/token"
+import { getKey } from "../helpers/key"
 import { chooseEnvironmentPrompt } from "../prompts/chooseEnvironment"
 
 export const editCommand = async (environmentArg: string) => {
@@ -28,10 +28,10 @@ export const editCommand = async (environmentArg: string) => {
 		return
 	}
 
-	const token = await getToken(environment)
+	const key = await getKey(environment)
 	const tempFilePath = path.join(os.tmpdir(), `.env.${environment}`)
 
-	const content = await decrypt(token, environmentFilePath)
+	const content = await decrypt(key, environmentFilePath)
 	await fs.writeFile(tempFilePath, content)
 
 	const initialHash = createHash(content)
@@ -54,7 +54,7 @@ export const editCommand = async (environmentArg: string) => {
 			`No changes were made to the environment file for "${environment}".`,
 		)
 	} else {
-		await encrypt(token, newContent, environmentFilePath)
+		await encrypt(key, newContent, environmentFilePath)
 		console.log(
 			`Encrypted environment file for "${environment}" and saved it to ${environmentFilePath}.`,
 		)
