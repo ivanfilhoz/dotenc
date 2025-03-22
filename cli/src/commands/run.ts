@@ -16,30 +16,42 @@ export const runCommand = async (
 	options: Options,
 ) => {
 	// Get the environment
-	const environment = options.env || process.env.DOTENC_ENV
+	const environmentArg = options.env || process.env.DOTENC_ENV
 
-	if (!environment) {
+	if (!environmentArg) {
 		console.error(
 			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo start a new environment, use "dotenc init [environment]".',
 		)
 		return
 	}
 
-	const environmentFilePath = path.join(
-		process.cwd(),
-		`.env.${environment}.enc`,
+	const environments = environmentArg.split(",")
+
+	const decryptedEnvs = await Promise.all(
+		environments.map(async (environment) => {
+			const environmentFilePath = path.join(
+				process.cwd(),
+				`.env.${environment}.enc`,
+			)
+
+			if (!existsSync(environmentFilePath)) {
+				console.error(`Environment file not found: ${environmentFilePath}`)
+				return
+			}
+
+			const token = await getToken(environment)
+
+			const content = await decrypt(token, environmentFilePath)
+
+			const decryptedEnv = parseEnv(content)
+
+			return decryptedEnv
+		}),
 	)
 
-	if (!existsSync(environmentFilePath)) {
-		console.error(`Environment file not found: ${environmentFilePath}`)
-		return
-	}
-
-	const token = await getToken(environment)
-
-	const content = await decrypt(token, environmentFilePath)
-
-	const decryptedEnv = parseEnv(content)
+	const decryptedEnv = decryptedEnvs.reduce((acc, env) => {
+		return { ...acc, ...env }
+	}, {})
 
 	// Get the local environment
 	let localEnv = {}
