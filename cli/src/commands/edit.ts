@@ -1,3 +1,4 @@
+import chalk from "chalk"
 import { execSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
@@ -18,10 +19,8 @@ export const editCommand = async (environmentArg: string) => {
 		)
 	}
 
-	const environmentFilePath = path.join(
-		process.cwd(),
-		`.env.${environment}.enc`,
-	)
+	const environmentFile = `.env.${environment}.enc`
+	const environmentFilePath = path.join(process.cwd(), environmentFile)
 
 	if (!existsSync(environmentFilePath)) {
 		console.error(`Environment file not found: ${environmentFilePath}`)
@@ -29,6 +28,14 @@ export const editCommand = async (environmentArg: string) => {
 	}
 
 	const key = await getKey(environment)
+
+	if (!key) {
+		console.error(
+			`\n${chalk.red("Error:")} no key found for the ${chalk.cyan(environment)} environment.`,
+		)
+		return
+	}
+
 	const tempFilePath = path.join(os.tmpdir(), `.env.${environment}`)
 
 	const content = await decrypt(key, environmentFilePath)
@@ -42,7 +49,7 @@ export const editCommand = async (environmentArg: string) => {
 		// This will block until the editor process is closed
 		execSync(`${editor} ${tempFilePath}`, { stdio: "inherit" })
 	} catch (error) {
-		console.error(`Failed to open editor: ${editor}`)
+		console.error(`\nFailed to open editor: ${editor}`)
 		return
 	}
 
@@ -51,12 +58,13 @@ export const editCommand = async (environmentArg: string) => {
 
 	if (initialHash === finalHash) {
 		console.log(
-			`No changes were made to the environment file for "${environment}".`,
+			`\nNo changes were made to the ${chalk.cyan(environment)} environment.`,
 		)
 	} else {
 		await encrypt(key, newContent, environmentFilePath)
+
 		console.log(
-			`Encrypted environment file for "${environment}" and saved it to ${environmentFilePath}.`,
+			`\nEncrypted ${chalk.cyan(environment)} environment and saved it to ${chalk.gray(environmentFile)}.`,
 		)
 	}
 

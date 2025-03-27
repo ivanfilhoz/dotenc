@@ -4,6 +4,8 @@ import os from "node:os"
 import path from "node:path"
 import { getProjectConfig } from "./projectConfig"
 
+const keysFile = path.join(os.homedir(), ".dotenc", "keys.json")
+
 export const getKey = async (environment: string) => {
 	if (process.env.DOTENC_KEY) {
 		return process.env.DOTENC_KEY
@@ -11,7 +13,6 @@ export const getKey = async (environment: string) => {
 
 	const { projectId } = await getProjectConfig()
 
-	const keysFile = path.join(os.homedir(), ".dotenc", "keys.json")
 	if (existsSync(keysFile)) {
 		const keys = JSON.parse(await fs.readFile(keysFile, "utf-8"))
 		return keys[projectId][environment]
@@ -30,8 +31,6 @@ export const addKey = async (
 	environment: string,
 	key: string,
 ) => {
-	const keysFile = path.join(os.homedir(), ".dotenc", "keys.json")
-
 	// Ensure the keys file exists
 	if (!existsSync(keysFile)) {
 		await fs.mkdir(path.dirname(keysFile), { recursive: true })

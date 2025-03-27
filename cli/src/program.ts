@@ -25,39 +25,48 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 program
-	.command("init [environment]")
+	.command("init")
+	.argument("[environment]", "the environment to initialize")
 	.description("initialize a new environment")
 	.action(initCommand)
 
 program
-	.command("edit [environment]")
+	.command("edit")
+	.argument("[environment]", "the environment to edit")
 	.description("edit an environment")
 	.action(editCommand)
 
 program
-	.command("run <command> [args...]")
+	.command("run")
+	.argument("<command>", "the command to run")
+	.argument("[args...]", "the arguments to pass to the command")
 	.addOption(
 		new Option(
-			"-e, --environment <environment>",
-			"the environment to run the command in",
+			"-e, --env <env1>[,env2[,...]]",
+			"the environments to run the command in",
 		),
 	)
 	.description("run a command in an environment")
 	.action(runCommand)
 
-const key = program.command("key").description("Manage stored keys")
+const key = program.command("key").description("manage stored keys")
 key
-	.command("import <environment> <key>")
+	.command("import")
+	.argument("[environment]", "the environment to import the key to")
+	.argument("[key]", "the key to import")
 	.description("import a key for an environment")
 	.action(keyImportCommand)
 
 key
-	.command("export <environment>")
+	.command("export")
+	.argument("[environment]", "the environment to export the key from")
 	.description("export a key from an environment")
 	.action(keyExportCommand)
 
 program
-	.command("config <key> [value]")
+	.command("config")
+	.argument("<key>", "the key to get or set")
+	.argument("[value]", "the value to set the key to")
 	.addOption(new Option("-r, --remove", "remove a configuration key"))
 	.description("manage global configuration")
 	.action(configCommand)
