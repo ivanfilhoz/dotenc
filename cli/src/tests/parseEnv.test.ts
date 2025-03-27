@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { parseEnv } from "./parseEnv"
+import { parseEnv } from "../helpers/parseEnv"
 
 describe("parseEnv", () => {
 	test("should parse a simple key-value pair", () => {
@@ -22,11 +22,13 @@ foo
 # Comment here "!#' foo
 
 HELLO = WORLD
+DOTENC_HELLO = "Hello, world!"
 `)
 
 		expect(env.FOO).toBe("\nbar")
 		expect(env.BAR).toBe("baz\nfoo\n")
 		expect(env.BAZ).toBe("123")
 		expect(env.HELLO).toBe("WORLD")
+		expect(env.DOTENC_HELLO).toBe("Hello, world!")
 	})
 })

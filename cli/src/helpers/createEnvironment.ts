@@ -9,5 +9,9 @@ export const createEnvironment = async (name: string, key: string) => {
 		throw new Error(`Environment "${name}" already exists.`)
 	}
 
-	await encrypt(key, `# ${name} environment\n`, filePath)
+	await encrypt(
+		key,
+		`# ${name} environment\nDOTENC_HELLO="Hello, world!"`,
+		filePath,
+	)
 }

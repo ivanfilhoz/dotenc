@@ -75,12 +75,14 @@ export const parseEnv = (content: string) => {
 
 		// Handle single quote opening
 		if (char === "'") {
+			currentValue = ""
 			isInSingleQuotes = true
 			continue
 		}
 
 		// Handle double quote opening
 		if (char === '"') {
+			currentValue = ""
 			isInDoubleQuotes = true
 			continue
 		}

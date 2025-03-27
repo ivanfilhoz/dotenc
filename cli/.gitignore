@@ -5,3 +5,4 @@ dist/
 .env
 .env.*
 dotenc.json
+e2e.txt
