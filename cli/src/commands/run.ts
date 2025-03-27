@@ -8,7 +8,6 @@ import { parseEnv } from "../helpers/parseEnv"
 
 type Options = {
 	env: string
-	test?: boolean
 }
 
 export const runCommand = async (
@@ -72,9 +71,7 @@ export const runCommand = async (
 		stdio: "inherit",
 	})
 
-	if (!options.test) {
-		child.on("exit", (code) => {
-			process.exit(code)
-		})
-	}
+	child.on("exit", (code) => {
+		process.exit(code)
+	})
 }

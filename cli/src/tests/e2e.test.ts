@@ -1,34 +1,33 @@
-import { existsSync, readFileSync, unlinkSync } from "node:fs"
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest"
+import { editCommand } from "../commands/edit"
 import { initCommand } from "../commands/init"
 import { runCommand } from "../commands/run"
-
-const waitForFile = (filePath: string, timeout = 5000) =>
-	new Promise((resolve, reject) => {
-		const startTime = Date.now()
-		const interval = setInterval(() => {
-			if (existsSync(filePath)) {
-				clearInterval(interval)
-				resolve(readFileSync(filePath, "utf-8"))
-				return
-			}
-
-			if (Date.now() - startTime > timeout) {
-				clearInterval(interval)
-				reject(new Error(`Timeout waiting for file ${filePath}`))
-			}
-		}, 100)
-	})
+import { waitForFile } from "./helpers/waitForFile"
 
 const localEnvFilePath = path.join(process.cwd(), ".env")
 const encryptedEnvFilePath = path.join(process.cwd(), ".env.test.enc")
 const projectFilePath = path.join(process.cwd(), "dotenc.json")
 const outputFilePath = path.join(process.cwd(), "e2e.txt")
 
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>()
+	return {
+		...actual,
+		// Mock for the edit command
+		execSync: () => {
+			const tempFilePath = path.join(os.tmpdir(), ".env.test")
+			writeFileSync(tempFilePath, "DOTENC_HELLO=Hello, world!")
+		},
+	}
+})
+
 describe("e2e", () => {
 	beforeAll(() => {
 		vi.spyOn(console, "log").mockImplementation(() => {})
+		vi.spyOn(process, "exit").mockImplementation(() => ({}) as never)
 	})
 
 	test("should initialize an environment", async () => {
@@ -38,12 +37,17 @@ describe("e2e", () => {
 		expect(existsSync(projectFilePath)).toBe(true)
 	})
 
-	test("should run a command in an environment", async () => {
-		await runCommand("sh", [path.join(__dirname, "e2e.sh")], {
-			env: "test",
-			test: true,
-		})
+	test("should edit an environment", async () => {
+		const initialContent = readFileSync(encryptedEnvFilePath, "utf-8")
+		await editCommand("test")
+		const editedContent = readFileSync(encryptedEnvFilePath, "utf-8")
+		expect(editedContent).not.toBe(initialContent)
+	})
 
+	test("should run a command in an environment", async () => {
+		await runCommand("sh", [path.join(__dirname, "helpers", "e2e.sh")], {
+			env: "test",
+		})
 		const output = await waitForFile(outputFilePath)
 		expect(output).toBe("Hello, world!\n")
 	})
