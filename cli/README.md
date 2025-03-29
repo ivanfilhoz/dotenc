@@ -82,10 +82,15 @@ To export a key from your machine, use the `key export` command:
 dotenc key export <environment>
 ```
 
+To rotate a key, use the `key rotate` command:
+```bash
+dotenc key rotate <environment>
+```
+
 ## Use Cases
 
 For convenience, you can setup your `package.json` file like this:
-```json
+```jsonc
   // ...
   "scripts": {
     "dev": "dotenc run -e development tsx src/app.ts",
