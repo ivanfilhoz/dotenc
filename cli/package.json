@@ -1,7 +1,9 @@
 {
   "name": "@dotenc/cli",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "🔐 Secure, encrypted environment variables that live in your codebase",
+  "author": "Ivan Filho <i@ivanfilho.com>",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "dotenc": "./dist/cli.js"
@@ -15,6 +17,29 @@
     "build": "tsc && tsc-alias",
     "test": "vitest"
   },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.13.7",
+    "tsc-alias": "^1.8.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "inquirer": "^12.4.2",
+    "zod": "^3.24.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ivanfilhoz/dotenc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ivanfilhoz/dotenc/issues"
+  },
+  "homepage": "https://github.com/ivanfilhoz/dotenc#readme",
   "keywords": [
     "environment",
     "variables",
@@ -31,22 +56,5 @@
     "dotenv",
     "encrypted",
     "codebase"
-  ],
-  "author": "Ivan Filho <i@ivanfilho.com>",
-  "license": "MIT",
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.13.7",
-    "tsc-alias": "^1.8.11",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
-    "vitest": "^3.0.9"
-  },
-  "dependencies": {
-    "@paralleldrive/cuid2": "^2.2.2",
-    "chalk": "^5.4.1",
-    "commander": "^13.1.0",
-    "inquirer": "^12.4.2",
-    "zod": "^3.24.2"
-  }
+  ]
 }
