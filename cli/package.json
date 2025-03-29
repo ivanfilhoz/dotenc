@@ -1,6 +1,6 @@
 {
   "name": "@dotenc/cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "🔐 Secure, encrypted environment variables that live in your codebase",
   "author": "Ivan Filho <i@ivanfilho.com>",
   "license": "MIT",
