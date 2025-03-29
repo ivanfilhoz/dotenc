@@ -68,7 +68,7 @@ You can also specify multiple environments:
 dotenc run -e base,production node app.js
 ```
 
-In the example above, `production` will override any variables also present in `global`.
+In the example above, `production` will override any variables also present in `base`.
 
 ### Key management
 
