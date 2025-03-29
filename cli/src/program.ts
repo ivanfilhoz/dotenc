@@ -8,6 +8,7 @@ import { editCommand } from "./commands/edit"
 import { initCommand } from "./commands/init"
 import { keyExportCommand } from "./commands/key/export"
 import { keyImportCommand } from "./commands/key/import"
+import { keyRotateCommand } from "./commands/key/rotate"
 import { runCommand } from "./commands/run"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -62,6 +63,12 @@ key
 	.argument("[environment]", "the environment to export the key from")
 	.description("export a key from an environment")
 	.action(keyExportCommand)
+
+key
+	.command("rotate")
+	.argument("[environment]", "the environment to rotate the key for")
+	.description("rotate a key for an environment")
+	.action(keyRotateCommand)
 
 program
 	.command("config")

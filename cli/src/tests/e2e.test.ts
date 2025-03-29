@@ -4,7 +4,10 @@ import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest"
 import { editCommand } from "../commands/edit"
 import { initCommand } from "../commands/init"
+import { keyRotateCommand } from "../commands/key/rotate"
 import { runCommand } from "../commands/run"
+import { getKey } from "../helpers/key"
+import { cleanupProjectKeys } from "./helpers/cleanupProjectKeys"
 import { waitForFile } from "./helpers/waitForFile"
 
 const localEnvFilePath = path.join(process.cwd(), ".env")
@@ -44,6 +47,13 @@ describe("e2e", () => {
 		expect(editedContent).not.toBe(initialContent)
 	})
 
+	test("should rotate a key", async () => {
+		const currentKey = await getKey("test")
+		await keyRotateCommand("test")
+		const rotatedKey = await getKey("test")
+		expect(rotatedKey).not.toBe(currentKey)
+	})
+
 	test("should run a command in an environment", async () => {
 		await runCommand("sh", [path.join(__dirname, "helpers", "e2e.sh")], {
 			env: "test",
@@ -52,7 +62,8 @@ describe("e2e", () => {
 		expect(output).toBe("Hello, world!\n")
 	})
 
-	afterAll(() => {
+	afterAll(async () => {
+		await cleanupProjectKeys()
 		unlinkSync(localEnvFilePath)
 		unlinkSync(encryptedEnvFilePath)
 		unlinkSync(projectFilePath)

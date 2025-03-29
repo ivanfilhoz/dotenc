@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: cd cli && pnpm install
 
+      - name: Run tests
+        run: cd cli && pnpm test
+
       - name: Check if version has been bumped
         id: version-check
         run: |

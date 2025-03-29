@@ -6,9 +6,10 @@ import { getProjectConfig } from "./projectConfig"
 
 const keysFile = path.join(os.homedir(), ".dotenc", "keys.json")
 
-export const getKey = async (environment: string) => {
+export const getKey = async (environment: string, index = 0) => {
 	if (process.env.DOTENC_KEY) {
-		return process.env.DOTENC_KEY
+		const keys = process.env.DOTENC_KEY.split(",")
+		return keys[index]
 	}
 
 	const { projectId } = await getProjectConfig()

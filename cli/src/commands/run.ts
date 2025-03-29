@@ -28,7 +28,7 @@ export const runCommand = async (
 	const environments = environmentArg.split(",")
 
 	const decryptedEnvs = await Promise.all(
-		environments.map(async (environment) => {
+		environments.map(async (environment, index) => {
 			const environmentFilePath = path.join(
 				process.cwd(),
 				`.env.${environment}.enc`,
@@ -39,7 +39,7 @@ export const runCommand = async (
 				return
 			}
 
-			const key = await getKey(environment)
+			const key = await getKey(environment, index)
 
 			const content = await decrypt(key, environmentFilePath)
 
