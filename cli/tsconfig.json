@@ -7,8 +7,5 @@
 		"strict": true,
 		"outDir": "dist"
 	},
-	"tsc-alias": {
-		"resolveFullPaths": true,
-	},
 	"include": ["src"]
 }

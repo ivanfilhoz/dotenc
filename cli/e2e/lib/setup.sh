@@ -19,7 +19,7 @@ run_cli() {
     local home_dir="$1"
     local workspace="$2"
     shift 2
-    (cd "$workspace" && HOME="$home_dir" tsx "$CLI_PATH" "$@")
+    (cd "$workspace" && HOME="$home_dir" bun "$CLI_PATH" "$@")
 }
 
 create_mock_editor() {

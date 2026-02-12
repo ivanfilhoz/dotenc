@@ -1,5 +1,5 @@
 import crypto from "node:crypto"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "bun:test"
 import { decryptData, encryptData } from "../helpers/crypto"
 import { decryptDataKey } from "../helpers/decryptDataKey"
 import { encryptDataKey } from "../helpers/encryptDataKey"

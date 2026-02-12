@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterAll, beforeAll, describe, expect, test, vi } from "vitest"
+import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from "bun:test"
 import { createCommand } from "../commands/create"
 import { editCommand } from "../commands/edit"
 import { grantCommand } from "../commands/grant"
@@ -51,20 +51,16 @@ const newPublicKeyPath = path.join(process.cwd(), ".dotenc", "alice.pub")
 const testSshDir = path.join(os.tmpdir(), ".dotenc-test-ssh")
 const testSshKeyPath = path.join(testSshDir, "id_ed25519")
 
-vi.mock("node:child_process", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("node:child_process")>()
-	return {
-		...actual,
-		// Mock for the edit command
-		execSync: () => {
-			const tempFilePath = path.join(os.tmpdir(), ".env.test")
-			writeFileSync(tempFilePath, "DOTENC_HELLO=Hello, world!")
-		},
-	}
-})
+mock.module("node:child_process", () => ({
+	// Mock for the edit command
+	execSync: () => {
+		const tempFilePath = path.join(os.tmpdir(), ".env.test")
+		writeFileSync(tempFilePath, "DOTENC_HELLO=Hello, world!")
+	},
+}))
 
 // Mock getPrivateKeys to return our test key instead of scanning ~/.ssh/
-vi.mock("../helpers/getPrivateKeys", () => ({
+mock.module("../helpers/getPrivateKeys", () => ({
 	getPrivateKeys: async () => [
 		{
 			name: "id_ed25519",
@@ -79,8 +75,8 @@ vi.mock("../helpers/getPrivateKeys", () => ({
 
 describe("e2e", () => {
 	beforeAll(async () => {
-		vi.spyOn(console, "log").mockImplementation(() => {})
-		vi.spyOn(process, "exit").mockImplementation(() => ({}) as never)
+		spyOn(console, "log").mockImplementation(() => {})
+		spyOn(process, "exit").mockImplementation(() => ({}) as never)
 
 		// Write the test SSH key to disk for init to use
 		if (!existsSync(testSshDir)) {

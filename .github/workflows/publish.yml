@@ -13,21 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: cd cli && pnpm install
+        run: cd cli && bun install
 
       - name: Run tests
-        run: cd cli && pnpm test
+        run: cd cli && bun test
 
   e2e:
     runs-on: ubuntu-latest
@@ -48,28 +41,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org/'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
-
       - name: Install dependencies
-        run: cd cli && pnpm install
+        run: cd cli && bun install
 
       - name: Check if version has been bumped
         id: version-check
         run: |
           VERSION=$(node -p "require('./cli/package.json').version")
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            NPM_VERSION=$(pnpm view $(node -p "require('./cli/package.json').name") version)
+            NPM_VERSION=$(npm view $(node -p "require('./cli/package.json').name") version)
           elif [ "${{ github.ref }}" == "refs/heads/beta" ]; then
-            NPM_VERSION=$(pnpm view $(node -p "require('./cli/package.json').name") dist-tags.beta)
+            NPM_VERSION=$(npm view $(node -p "require('./cli/package.json').name") dist-tags.beta)
           else
             echo "This branch is not configured for publishing."
             echo "bumped=false" >> $GITHUB_OUTPUT
@@ -86,15 +77,15 @@ jobs:
 
       - name: Build
         if: steps.version-check.outputs.bumped == 'true'
-        run: cd cli && pnpm build
+        run: cd cli && bun run build
 
       - name: Publish to npm
         if: steps.version-check.outputs.bumped == 'true'
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            cd cli && pnpm publish
+            cd cli && npm publish
           elif [ "${{ github.ref }}" == "refs/heads/beta" ]; then
-            cd cli && pnpm publish --tag beta
+            cd cli && npm publish --tag beta
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
