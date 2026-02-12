@@ -1,34 +1,31 @@
 import chalk from "chalk"
-import { getKey } from "../../helpers/key"
-import { getProjectConfig } from "../../helpers/projectConfig"
-import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
+import { getPrivateKeyByName } from "../../helpers/getPrivateKeyByName"
+import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 
-export const keyExportCommand = async (environmentArg: string) => {
-	const { projectId } = await getProjectConfig()
+type Options = {
+	public?: boolean
+}
 
-	if (!projectId) {
-		console.error('No project found. Run "dotenc init" to create one.')
-		return
-	}
+export const keyExportCommand = async (nameArg: string, options: Options) => {
+	let name = nameArg
 
-	let environment = environmentArg
-
-	if (!environment) {
-		environment = await chooseEnvironmentPrompt(
-			"What environment do you want to export the key from?",
+	if (!name) {
+		name = await choosePrivateKeyPrompt(
+			"What private key do you want to export?",
 		)
 	}
 
-	const key = await getKey(environment)
+	const key = await getPrivateKeyByName(name)
 
-	if (!key) {
-		console.error(
-			`\nNo key found for the ${chalk.cyan(environment)} environment.`,
-		)
+	if (options.public) {
+		const publicKeyOutput = key.export({ type: "spki", format: "pem" })
+
+		console.log(`Public key for ${chalk.cyan(name)}:\n`)
+		console.log(publicKeyOutput)
 		return
 	}
 
-	console.log(
-		`\nKey for the ${chalk.cyan(environment)} environment: ${chalk.gray(key)}`,
-	)
+	const privateKeyOutput = key.export({ type: "pkcs8", format: "pem" })
+	console.log(`Private key ${chalk.cyan(name)}:\n`)
+	console.log(privateKeyOutput)
 }

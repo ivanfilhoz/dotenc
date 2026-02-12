@@ -1,68 +1,95 @@
+import { existsSync } from "node:fs"
+import fs from "node:fs/promises"
+import path from "node:path"
 import chalk from "chalk"
-import crypto from "node:crypto"
-import { createEnvironment } from "../helpers/createEnvironment"
 import { createLocalEnvironment } from "../helpers/createLocalEnvironment"
 import { createProject } from "../helpers/createProject"
-import { environmentExists } from "../helpers/environmentExists"
-import { getEnvironmentNameSuggestion } from "../helpers/getEnvironmentNameSuggestion"
-import { addKey } from "../helpers/key"
-import { createEnvironmentPrompt } from "../prompts/createEnvironment"
+import { getPrivateKeys } from "../helpers/getPrivateKeys"
+import { choosePrivateKeyPrompt } from "../prompts/choosePrivateKey"
+import { keyAddCommand } from "./key/add"
+import { keyGenerateCommand } from "./key/generate"
 
-export const initCommand = async (environmentArg: string) => {
-	// Generate a unique project ID
-	const { projectId } = await createProject()
+export const initCommand = async () => {
+	// Check if a private key already exists
+	let privateKeys = await getPrivateKeys()
 
-	// Setup local environment
-	await createLocalEnvironment()
-
-	// Generate a random key
-	const key = crypto.randomBytes(32).toString("base64")
-
-	// Prompt for the environment name
-	let environment = environmentArg
-
-	if (!environment) {
-		environment = await createEnvironmentPrompt(
-			"What should the environment be named?",
-			getEnvironmentNameSuggestion(),
-		)
+	if (!privateKeys.length) {
+		console.log("To get started, let's create a new private key for you.")
+		await keyGenerateCommand("")
 	}
 
-	if (!environment) {
-		console.log(`${chalk.red("Error:")} no environment name provided`)
-		return
-	}
-
-	if (environmentExists(environment)) {
-		console.log(
-			`${chalk.red("Error:")} environment ${environment} already exists. To edit it, use ${chalk.gray(
-				`dotenc edit ${environment}`,
-			)}`,
+	privateKeys = await getPrivateKeys()
+	if (!privateKeys.length) {
+		console.error(
+			`${chalk.red("Error:")} to initialize a project, you need at least one private key.`,
 		)
 		return
 	}
 
-	await createEnvironment(environment, key)
+	// Bootstrap the project
+	if (!existsSync(path.join(process.cwd(), "dotenc.json"))) {
+		console.log("No project found. Let's create a new one.")
 
-	// Store the key
-	await addKey(projectId, environment, key)
+		try {
+			const { projectId } = await createProject()
+			fs.writeFile(
+				path.join(process.cwd(), "dotenc.json"),
+				JSON.stringify({ projectId }, null, 2),
+				"utf-8",
+			)
+		} catch (error) {
+			console.error(`${chalk.red("Error:")} failed to create the project.`)
+			console.error(
+				`${chalk.red("Details:")} ${error instanceof Error ? error.message : error}`,
+			)
+			return
+		}
+	}
+
+	// Add the public key to the project
+	let privateKeysToAdd: string[] = []
+
+	if (privateKeys.length === 1) {
+		privateKeysToAdd = privateKeys.map((key) => key.name)
+	} else {
+		privateKeysToAdd = await choosePrivateKeyPrompt(
+			"Which keys would you like to use in this project?",
+			true,
+		)
+	}
+
+	if (!privateKeysToAdd.length) {
+		console.error(
+			`${chalk.red("Error:")} no private keys selected. Please select at least one key.`,
+		)
+		return
+	}
+
+	for (const privateKeyName of privateKeysToAdd) {
+		console.log(`Adding key: ${chalk.cyan(privateKeyName)}`)
+		await keyAddCommand("", {
+			fromPrivateKey: privateKeyName,
+		})
+	}
+
+	// Create a local environment file for the user
+	try {
+		await createLocalEnvironment()
+	} catch (error) {
+		console.error(
+			`${chalk.red("Error:")} failed to create the local environment.`,
+		)
+		console.error(
+			`${chalk.red("Details:")} ${error instanceof Error ? error.message : error}`,
+		)
+		return
+	}
 
 	// Output success message
 	console.log(`${chalk.green("✔")} Initialization complete!`)
 	console.log("\nSome useful tips:")
-	const editCommand = chalk.gray(`dotenc edit ${environment}`)
-	console.log(`\n- To securely edit your environment:\t${editCommand}`)
-	const runCommand = chalk.gray(
-		`dotenc run -e ${environment} <command> [args...]`,
-	)
-	const runCommandWithEnv = chalk.gray(
-		`DOTENC_ENV=${environment} dotenc run <command> [args...]`,
-	)
-	console.log(
-		`- To run your application:\t\t${runCommand} or ${runCommandWithEnv}`,
-	)
-	const initCommand = chalk.gray("dotenc init [environment]")
-	console.log(`- To initialize a new environment:\t${initCommand}`)
+	const createCmd = chalk.gray("dotenc create [environment]")
+	console.log(`- To create a new environment:\t\t${createCmd}`)
 	console.log(
 		`- Use the git-ignored ${chalk.gray(".env")} file for local development. It will have priority over any encrypted environments.`,
 	)

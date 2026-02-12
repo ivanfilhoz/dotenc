@@ -1,41 +1,70 @@
-import { Command, Option } from "commander"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { Command, Option } from "commander"
 import { configCommand } from "./commands/config"
-import { debugCommand } from "./commands/debug"
+import { createCommand } from "./commands/create"
 import { editCommand } from "./commands/edit"
+import { grantCommand } from "./commands/grant"
 import { initCommand } from "./commands/init"
+import { keyAddCommand } from "./commands/key/add"
 import { keyExportCommand } from "./commands/key/export"
+import { keyGenerateCommand } from "./commands/key/generate"
 import { keyImportCommand } from "./commands/key/import"
-import { keyRotateCommand } from "./commands/key/rotate"
+import { keyShareCommand } from "./commands/key/share"
+import { revokeCommand } from "./commands/revoke"
 import { runCommand } from "./commands/run"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const pkg = JSON.parse(
-	fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"),
+	fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
 )
 
 const program = new Command()
 
 program.name("dotenc").description(pkg.description).version(pkg.version)
 
-if (process.env.NODE_ENV !== "production") {
-	program.command("debug").description("debug the CLI").action(debugCommand)
-}
-
 program
 	.command("init")
-	.argument("[environment]", "the environment to initialize")
-	.description("initialize a new environment")
+	.description("initialize a dotenc project in the current directory")
 	.action(initCommand)
+
+program
+	.command("create")
+	.argument("[environment]", "the name of the new environment")
+	.argument(
+		"[publicKey]",
+		"the name of the public key to grant access to the environment",
+	)
+	.description("create a new environment")
+	.action(createCommand)
 
 program
 	.command("edit")
 	.argument("[environment]", "the environment to edit")
 	.description("edit an environment")
 	.action(editCommand)
+
+program
+	.command("grant")
+	.argument("[environment]", "the environment to grant access to")
+	.argument(
+		"[publicKey]",
+		"the name of the public key to grant access to the environment",
+	)
+	.description("grant access to an environment")
+	.action(grantCommand)
+
+program
+	.command("revoke")
+	.argument("[environment]", "the environment to revoke access from")
+	.argument(
+		"[publicKey]",
+		"the name of the public key to revoke access from the environment",
+	)
+	.description("revoke access from an environment")
+	.action(revokeCommand)
 
 program
 	.command("run")
@@ -50,25 +79,59 @@ program
 	.description("run a command in an environment")
 	.action(runCommand)
 
-const key = program.command("key").description("manage stored keys")
+const key = program.command("key").description("manage keys")
+
+key
+	.command("generate")
+	.argument("[name]", "the name of the new key")
+	.description("generate a new private key")
+	.action(keyGenerateCommand)
+
+key
+	.command("share")
+	.argument("[name]", "the name of the key to share")
+	.description("generate a shareable public key from a private key")
+	.action(keyShareCommand)
+
+key
+	.command("add")
+	.argument(
+		"[name]",
+		"if provided, the public key will be derived from one of your existing private keys",
+	)
+	.addOption(new Option("-f, --from-file <file>", "add the key from a file"))
+	.addOption(
+		new Option("-s, --from-string <string>", "add a public key from a string"),
+	)
+	.description("add a public key to the project")
+	.action(keyAddCommand)
+
 key
 	.command("import")
-	.argument("[environment]", "the environment to import the key to")
-	.argument("[key]", "the key to import")
-	.description("import a key for an environment")
+	.argument("[name]", "the name of the new private key")
+	.addOption(new Option("-f, --from-file <file>", "import the key from a file"))
+	.addOption(
+		new Option(
+			"-s, --from-string <string>",
+			"import a private key from a string",
+		),
+	)
+	.description("import a key to your local key store")
 	.action(keyImportCommand)
 
 key
 	.command("export")
-	.argument("[environment]", "the environment to export the key from")
-	.description("export a key from an environment")
+	.argument("[name]", "the name of the private key to export")
+	.addOption(
+		new Option(
+			"-p, --public",
+			"export a generated public key instead of the private key",
+		),
+	)
+	.description(
+		"export a private key from the local key store or its derived public key",
+	)
 	.action(keyExportCommand)
-
-key
-	.command("rotate")
-	.argument("[environment]", "the environment to rotate the key for")
-	.description("rotate a key for an environment")
-	.action(keyRotateCommand)
 
 program
 	.command("config")

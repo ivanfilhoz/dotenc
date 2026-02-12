@@ -1,98 +1,44 @@
 /**
  * Parses a .env file content and returns an object of key-value pairs.
- * Supports multiline values when they are properly quoted.
- * Supports nested quotes (e.g., "value with 'quotes' inside" or 'value with "quotes" inside')
+ * Credits to dotenv: https://github.com/motdotla/dotenv/blob/master/lib/main.js
  */
-export const parseEnv = (content: string) => {
-	const env = {} as Record<string, string>
-	let currentKey = ""
-	let currentValue = ""
-	let isInSingleQuotes = false
-	let isInDoubleQuotes = false
-	let isInComment = false
-	let isInKey = true
 
-	const commit = (trim: boolean) => {
-		if (currentKey.trim()) {
-			env[currentKey.trim()] = trim ? currentValue.trim() : currentValue
+const LINE =
+	/(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/gm
+
+// Parse src into an Object
+export const parseEnv = (lines: string) => {
+	const obj: Record<string, string> = {}
+
+	// Convert line breaks to same format
+	lines = lines.replace(/\r\n?/gm, "\n")
+
+	let match: RegExpExecArray | null
+	// biome-ignore lint/suspicious/noAssignInExpressions: we need it
+	while ((match = LINE.exec(lines)) != null) {
+		const key = match[1]
+
+		// Default undefined or null to empty string
+		let value = match[2] || ""
+
+		// Remove whitespace
+		value = value.trim()
+
+		// Check if double quoted
+		const maybeQuote = value[0]
+
+		// Remove surrounding quotes
+		value = value.replace(/^(['"`])([\s\S]*)\1$/gm, "$2")
+
+		// Expand newlines if double quoted
+		if (maybeQuote === '"') {
+			value = value.replace(/\\n/g, "\n")
+			value = value.replace(/\\r/g, "\r")
 		}
-		currentKey = ""
-		currentValue = ""
-		isInSingleQuotes = false
-		isInDoubleQuotes = false
-		isInComment = false
-		isInKey = true
+
+		// Add to object
+		obj[key] = value
 	}
 
-	for (const char of content) {
-		// Handle single quoted content
-		if (isInSingleQuotes) {
-			if (char === "'") {
-				commit(false)
-			} else {
-				currentValue += char
-			}
-			continue
-		}
-
-		// Handle double quoted content
-		if (isInDoubleQuotes) {
-			if (char === '"') {
-				commit(false)
-			} else {
-				currentValue += char
-			}
-			continue
-		}
-
-		// Handle comments
-		if (isInComment) {
-			if (char === "\n") {
-				isInComment = false
-			}
-			continue
-		}
-
-		if (char === "#") {
-			isInComment = true
-			continue
-		}
-
-		// Handle keys
-		if (isInKey) {
-			if (char === "=") {
-				isInKey = false
-			} else {
-				currentKey += char
-			}
-			continue
-		}
-
-		// Handle newlines
-		if (char === "\n") {
-			commit(true)
-		}
-
-		// Handle single quote opening
-		if (char === "'") {
-			currentValue = ""
-			isInSingleQuotes = true
-			continue
-		}
-
-		// Handle double quote opening
-		if (char === '"') {
-			currentValue = ""
-			isInDoubleQuotes = true
-			continue
-		}
-
-		// Handle value
-		currentValue += char
-	}
-
-	// Handle EOF
-	commit(true)
-
-	return env
+	return obj
 }

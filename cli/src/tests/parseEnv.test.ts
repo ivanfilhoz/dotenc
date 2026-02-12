@@ -15,14 +15,16 @@ describe("parseEnv", () => {
 	test("should parse a complex env file", () => {
 		const env = parseEnv(`FOO="
 bar"
-  BAR='baz
+  BAR="baz
 foo
-'BAZ=123
+"
+BAZ=123
 
 # Comment here "!#' foo
 
 HELLO = WORLD
 DOTENC_HELLO = "Hello, world!"
+WITH_QUOTES = "Test with "quotes""
 `)
 
 		expect(env.FOO).toBe("\nbar")
@@ -30,5 +32,6 @@ DOTENC_HELLO = "Hello, world!"
 		expect(env.BAZ).toBe("123")
 		expect(env.HELLO).toBe("WORLD")
 		expect(env.DOTENC_HELLO).toBe("Hello, world!")
+		expect(env.WITH_QUOTES).toBe('Test with "quotes"')
 	})
 })

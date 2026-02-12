@@ -2,8 +2,9 @@
 	"editor.formatOnSave": true,
 	"editor.defaultFormatter": "biomejs.biome",
 	"editor.codeActionsOnSave": {
-		"source.organizeImports": "explicit",
-		"source.fixAll": "explicit"
+		"source.organizeImports.biome": "explicit",
+		"source.fixAll.biome": "explicit",
+		"source.removeUnusedImports": "explicit"
 	},
 	"[typescript]": {
 		"editor.defaultFormatter": "biomejs.biome"
@@ -11,5 +12,5 @@
 	"[javascript]": {
 		"editor.defaultFormatter": "biomejs.biome"
 	},
-	"typescript.tsdk": "./node_modules/typescript/lib"
+	"typescript.tsdk": "./cli/node_modules/typescript/lib"
 }

@@ -1,15 +1,12 @@
 import inquirer from "inquirer"
-import fs from "node:fs/promises"
+import { getEnvironments } from "../helpers/getEnvironments"
 
 export const chooseEnvironmentPrompt = async (message: string) => {
-	const files = await fs.readdir(process.cwd())
-	const envFiles = files.filter(
-		(file) => file.startsWith(".env.") && file.endsWith(".enc"),
-	)
+	const environments = await getEnvironments()
 
-	if (!envFiles.length) {
+	if (!environments.length) {
 		console.log(
-			'No environment files found. To create a new environment, run "dotenc init"',
+			'No environment files found. To create a new environment, run "dotenc create"',
 		)
 	}
 
@@ -18,11 +15,9 @@ export const chooseEnvironmentPrompt = async (message: string) => {
 			type: "list",
 			name: "environment",
 			message,
-			choices: envFiles.map((file) =>
-				file.replace(".env.", "").replace(".enc", ""),
-			),
+			choices: environments,
 		},
 	])
 
-	return result.environment
+	return result.environment as string
 }

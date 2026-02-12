@@ -1,5 +1,65 @@
 import crypto from "node:crypto"
-import fs from "node:fs/promises"
+import { promisify } from "node:util"
+
+const generateKeyPairPromise = promisify(crypto.generateKeyPair)
+
+/**
+ * Generates a new key pair
+ */
+export const generateKeyPair = async () => {
+	const { privateKey, publicKey } = await generateKeyPairPromise("rsa", {
+		modulusLength: 2048,
+	})
+
+	return {
+		privateKey: privateKey.export({
+			type: "pkcs8",
+			format: "pem",
+		}),
+		publicKey: publicKey.export({
+			type: "spki",
+			format: "pem",
+		}),
+	}
+}
+
+/**
+ * Creates a new data key
+ */
+export const createDataKey = () => crypto.randomBytes(32)
+
+/**
+ * Encrypts a data key using a public key
+ */
+export const encryptDataKey = (publicKey: string, dataKey: Buffer) => {
+	const publicKeyObject = crypto.createPublicKey(publicKey)
+
+	return crypto.publicEncrypt(
+		{
+			key: publicKeyObject,
+			padding: crypto.constants.RSA_PKCS1_PADDING,
+		},
+		dataKey,
+	)
+}
+
+/**
+ * Decrypts a data key using a private key
+ */
+export const decryptDataKey = (
+	privateKey: string,
+	encryptedDataKey: Buffer,
+) => {
+	const privateKeyObject = crypto.createPrivateKey(privateKey)
+
+	return crypto.privateDecrypt(
+		{
+			key: privateKeyObject,
+			padding: crypto.constants.RSA_PKCS1_PADDING,
+		},
+		encryptedDataKey,
+	)
+}
 
 // AES-256-GCM constants
 const ALGORITHM = "aes-256-gcm"
@@ -8,14 +68,11 @@ const AUTH_TAG_LENGTH = 16 // 128 bits, standard for GCM
 
 /**
  * Encrypts a file using AES-256-GCM.
- * @param {string} key - The encryption key (must be 32 bytes for AES-256).
+ * @param {Buffer} key - The encryption key (must be 32 bytes for AES-256).
  * @param {string} input - The input string to encrypt.
- * @param {string} outputFile - Path to the output encrypted file.
  */
-export async function encrypt(key: string, input: string, outputFile: string) {
-	const keyBuffer = Buffer.from(key, "base64")
-
-	if (keyBuffer.length !== 32) {
+export async function encryptData(key: Buffer, input: string) {
+	if (key.length !== 32) {
 		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
 
@@ -23,7 +80,7 @@ export async function encrypt(key: string, input: string, outputFile: string) {
 	const iv = crypto.randomBytes(IV_LENGTH)
 
 	// Create the cipher
-	const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv)
+	const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
 
 	// Encrypt the data
 	const encrypted = Buffer.concat([cipher.update(input), cipher.final()])
@@ -32,42 +89,31 @@ export async function encrypt(key: string, input: string, outputFile: string) {
 	const authTag = cipher.getAuthTag()
 
 	// Combine IV + encrypted content + auth tag
-	const result = Buffer.concat([iv, encrypted, authTag])
-
-	// Write the encrypted file
-	await fs.writeFile(outputFile, result)
+	return Buffer.concat([iv, encrypted, authTag])
 }
 
 /**
  * Decrypts a file using AES-256-GCM.
- * @param {string} key - The decryption key (must be 32 bytes for AES-256).
- * @param {string} inputFile - The input file to decrypt.
+ * @param {Buffer} key - The decryption key (must be 32 bytes for AES-256).
+ * @param {string} input - The encrypted content to decrypt.
  */
-export async function decrypt(key: string, inputFile: string) {
-	const keyBuffer = Buffer.from(key, "base64")
-
-	if (keyBuffer.length !== 32) {
+export async function decryptData(key: Buffer, input: Buffer) {
+	if (key.length !== 32) {
 		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
 
-	// Read the encrypted file
-	const encryptedData = await fs.readFile(inputFile)
-
 	// Extract the IV from the start of the file
-	const iv = encryptedData.subarray(0, IV_LENGTH)
+	const iv = input.subarray(0, IV_LENGTH)
 
 	// Extract the auth tag from the end of the file
-	const authTag = encryptedData.subarray(encryptedData.length - AUTH_TAG_LENGTH)
+	const authTag = input.subarray(input.length - AUTH_TAG_LENGTH)
 
 	// Extract the ciphertext (everything between IV and auth tag)
-	const ciphertext = encryptedData.subarray(
-		IV_LENGTH,
-		encryptedData.length - AUTH_TAG_LENGTH,
-	)
+	const ciphertext = input.subarray(IV_LENGTH, input.length - AUTH_TAG_LENGTH)
 
 	try {
 		// Create the decipher
-		const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv)
+		const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
 		decipher.setAuthTag(authTag)
 
 		// Decrypt the ciphertext

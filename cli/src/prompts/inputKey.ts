@@ -14,5 +14,5 @@ export const inputKeyPrompt = async (
 		},
 	])
 
-	return result.key
+	return result.key as string
 }

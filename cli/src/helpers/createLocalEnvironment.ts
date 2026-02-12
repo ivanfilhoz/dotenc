@@ -8,7 +8,7 @@ export const createLocalEnvironment = async () => {
 
 	let gitignoreContent: string[] = []
 	if (existsSync(gitignorePath)) {
-		gitignoreContent = (await fs.readFile(gitignorePath, "utf8")).split("\n")
+		gitignoreContent = (await fs.readFile(gitignorePath, "utf-8")).split("\n")
 	}
 
 	// Check if the .env entry already exists (ignoring comments and whitespace)
@@ -24,6 +24,6 @@ export const createLocalEnvironment = async () => {
 
 	const envPath = path.join(process.cwd(), ".env")
 	if (!existsSync(envPath)) {
-		await fs.writeFile(envPath, "# Local environment variables\n")
+		await fs.writeFile(envPath, "# Local environment variables\n", "utf-8")
 	}
 }

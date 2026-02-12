@@ -1,19 +1,28 @@
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest"
+import { createCommand } from "../commands/create"
 import { editCommand } from "../commands/edit"
+import { grantCommand } from "../commands/grant"
 import { initCommand } from "../commands/init"
-import { keyRotateCommand } from "../commands/key/rotate"
+import { keyAddCommand } from "../commands/key/add"
+import { keyGenerateCommand } from "../commands/key/generate"
+import { revokeCommand } from "../commands/revoke"
 import { runCommand } from "../commands/run"
-import { getKey } from "../helpers/key"
-import { cleanupProjectKeys } from "./helpers/cleanupProjectKeys"
+import { generateKeyPair } from "../helpers/crypto"
+import { getKeyFingerprint } from "../helpers/getKeyFingerprint"
+import { environmentSchema } from "../schemas/environment"
+import { unlinkIfExists } from "./helpers/unlinkIfExists"
 import { waitForFile } from "./helpers/waitForFile"
 
 const localEnvFilePath = path.join(process.cwd(), ".env")
 const encryptedEnvFilePath = path.join(process.cwd(), ".env.test.enc")
 const projectFilePath = path.join(process.cwd(), "dotenc.json")
 const outputFilePath = path.join(process.cwd(), "e2e.txt")
+const privateKeyPath = path.join(os.homedir(), ".dotenc", "john.pem")
+const publicKeyPath = path.join(process.cwd(), ".dotenc", "john.pub")
+const newPublicKeyPath = path.join(process.cwd(), ".dotenc", "alice.pub")
 
 vi.mock("node:child_process", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("node:child_process")>()
@@ -31,13 +40,24 @@ describe("e2e", () => {
 	beforeAll(() => {
 		vi.spyOn(console, "log").mockImplementation(() => {})
 		vi.spyOn(process, "exit").mockImplementation(() => ({}) as never)
+		unlinkIfExists(privateKeyPath)
 	})
 
-	test("should initialize an environment", async () => {
-		await initCommand("test")
+	test("should generate a private key", async () => {
+		await keyGenerateCommand("john")
+		expect(existsSync(privateKeyPath)).toBe(true)
+	})
+
+	test("should initialize a project", async () => {
+		await initCommand()
 		expect(existsSync(localEnvFilePath)).toBe(true)
-		expect(existsSync(encryptedEnvFilePath)).toBe(true)
 		expect(existsSync(projectFilePath)).toBe(true)
+		expect(existsSync(publicKeyPath)).toBe(true)
+	})
+
+	test("should create a new environment", async () => {
+		await createCommand("test", "john")
+		expect(existsSync(encryptedEnvFilePath)).toBe(true)
 	})
 
 	test("should edit an environment", async () => {
@@ -45,13 +65,6 @@ describe("e2e", () => {
 		await editCommand("test")
 		const editedContent = readFileSync(encryptedEnvFilePath, "utf-8")
 		expect(editedContent).not.toBe(initialContent)
-	})
-
-	test("should rotate a key", async () => {
-		const currentKey = await getKey("test")
-		await keyRotateCommand("test")
-		const rotatedKey = await getKey("test")
-		expect(rotatedKey).not.toBe(currentKey)
 	})
 
 	test("should run a command in an environment", async () => {
@@ -62,11 +75,45 @@ describe("e2e", () => {
 		expect(output).toBe("Hello, world!\n")
 	})
 
+	test("should add a new public key", async () => {
+		const { publicKey } = await generateKeyPair()
+		await keyAddCommand("alice", {
+			fromString: publicKey.toString(),
+		})
+		expect(existsSync(newPublicKeyPath)).toBe(true)
+	})
+
+	test("should grant access to an environment", async () => {
+		const fingerprint = getKeyFingerprint(readFileSync(newPublicKeyPath))
+		await grantCommand("test", "alice")
+		const content = readFileSync(encryptedEnvFilePath, "utf-8")
+		const parsedContent = environmentSchema.parse(JSON.parse(content))
+		expect(parsedContent.keys).toContainEqual({
+			name: "alice",
+			fingerprint,
+			encryptedDataKey: expect.any(String),
+		})
+	})
+
+	test("should revoke access from an environment", async () => {
+		const fingerprint = getKeyFingerprint(readFileSync(newPublicKeyPath))
+		await revokeCommand("test", "alice")
+		const content = readFileSync(encryptedEnvFilePath, "utf-8")
+		const parsedContent = environmentSchema.parse(JSON.parse(content))
+		expect(parsedContent.keys).not.toContainEqual({
+			name: "alice",
+			fingerprint,
+			encryptedDataKey: expect.any(String),
+		})
+	})
+
 	afterAll(async () => {
-		await cleanupProjectKeys()
-		unlinkSync(localEnvFilePath)
-		unlinkSync(encryptedEnvFilePath)
-		unlinkSync(projectFilePath)
-		unlinkSync(outputFilePath)
+		unlinkIfExists(privateKeyPath)
+		unlinkIfExists(localEnvFilePath)
+		unlinkIfExists(encryptedEnvFilePath)
+		unlinkIfExists(projectFilePath)
+		unlinkIfExists(outputFilePath)
+		unlinkIfExists(publicKeyPath)
+		unlinkIfExists(newPublicKeyPath)
 	})
 })

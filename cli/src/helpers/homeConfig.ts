@@ -14,9 +14,7 @@ const configPath = path.join(os.homedir(), ".dotenc", "config.json")
 
 export const setHomeConfig = async (config: HomeConfig) => {
 	const parsedConfig = homeConfigSchema.parse(config)
-	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), {
-		mode: 0o600,
-	})
+	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), "utf-8")
 }
 
 export const getHomeConfig = async () => {

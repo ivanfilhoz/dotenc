@@ -13,9 +13,7 @@ const configPath = path.join(process.cwd(), "dotenc.json")
 
 export const setProjectConfig = async (config: ProjectConfig) => {
 	const parsedConfig = projectConfigSchema.parse(config)
-	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), {
-		mode: 0o600,
-	})
+	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), "utf-8")
 }
 
 export const getProjectConfig = async () => {
