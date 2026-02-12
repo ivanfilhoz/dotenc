@@ -5,15 +5,14 @@ import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
+import { getPrivateKeys } from "../../helpers/getPrivateKeys"
+import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
 import { getProjectConfig } from "../../helpers/projectConfig"
-import { parseShareableKey } from "../../helpers/share"
-import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
 import { inputNamePrompt } from "../../prompts/inputName"
 
 type Options = {
-	fromShare?: string
-	fromPrivateKey?: string
+	fromSsh?: string
 	fromFile?: string
 	fromString?: string
 }
@@ -27,25 +26,45 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 	}
 
 	let publicKey: KeyObject | undefined
-	let filePath: string | undefined
 
-	if (options?.fromPrivateKey) {
-		if (
-			!existsSync(
-				path.join(os.homedir(), ".dotenc", `${options.fromPrivateKey}.pem`),
-			)
-		) {
+	if (options?.fromSsh) {
+		// Parse SSH key file (private or public)
+		const sshPath = options.fromSsh.startsWith("~")
+			? path.join(os.homedir(), options.fromSsh.slice(1))
+			: options.fromSsh
+
+		if (!existsSync(sshPath)) {
 			console.error(
-				`Private key ${chalk.cyan(options.fromPrivateKey)} does not exist. Please provide a valid private key name.`,
+				`File ${chalk.cyan(sshPath)} does not exist. Please provide a valid SSH key path.`,
 			)
 			return
 		}
 
-		filePath = path.join(
-			os.homedir(),
-			".dotenc",
-			`${options.fromPrivateKey}.pem`,
-		)
+		const keyContent = await fs.readFile(sshPath, "utf-8")
+		try {
+			// Try as private key first, derive public key
+			const privateKey = crypto.createPrivateKey(keyContent)
+			publicKey = crypto.createPublicKey(privateKey)
+		} catch {
+			// Fallback: try OpenSSH private key format
+			const parsed = parseOpenSSHPrivateKey(keyContent)
+			if (parsed) {
+				publicKey = crypto.createPublicKey(parsed)
+			} else {
+				try {
+					// Try as public key
+					publicKey = crypto.createPublicKey(keyContent)
+				} catch (error) {
+					console.error(
+						"Invalid SSH key format. Please provide a valid SSH key file.",
+					)
+					console.error(
+						`Details: ${error instanceof Error ? error.message : error}`,
+					)
+					return
+				}
+			}
+		}
 	}
 
 	if (options?.fromFile) {
@@ -56,46 +75,71 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			return
 		}
 
-		filePath = options.fromFile
+		const keyContent = await fs.readFile(options.fromFile, "utf-8")
+		try {
+			publicKey = crypto.createPublicKey(keyContent)
+		} catch {
+			try {
+				const privateKey = crypto.createPrivateKey(keyContent)
+				publicKey = crypto.createPublicKey(privateKey)
+			} catch {
+				// Fallback: try OpenSSH private key format
+				const parsed = parseOpenSSHPrivateKey(keyContent)
+				if (parsed) {
+					publicKey = crypto.createPublicKey(parsed)
+				} else {
+					console.error(
+						"Invalid key format. Please provide a valid PEM formatted public or private key.",
+					)
+					return
+				}
+			}
+		}
 	}
 
 	if (options?.fromString) {
 		try {
 			publicKey = crypto.createPublicKey(options.fromString)
-		} catch (error) {
-			console.error(
-				"Invalid public key format. Please provide a valid PEM formatted public key.",
-			)
-			console.error(
-				`Details: ${error instanceof Error ? error.message : error}`,
-			)
-			return
+		} catch {
+			try {
+				const privateKey = crypto.createPrivateKey(options.fromString)
+				publicKey = crypto.createPublicKey(privateKey)
+			} catch {
+				// Fallback: try OpenSSH private key format
+				const parsed = parseOpenSSHPrivateKey(options.fromString)
+				if (parsed) {
+					publicKey = crypto.createPublicKey(parsed)
+				} else {
+					console.error(
+						"Invalid key format. Please provide a valid PEM formatted public or private key.",
+					)
+					return
+				}
+			}
 		}
 	}
 
-	if (options?.fromShare) {
-		try {
-			publicKey = parseShareableKey(options.fromShare)
-		} catch (error) {
-			console.error(
-				"Invalid public key format. Please ensure the shareable key was copied correctly.",
-			)
-			console.error(
-				`Details: ${error instanceof Error ? error.message : error}`,
-			)
-			return
-		}
-	}
+	// Interactive mode
+	if (!publicKey) {
+		const sshKeys = await getPrivateKeys()
 
-	// dotenc add
-	if (!filePath && !publicKey) {
+		const choices: { name: string; value: string }[] = sshKeys.map(
+			(key) => ({
+				name: `${key.name} (${key.algorithm})`,
+				value: key.name,
+			}),
+		)
+
 		const modePrompt = await inquirer.prompt({
 			type: "list",
 			name: "mode",
-			message: "Would you like to add one of your own keys or paste a new one?",
+			message:
+				"Would you like to add one of your SSH keys or paste a public key?",
 			choices: [
-				{ name: "Choose from my own keys", value: "choose" },
-				{ name: "Paste a new public key", value: "paste" },
+				...(choices.length
+					? [{ name: "Choose from my SSH keys", value: "choose" }]
+					: []),
+				{ name: "Paste a public key (PEM format)", value: "paste" },
 			],
 		})
 
@@ -121,32 +165,30 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 				return
 			}
 		} else {
-			const privateKeyName = await choosePrivateKeyPrompt(
-				"What key do you want to add?",
-			)
+			const keyPrompt = await inquirer.prompt({
+				type: "list",
+				name: "key",
+				message: "Which SSH key do you want to add?",
+				choices,
+			})
 
-			filePath = path.join(os.homedir(), ".dotenc", `${privateKeyName}.pem`)
+			const selectedKey = sshKeys.find(
+				(k) => k.name === keyPrompt.key,
+			)
+			if (!selectedKey) {
+				console.error("SSH key not found.")
+				return
+			}
+
+			publicKey = crypto.createPublicKey(selectedKey.privateKey)
+			// Use SSH key filename as default name if no nameArg
+			if (!nameArg) {
+				nameArg = selectedKey.name
+			}
 		}
 	}
 
-	// all cases except "paste"
-	if (filePath) {
-		const keyInput = await fs.readFile(filePath, "utf-8")
-
-		try {
-			publicKey = crypto.createPublicKey(keyInput)
-		} catch (error) {
-			console.error(
-				"Invalid key format. Please provide a valid PEM formatted public or private key.",
-			)
-			console.error(
-				`Details: ${error instanceof Error ? error.message : error}`,
-			)
-			return
-		}
-	}
-
-	// unexpected path - if ever reached, it's a bug
+	// unexpected path
 	if (!publicKey) {
 		console.error(
 			"An unexpected error occurred. No public key was inferred from the provided input.",
@@ -164,22 +206,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		await fs.mkdir(path.join(process.cwd(), ".dotenc"))
 	}
 
-	// try to use the same name as the private key if provided
-	let name = nameArg || options?.fromPrivateKey
-	if (options?.fromPrivateKey && !nameArg) {
-		if (
-			existsSync(
-				path.join(process.cwd(), ".dotenc", `${options.fromPrivateKey}.pub`),
-			)
-		) {
-			console.log(
-				"A public key with the same name as the private key already exists. Let's pick a new name.",
-			)
-		} else {
-			name = options.fromPrivateKey
-		}
-	}
-
+	let name = nameArg
 	if (!name) {
 		name = await inputNamePrompt(
 			"What name do you want to give to the new public key?",

@@ -1,27 +1,16 @@
-import crypto from "node:crypto"
-import fs from "node:fs/promises"
-import os from "node:os"
-import path from "node:path"
+import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 
-export const getPrivateKeyByName = async (name: string) => {
-	const filePath = path.join(os.homedir(), ".dotenc", `${name}.pem`)
-	let privateKeyInput: string
+export const getPrivateKeyByName = async (
+	name: string,
+): Promise<PrivateKeyEntry> => {
+	const privateKeys = await getPrivateKeys()
+	const entry = privateKeys.find((k) => k.name === name)
 
-	try {
-		await fs.access(filePath)
-		privateKeyInput = await fs.readFile(filePath, "utf-8")
-	} catch (error) {
-		throw new Error(`No private key found with name ${name}.`, {
-			cause: error,
-		})
-	}
-
-	try {
-		return crypto.createPrivateKey(privateKeyInput)
-	} catch (error) {
+	if (!entry) {
 		throw new Error(
-			`Invalid private key format for ${name}. Please provide a valid PEM formatted private key.`,
-			{ cause: error },
+			`No SSH private key found with name ${name}. Available keys: ${privateKeys.map((k) => k.name).join(", ") || "none"}`,
 		)
 	}
+
+	return entry
 }

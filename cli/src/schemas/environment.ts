@@ -6,6 +6,7 @@ export const environmentSchema = z.object({
 			name: z.string(),
 			fingerprint: z.string(), // SHA-256 fingerprint of the public key
 			encryptedDataKey: z.string(), // Base64 encoded encrypted data key
+			algorithm: z.enum(["rsa", "ed25519"]),
 		}),
 	),
 	encryptedContent: z.string(), // Base64 encoded encrypted content

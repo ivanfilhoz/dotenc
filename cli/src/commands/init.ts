@@ -1,27 +1,21 @@
+import crypto from "node:crypto"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
+import inquirer from "inquirer"
 import { createLocalEnvironment } from "../helpers/createLocalEnvironment"
 import { createProject } from "../helpers/createProject"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
-import { choosePrivateKeyPrompt } from "../prompts/choosePrivateKey"
 import { keyAddCommand } from "./key/add"
-import { keyGenerateCommand } from "./key/generate"
 
 export const initCommand = async () => {
-	// Check if a private key already exists
-	let privateKeys = await getPrivateKeys()
+	// Scan for SSH keys
+	const privateKeys = await getPrivateKeys()
 
-	if (!privateKeys.length) {
-		console.log("To get started, let's create a new private key for you.")
-		await keyGenerateCommand("")
-	}
-
-	privateKeys = await getPrivateKeys()
 	if (!privateKeys.length) {
 		console.error(
-			`${chalk.red("Error:")} to initialize a project, you need at least one private key.`,
+			`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
 		)
 		return
 	}
@@ -32,7 +26,7 @@ export const initCommand = async () => {
 
 		try {
 			const { projectId } = await createProject()
-			fs.writeFile(
+			await fs.writeFile(
 				path.join(process.cwd(), "dotenc.json"),
 				JSON.stringify({ projectId }, null, 2),
 				"utf-8",
@@ -46,29 +40,50 @@ export const initCommand = async () => {
 		}
 	}
 
-	// Add the public key to the project
-	let privateKeysToAdd: string[] = []
+	// Let user choose which SSH keys to add
+	let keysToAdd: string[] = []
 
 	if (privateKeys.length === 1) {
-		privateKeysToAdd = privateKeys.map((key) => key.name)
+		keysToAdd = [privateKeys[0].name]
 	} else {
-		privateKeysToAdd = await choosePrivateKeyPrompt(
-			"Which keys would you like to use in this project?",
-			true,
-		)
+		const result = await inquirer.prompt([
+			{
+				type: "checkbox",
+				name: "keys",
+				message: "Which SSH keys would you like to use in this project?",
+				choices: privateKeys.map((key) => ({
+					name: `${key.name} (${key.algorithm})`,
+					value: key.name,
+				})),
+			},
+		])
+		keysToAdd = result.keys
 	}
 
-	if (!privateKeysToAdd.length) {
+	if (!keysToAdd.length) {
 		console.error(
-			`${chalk.red("Error:")} no private keys selected. Please select at least one key.`,
+			`${chalk.red("Error:")} no SSH keys selected. Please select at least one key.`,
 		)
 		return
 	}
 
-	for (const privateKeyName of privateKeysToAdd) {
-		console.log(`Adding key: ${chalk.cyan(privateKeyName)}`)
-		await keyAddCommand("", {
-			fromPrivateKey: privateKeyName,
+	// Derive and add public keys to the project
+	for (const keyName of keysToAdd) {
+		const keyEntry = privateKeys.find((k) => k.name === keyName)
+		if (!keyEntry) continue
+
+		console.log(
+			`Adding key: ${chalk.cyan(keyName)} (${keyEntry.algorithm})`,
+		)
+
+		// Derive public key from private key
+		const publicKey = crypto.createPublicKey(keyEntry.privateKey)
+		const publicKeyPem = publicKey
+			.export({ type: "spki", format: "pem" })
+			.toString()
+
+		await keyAddCommand(keyName, {
+			fromString: publicKeyPem,
 		})
 	}
 

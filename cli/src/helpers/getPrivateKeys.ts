@@ -4,66 +4,172 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { getKeyFingerprint } from "./getKeyFingerprint"
+import { parseOpenSSHPrivateKey } from "./parseOpenSSHKey"
+
+export type PrivateKeyEntry = {
+	name: string
+	privateKey: crypto.KeyObject
+	fingerprint: string
+	algorithm: "rsa" | "ed25519"
+	rawSeed?: Buffer
+	rawPublicKey?: Buffer
+}
+
+const SSH_KEY_FILES = [
+	"id_ed25519",
+	"id_rsa",
+	"id_ecdsa",
+	"id_ecdsa_sk",
+	"id_ed25519_sk",
+	"id_dsa",
+]
+
+function extractEd25519RawKeys(privateKey: crypto.KeyObject): {
+	rawSeed: Buffer
+	rawPublicKey: Buffer
+} {
+	const privDer = privateKey.export({ type: "pkcs8", format: "der" })
+	const rawSeed = Buffer.from(privDer.subarray(privDer.length - 32))
+
+	const publicKey = crypto.createPublicKey(privateKey)
+	const pubDer = publicKey.export({ type: "spki", format: "der" })
+	const rawPublicKey = Buffer.from(pubDer.subarray(pubDer.length - 32))
+
+	return { rawSeed, rawPublicKey }
+}
+
+function detectAlgorithm(
+	privateKey: crypto.KeyObject,
+): "rsa" | "ed25519" | null {
+	const keyType = privateKey.asymmetricKeyType
+	if (keyType === "rsa") return "rsa"
+	if (keyType === "ed25519") return "ed25519"
+	return null
+}
+
+function tryParsePrivateKey(
+	keyContent: string,
+): crypto.KeyObject | null {
+	try {
+		return crypto.createPrivateKey(keyContent)
+	} catch {
+		// Fallback: parse OpenSSH format that Node/OpenSSL can't handle natively
+		return parseOpenSSHPrivateKey(keyContent)
+	}
+}
 
 export const getPrivateKeys = async () => {
-	if (!existsSync(path.join(os.homedir(), ".dotenc"))) {
-		return []
-	}
+	const privateKeys: PrivateKeyEntry[] = []
 
-	const files = await fs.readdir(path.join(os.homedir(), ".dotenc"))
-
-	const privateKeys: {
-		name: string
-		privateKey: crypto.KeyObject
-		fingerprint: string
-	}[] = []
-
+	// Check DOTENC_PRIVATE_KEY env var first
 	if (process.env.DOTENC_PRIVATE_KEY) {
+		let privateKey: crypto.KeyObject | null = null
 		try {
-			const privateKey = crypto.createPrivateKey(process.env.DOTENC_PRIVATE_KEY)
-			privateKeys.push({
-				name: "env.DOTENC_PRIVATE_KEY",
-				privateKey,
-				fingerprint: getKeyFingerprint(privateKey),
-			})
-		} catch (error: unknown) {
-			console.error(
-				`Invalid private key format in DOTENC_PRIVATE_KEY environment variable. Please provide a valid PEM formatted private key.`,
+			privateKey = crypto.createPrivateKey(
+				process.env.DOTENC_PRIVATE_KEY,
 			)
+		} catch {
+			// Fallback: parse OpenSSH format that Node/OpenSSL can't handle natively
+			privateKey = parseOpenSSHPrivateKey(process.env.DOTENC_PRIVATE_KEY)
+		}
+
+		if (privateKey) {
+			const algorithm = detectAlgorithm(privateKey)
+
+			if (algorithm) {
+				const entry: PrivateKeyEntry = {
+					name: "env.DOTENC_PRIVATE_KEY",
+					privateKey,
+					fingerprint: getKeyFingerprint(privateKey),
+					algorithm,
+				}
+
+				if (algorithm === "ed25519") {
+					const { rawSeed, rawPublicKey } =
+						extractEd25519RawKeys(privateKey)
+					entry.rawSeed = rawSeed
+					entry.rawPublicKey = rawPublicKey
+				}
+
+				privateKeys.push(entry)
+			} else {
+				console.error(
+					`Unsupported key type in DOTENC_PRIVATE_KEY: ${privateKey.asymmetricKeyType}. Only RSA and Ed25519 are supported.`,
+				)
+			}
+		} else {
 			console.error(
-				`Details: ${error instanceof Error ? error.message : error}`,
+				"Invalid private key format in DOTENC_PRIVATE_KEY environment variable. Please provide a valid private key (PEM or OpenSSH format).",
 			)
-			return []
 		}
 	}
 
-	for (const fileName of files) {
-		if (!fileName.endsWith(".pem")) {
-			continue
-		}
+	// Scan ~/.ssh/ for SSH key files
+	const sshDir = path.join(os.homedir(), ".ssh")
+	if (!existsSync(sshDir)) {
+		return privateKeys
+	}
 
-		const keyInput = await fs.readFile(
-			path.join(os.homedir(), ".dotenc", fileName),
-			"utf-8",
-		)
-		let privateKey: crypto.KeyObject
+	const files = await fs.readdir(sshDir)
+
+	// First check well-known key names, then any other files that look like private keys
+	const knownFiles = SSH_KEY_FILES.filter((f) => files.includes(f))
+	const otherFiles = files.filter(
+		(f) =>
+			!SSH_KEY_FILES.includes(f) &&
+			!f.endsWith(".pub") &&
+			!f.startsWith("known_hosts") &&
+			!f.startsWith("authorized_keys") &&
+			f !== "config",
+	)
+
+	for (const fileName of [...knownFiles, ...otherFiles]) {
+		const filePath = path.join(sshDir, fileName)
+
+		let stat: Awaited<ReturnType<typeof fs.stat>>
 		try {
-			privateKey = crypto.createPrivateKey(keyInput)
-		} catch (error: unknown) {
-			console.error(
-				`Invalid private key format in ${fileName}. Please provide a valid PEM formatted private key.`,
-			)
-			console.error(
-				`Details: ${error instanceof Error ? error.message : error}`,
-			)
+			stat = await fs.stat(filePath)
+		} catch {
 			continue
 		}
 
-		privateKeys.push({
-			name: fileName.replace(".pem", ""),
+		if (!stat.isFile()) continue
+
+		let keyContent: string
+		try {
+			keyContent = await fs.readFile(filePath, "utf-8")
+		} catch {
+			continue
+		}
+
+		// Quick check: must look like a private key file
+		if (!keyContent.includes("PRIVATE KEY")) continue
+
+		const privateKey = tryParsePrivateKey(keyContent)
+
+		if (!privateKey) {
+			// Could be passphrase-protected — skip silently in auto-scan
+			continue
+		}
+
+		const algorithm = detectAlgorithm(privateKey)
+		if (!algorithm) continue
+
+		const entry: PrivateKeyEntry = {
+			name: fileName,
 			privateKey,
 			fingerprint: getKeyFingerprint(privateKey),
-		})
+			algorithm,
+		}
+
+		if (algorithm === "ed25519") {
+			const { rawSeed, rawPublicKey } =
+				extractEd25519RawKeys(privateKey)
+			entry.rawSeed = rawSeed
+			entry.rawPublicKey = rawPublicKey
+		}
+
+		privateKeys.push(entry)
 	}
 
 	return privateKeys

@@ -1,9 +1,9 @@
-import crypto from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
 import type { Environment } from "../schemas/environment"
 import { createDataKey, encryptData } from "./crypto"
+import { encryptDataKey } from "./encryptDataKey"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPublicKeys } from "./getPublicKeys"
 
@@ -66,14 +66,13 @@ export const encryptEnvironment = async (
 			)
 		}
 
-		const encryptedDataKey = crypto
-			.publicEncrypt(availableKey.publicKey, dataKey)
-			.toString("base64")
+		const encrypted = encryptDataKey(availableKey, dataKey)
 
 		keys.push({
 			name: availableKey.name,
 			fingerprint: availableKey.fingerprint,
-			encryptedDataKey,
+			encryptedDataKey: encrypted.toString("base64"),
+			algorithm: availableKey.algorithm,
 		})
 	}
 
@@ -110,14 +109,13 @@ export const encryptEnvironment = async (
 				continue
 			}
 
-			const encryptedDataKey = crypto
-				.publicEncrypt(publicKey.publicKey, dataKey)
-				.toString("base64")
+			const encrypted = encryptDataKey(publicKey, dataKey)
 
 			keys.push({
 				name: publicKey.name,
 				fingerprint: publicKey.fingerprint,
-				encryptedDataKey,
+				encryptedDataKey: encrypted.toString("base64"),
+				algorithm: publicKey.algorithm,
 			})
 
 			console.log(

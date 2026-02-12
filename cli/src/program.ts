@@ -8,10 +8,7 @@ import { editCommand } from "./commands/edit"
 import { grantCommand } from "./commands/grant"
 import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
-import { keyExportCommand } from "./commands/key/export"
-import { keyGenerateCommand } from "./commands/key/generate"
-import { keyImportCommand } from "./commands/key/import"
-import { keyShareCommand } from "./commands/key/share"
+import { keyRemoveCommand } from "./commands/key/remove"
 import { revokeCommand } from "./commands/revoke"
 import { runCommand } from "./commands/run"
 
@@ -82,24 +79,15 @@ program
 const key = program.command("key").description("manage keys")
 
 key
-	.command("generate")
-	.argument("[name]", "the name of the new key")
-	.description("generate a new private key")
-	.action(keyGenerateCommand)
-
-key
-	.command("share")
-	.argument("[name]", "the name of the key to share")
-	.description("generate a shareable public key from a private key")
-	.action(keyShareCommand)
-
-key
 	.command("add")
-	.argument(
-		"[name]",
-		"if provided, the public key will be derived from one of your existing private keys",
+	.argument("[name]", "the name of the public key in the project")
+	.addOption(
+		new Option(
+			"--from-ssh <path>",
+			"add a public key derived from an SSH key file",
+		),
 	)
-	.addOption(new Option("-f, --from-file <file>", "add the key from a file"))
+	.addOption(new Option("-f, --from-file <file>", "add the key from a PEM file"))
 	.addOption(
 		new Option("-s, --from-string <string>", "add a public key from a string"),
 	)
@@ -107,31 +95,10 @@ key
 	.action(keyAddCommand)
 
 key
-	.command("import")
-	.argument("[name]", "the name of the new private key")
-	.addOption(new Option("-f, --from-file <file>", "import the key from a file"))
-	.addOption(
-		new Option(
-			"-s, --from-string <string>",
-			"import a private key from a string",
-		),
-	)
-	.description("import a key to your local key store")
-	.action(keyImportCommand)
-
-key
-	.command("export")
-	.argument("[name]", "the name of the private key to export")
-	.addOption(
-		new Option(
-			"-p, --public",
-			"export a generated public key instead of the private key",
-		),
-	)
-	.description(
-		"export a private key from the local key store or its derived public key",
-	)
-	.action(keyExportCommand)
+	.command("remove")
+	.argument("[name]", "the name of the public key to remove")
+	.description("remove a public key from the project")
+	.action(keyRemoveCommand)
 
 program
 	.command("config")

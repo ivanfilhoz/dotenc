@@ -1,8 +1,8 @@
-import crypto from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
 import { createDataKey, encryptData } from "../helpers/crypto"
+import { encryptDataKey } from "../helpers/encryptDataKey"
 import { environmentExists } from "../helpers/environmentExists"
 import { getEnvironmentNameSuggestion } from "../helpers/getEnvironmentNameSuggestion"
 import { getPublicKeys } from "../helpers/getPublicKeys"
@@ -82,12 +82,13 @@ export const createCommand = async (
 			continue
 		}
 
-		const encryptedDataKey = crypto.publicEncrypt(publicKey.publicKey, dataKey)
+		const encrypted = encryptDataKey(publicKey, dataKey)
 
 		environmentJson.keys.push({
 			name: publicKeyName,
 			fingerprint: publicKey.fingerprint,
-			encryptedDataKey: encryptedDataKey.toString("base64"),
+			encryptedDataKey: encrypted.toString("base64"),
+			algorithm: publicKey.algorithm,
 		})
 	}
 

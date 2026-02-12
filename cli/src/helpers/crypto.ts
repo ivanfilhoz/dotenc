@@ -1,65 +1,9 @@
 import crypto from "node:crypto"
-import { promisify } from "node:util"
-
-const generateKeyPairPromise = promisify(crypto.generateKeyPair)
-
-/**
- * Generates a new key pair
- */
-export const generateKeyPair = async () => {
-	const { privateKey, publicKey } = await generateKeyPairPromise("rsa", {
-		modulusLength: 2048,
-	})
-
-	return {
-		privateKey: privateKey.export({
-			type: "pkcs8",
-			format: "pem",
-		}),
-		publicKey: publicKey.export({
-			type: "spki",
-			format: "pem",
-		}),
-	}
-}
 
 /**
  * Creates a new data key
  */
 export const createDataKey = () => crypto.randomBytes(32)
-
-/**
- * Encrypts a data key using a public key
- */
-export const encryptDataKey = (publicKey: string, dataKey: Buffer) => {
-	const publicKeyObject = crypto.createPublicKey(publicKey)
-
-	return crypto.publicEncrypt(
-		{
-			key: publicKeyObject,
-			padding: crypto.constants.RSA_PKCS1_PADDING,
-		},
-		dataKey,
-	)
-}
-
-/**
- * Decrypts a data key using a private key
- */
-export const decryptDataKey = (
-	privateKey: string,
-	encryptedDataKey: Buffer,
-) => {
-	const privateKeyObject = crypto.createPrivateKey(privateKey)
-
-	return crypto.privateDecrypt(
-		{
-			key: privateKeyObject,
-			padding: crypto.constants.RSA_PKCS1_PADDING,
-		},
-		encryptedDataKey,
-	)
-}
 
 // AES-256-GCM constants
 const ALGORITHM = "aes-256-gcm"

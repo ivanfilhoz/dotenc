@@ -1,41 +1,30 @@
-import crypto from "node:crypto"
 import chalk from "chalk"
 import type { Environment } from "../schemas/environment"
 import { decryptData } from "./crypto"
+import { decryptDataKey } from "./decryptDataKey"
 import { getEnvironmentByName } from "./getEnvironmentByName"
-import { getKeyFingerprint } from "./getKeyFingerprint"
-import { getPrivateKeys } from "./getPrivateKeys"
+import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 
 export const decryptEnvironment = async (name: string) => {
 	const availablePrivateKeys = await getPrivateKeys()
 
-	if (process.env.DOTENC_PRIVATE_KEY) {
-		const privateKey = crypto.createPrivateKey(process.env.DOTENC_PRIVATE_KEY)
-
-		availablePrivateKeys.push({
-			name: "<env.DOTENC_PRIVATE_KEY>",
-			privateKey,
-			fingerprint: getKeyFingerprint(privateKey),
-		})
-	}
-
 	if (!availablePrivateKeys.length) {
 		throw new Error(
-			"No private keys found. Please generate a private key using 'dotenc key generate' or import one using 'dotenc key import'.",
+			"No private keys found. Please ensure you have SSH keys in ~/.ssh/ or set the DOTENC_PRIVATE_KEY environment variable.",
 		)
 	}
 
 	const environmentJson = await getEnvironmentByName(name)
 	let grantedKey: Environment["keys"][number] | undefined
-	let selectedPrivateKey: crypto.KeyObject | undefined
+	let selectedPrivateKey: PrivateKeyEntry | undefined
 
-	for (const { privateKey, fingerprint } of availablePrivateKeys) {
+	for (const privateKeyEntry of availablePrivateKeys) {
 		grantedKey = environmentJson.keys.find((key) => {
-			return key.fingerprint === fingerprint
+			return key.fingerprint === privateKeyEntry.fingerprint
 		})
 
 		if (grantedKey) {
-			selectedPrivateKey = privateKey
+			selectedPrivateKey = privateKeyEntry
 			break
 		}
 	}
@@ -53,7 +42,7 @@ export const decryptEnvironment = async (name: string) => {
 
 	let dataKey: Buffer
 	try {
-		dataKey = crypto.privateDecrypt(
+		dataKey = decryptDataKey(
 			selectedPrivateKey,
 			Buffer.from(grantedKey.encryptedDataKey, "base64"),
 		)

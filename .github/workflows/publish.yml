@@ -7,7 +7,42 @@ on:
       - beta
 
 jobs:
-  build:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: cd cli && pnpm install
+
+      - name: Run tests
+        run: cd cli && pnpm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build e2e Docker image
+        run: docker build -t dotenc-e2e -f cli/e2e/Dockerfile .
+
+      - name: Run e2e tests
+        run: docker run --rm dotenc-e2e
+
+  publish:
+    needs: [test, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -27,9 +62,6 @@ jobs:
       - name: Install dependencies
         run: cd cli && pnpm install
 
-      - name: Run tests
-        run: cd cli && pnpm test
-
       - name: Check if version has been bumped
         id: version-check
         run: |
@@ -43,7 +75,7 @@ jobs:
             echo "bumped=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           if [ "$VERSION" = "$NPM_VERSION" ]; then
             echo "Version has not been bumped."
             echo "bumped=false" >> $GITHUB_OUTPUT
