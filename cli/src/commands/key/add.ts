@@ -6,6 +6,7 @@ import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
 import { getPrivateKeys } from "../../helpers/getPrivateKeys"
+import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
 import { getProjectConfig } from "../../helpers/projectConfig"
 import { inputKeyPrompt } from "../../prompts/inputKey"
@@ -193,6 +194,12 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		console.error(
 			"An unexpected error occurred. No public key was inferred from the provided input.",
 		)
+		return
+	}
+
+	const validation = validatePublicKey(publicKey)
+	if (!validation.valid) {
+		console.error(validation.reason)
 		return
 	}
 
