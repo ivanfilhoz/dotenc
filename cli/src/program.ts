@@ -10,6 +10,7 @@ import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
 import { keyRemoveCommand } from "./commands/key/remove"
 import { revokeCommand } from "./commands/revoke"
+import { rotateCommand } from "./commands/rotate"
 import { runCommand } from "./commands/run"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -62,6 +63,12 @@ program
 	)
 	.description("revoke access from an environment")
 	.action(revokeCommand)
+
+program
+	.command("rotate")
+	.argument("[environment]", "the environment to rotate the data key for")
+	.description("rotate the data key for an environment")
+	.action(rotateCommand)
 
 program
 	.command("run")

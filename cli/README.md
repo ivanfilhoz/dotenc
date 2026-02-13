@@ -4,7 +4,21 @@
 [![Github License][license-image]](LICENSE)
 [![NPM Downloads][downloads-image]][npm-url]
 
-🔐 Secure, encrypted environment variables that live in your codebase
+🔐 Git-native encrypted environments powered by your SSH keys
+
+## 30-Second Example
+
+```bash
+dotenc init
+dotenc create production
+dotenc edit production
+dotenc run -e production node app.js
+```
+
+Encrypted `.env.production.enc` committed.
+No external services.
+Uses your existing SSH keys.
+Done.
 
 ## Features
 
@@ -13,13 +27,17 @@
 - 🚀 Secure command running with on-the-fly decryption
 - ✍️ Easy and secure environment variable editing
 - 🌍 Supports multiple and extensible environments
-- 🔄 Self-healing, built-in ephemeral data keys
+- 🔄 Automatic data key rotation on edits
 - 🛡️ Supports both RSA and Ed25519 SSH keys
 
 ## Table of Contents
 
+- [30-Second Example](#30-second-example)
+- [Features](#features)
 - [Why?](#why)
+- [Security Model](#security-model)
 - [How It Works](#how-it-works)
+  - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Basic Usage](#basic-usage)
   - [Setup](#setup)
@@ -30,10 +48,13 @@
 - [Team Collaboration](#team-collaboration)
   - [Granting access to a new team member](#granting-access-to-a-new-team-member)
   - [Revoking access from a team member](#revoking-access-from-a-team-member)
+- [Offboarding a Team Member](#offboarding-a-team-member)
 - [Key Management](#key-management)
   - [Adding a public key](#adding-a-public-key)
   - [Removing a public key](#removing-a-public-key)
 - [Tips](#tips)
+- [How dotenc compares](#how-dotenc-compares)
+- [When NOT to use dotenc](#when-not-to-use-dotenc)
 - [License](#license)
 
 ## Why?
@@ -46,8 +67,15 @@ Managing secrets and environment variables is critical for any modern applicatio
 - **Better Developer Experience:** No more juggling environment variables in a web UI or struggling to keep them in sync across branches. Everything is managed alongside your code, with simple CLI commands and full Git integration.
 - **Seamless Collaboration:** Onboard or revoke team members with a single command. Grant or remove access per environment, and let Git handle the rest.
 - **Fully Auditable:** Every grant and revoke is tracked within your Git history, so you always know who had access and when changes were made.
+- **PR-Safe Environment Changes:** Environment variable updates live in the same pull request as your feature code. No more "merge → broken build → patch env → rebuild" workflow.
 
-With **dotenc**, you get a workflow that's secure, portable, auditable, and designed for how developers actually work.
+## Security Model
+
+- Each environment has its own randomly generated 256-bit data key.
+- Data keys are encrypted per-user using their SSH public key.
+- dotenc uses AES-256-GCM for authenticated encryption.
+- Your repository alone is not enough to decrypt secrets.
+- Access can be revoked at any time.
 
 ## How It Works
 
@@ -60,6 +88,23 @@ With **dotenc**, you get a workflow that's secure, portable, auditable, and desi
 7. When running commands, variables are decrypted on-the-fly using your SSH private key.
 
 Your SSH private keys never leave `~/.ssh/`. dotenc reads them in place - nothing is copied, nothing is stored elsewhere.
+
+### Project Structure
+
+After setup, your project will look like:
+
+```
+.
+├── .dotenc/
+│   ├── alice.pub
+│   ├── bob.pub
+│   └── ...
+├── .env.production.enc
+├── .env.development.enc
+└── dotenc.json
+```
+
+Encrypted files are committed to Git. Public keys are stored inside `.dotenc/`.
 
 ## Installation
 
@@ -212,12 +257,31 @@ git push origin revoke-john-key
 
 Once merged, he will no longer be able to decrypt any environments.
 
+## Offboarding a Team Member
+
+Revoking repository decryption does not undo previously granted access to already-seen secrets.
+For proper offboarding, we recommend:
+
+1. `dotenc key remove <user>`
+2. Rotate external secrets (database passwords, API tokens, etc.)
+3. (Optional) `dotenc rotate <environment>` to rotate the environment data key
+4. Deploy updated configuration
+
 ## Key Management
 
 dotenc keeps key management minimal by design. Your SSH keys are your identity - dotenc just uses them.
 
 > **Private keys** stay in `~/.ssh/` where they belong. They are never copied or moved.
 > **Public keys** are stored in your project's `.dotenc/` folder, derived from the corresponding private keys.
+
+## Supported Key Types
+
+dotenc supports the following SSH key types:
+
+- Ed25519
+- RSA (2048-bit or larger)
+
+These types are widely supported and provide strong security guarantees.
 
 ### Adding a public key
 
@@ -259,6 +323,28 @@ Alternatively, the `DOTENC_ENV` variable can be used to set the environment, so 
   export DOTENC_ENV="production"
   dotenc run node app.js
 ```
+
+## How dotenc compares
+
+ dotenc is a Git-native encryption layer designed for teams who want encrypted environment files committed alongside their code.
+It does not aim to replace centralized secret managers like Vault or Doppler — it serves a different operational model.
+
+| Capability | dotenc | SOPS (+ age) | Vault | Doppler |
+|-------------|---------|--------------|--------|----------|
+| Git-native encrypted files | ✅ | ✅ | ❌ | ❌ |
+| Uses existing SSH identity | ✅ | ❌ (age / PGP) | ❌ | ❌ |
+| No external service required | ✅ | ✅ | ❌ | ❌ |
+| Environments versioned with code | ✅ | ✅ | ❌ | ❌ |
+| Centralized runtime secret API | ❌ | ❌ | ✅ | ✅ |
+| Dynamic / short-lived secrets | ❌ | ❌ | ✅ | ❌ |
+| Built-in org policy engine | ❌ | ❌ | ✅ | ✅ |
+| Requires running infrastructure | ❌ | ❌ | ✅ | ❌ |
+
+## When NOT to use dotenc
+
+- If you require centralized policy enforcement
+- If your compliance mandates HSM-backed key storage
+- If you need runtime secret injection via remote API
 
 ## License
 
