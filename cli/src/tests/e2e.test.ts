@@ -53,9 +53,10 @@ const testSshKeyPath = path.join(testSshDir, "id_ed25519")
 
 mock.module("node:child_process", () => ({
 	// Mock for the edit command
-	execSync: () => {
+	spawnSync: () => {
 		const tempFilePath = path.join(os.tmpdir(), ".env.test")
 		writeFileSync(tempFilePath, "DOTENC_HELLO=Hello, world!")
+		return { status: 0, error: null }
 	},
 }))
 

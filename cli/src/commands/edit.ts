@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
@@ -58,34 +58,43 @@ ${separator}${content}`
 
 	try {
 		// This will block until the editor process is closed
-		execSync(`${editor} ${tempFilePath}`, { stdio: "inherit" })
+		const result = spawnSync(editor, [tempFilePath], { stdio: "inherit" })
+
+		if (result.error) {
+			throw result.error
+		}
+
+		if (result.status !== 0) {
+			console.error(`\nEditor exited with code ${result.status}`)
+			return
+		}
+
+		let newContent = await fs.readFile(tempFilePath, "utf-8")
+		const finalHash = createHash(newContent)
+
+		if (initialHash === finalHash) {
+			console.log(
+				`\nNo changes were made to the ${chalk.cyan(environmentName)} environment.`,
+			)
+		} else {
+			// strip the header and separator if they exist
+			const separatorIndex = newContent.indexOf(separator)
+			if (separatorIndex !== -1) {
+				const headerEndIndex =
+					newContent.indexOf(separator) + separator.length
+				newContent = newContent.slice(headerEndIndex).trim()
+			}
+
+			await encryptEnvironment(environmentName, newContent)
+
+			console.log(
+				`\nEncrypted ${chalk.cyan(environmentName)} environment and saved it to ${chalk.gray(environmentFile)}.`,
+			)
+		}
 	} catch (error: unknown) {
 		console.error(`\nFailed to open editor: ${editor}`)
 		console.error(error instanceof Error ? error.message : error)
-		return
+	} finally {
+		await fs.unlink(tempFilePath).catch(() => {})
 	}
-
-	let newContent = await fs.readFile(tempFilePath, "utf-8")
-	const finalHash = createHash(newContent)
-
-	if (initialHash === finalHash) {
-		console.log(
-			`\nNo changes were made to the ${chalk.cyan(environmentName)} environment.`,
-		)
-	} else {
-		// strip the header and separator if they exist
-		const separatorIndex = newContent.indexOf(separator)
-		if (separatorIndex !== -1) {
-			const headerEndIndex = newContent.indexOf(separator) + separator.length
-			newContent = newContent.slice(headerEndIndex).trim()
-		}
-
-		await encryptEnvironment(environmentName, newContent)
-
-		console.log(
-			`\nEncrypted ${chalk.cyan(environmentName)} environment and saved it to ${chalk.gray(environmentFile)}.`,
-		)
-	}
-
-	await fs.unlink(tempFilePath)
 }
