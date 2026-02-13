@@ -108,6 +108,19 @@ Encrypted files are committed to Git. Public keys are stored inside `.dotenc/`.
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap ivanfilhoz/dotenc
+brew install dotenc
+```
+
+### Standalone binary
+
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/ivanfilhoz/dotenc/releases) page.
+
+### npm
+
 ```bash
 npm install -g @dotenc/cli
 ```

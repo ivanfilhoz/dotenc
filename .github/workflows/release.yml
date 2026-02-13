@@ -1,0 +1,160 @@
+name: Release binaries
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      bumped: ${{ steps.version-check.outputs.bumped }}
+      version: ${{ steps.version-check.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Check if version has been bumped
+        id: version-check
+        run: |
+          VERSION=$(node -p "require('./cli/package.json').version")
+          NPM_VERSION=$(npm view @dotenc/cli version 2>/dev/null || echo "0.0.0")
+
+          if [ "$VERSION" = "$NPM_VERSION" ]; then
+            echo "Version has not been bumped."
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version has been bumped to $VERSION."
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-release:
+    needs: check-version
+    if: needs.check-version.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: cd cli && bun install
+
+      - name: Build binaries
+        run: cd cli && bun run build:binary
+
+      - name: Package archives
+        run: |
+          cd cli/dist
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            tar -czf "dotenc-${target}.tar.gz" "dotenc-${target}"
+          done
+          zip "dotenc-windows-x64.zip" "dotenc-windows-x64"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: v${{ needs.check-version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            cli/dist/dotenc-darwin-arm64.tar.gz
+            cli/dist/dotenc-darwin-x64.tar.gz
+            cli/dist/dotenc-linux-x64.tar.gz
+            cli/dist/dotenc-linux-arm64.tar.gz
+            cli/dist/dotenc-windows-x64.zip
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          SHA_DARWIN_ARM64=$(sha256sum cli/dist/dotenc-darwin-arm64.tar.gz | awk '{print $1}')
+          SHA_DARWIN_X64=$(sha256sum cli/dist/dotenc-darwin-x64.tar.gz | awk '{print $1}')
+          SHA_LINUX_X64=$(sha256sum cli/dist/dotenc-linux-x64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum cli/dist/dotenc-linux-arm64.tar.gz | awk '{print $1}')
+
+          FORMULA=$(cat <<RUBY
+          class Dotenc < Formula
+            desc "Git-native encrypted environments powered by your SSH keys"
+            homepage "https://github.com/ivanfilhoz/dotenc"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/ivanfilhoz/dotenc/releases/download/v${VERSION}/dotenc-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/ivanfilhoz/dotenc/releases/download/v${VERSION}/dotenc-darwin-x64.tar.gz"
+                sha256 "${SHA_DARWIN_X64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/ivanfilhoz/dotenc/releases/download/v${VERSION}/dotenc-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/ivanfilhoz/dotenc/releases/download/v${VERSION}/dotenc-linux-x64.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
+
+            def install
+              if OS.mac? && Hardware::CPU.arm?
+                bin.install "dotenc-darwin-arm64" => "dotenc"
+              elsif OS.mac? && Hardware::CPU.intel?
+                bin.install "dotenc-darwin-x64" => "dotenc"
+              elsif OS.linux? && Hardware::CPU.arm?
+                bin.install "dotenc-linux-arm64" => "dotenc"
+              else
+                bin.install "dotenc-linux-x64" => "dotenc"
+              end
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/dotenc --version")
+            end
+          end
+          RUBY
+          )
+
+          # Push formula to homebrew-dotenc tap repo via GitHub API
+          ENCODED=$(echo -n "$FORMULA" | base64 -w 0)
+
+          # Check if formula already exists
+          EXISTING=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $HOMEBREW_TAP_TOKEN" \
+            "https://api.github.com/repos/ivanfilhoz/homebrew-dotenc/contents/Formula/dotenc.rb")
+
+          if [ "$EXISTING" = "200" ]; then
+            SHA=$(curl -s \
+              -H "Authorization: token $HOMEBREW_TAP_TOKEN" \
+              "https://api.github.com/repos/ivanfilhoz/homebrew-dotenc/contents/Formula/dotenc.rb" \
+              | jq -r '.sha')
+
+            curl -s -X PUT \
+              -H "Authorization: token $HOMEBREW_TAP_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/ivanfilhoz/homebrew-dotenc/contents/Formula/dotenc.rb" \
+              -d "{\"message\":\"Update dotenc to v${VERSION}\",\"content\":\"${ENCODED}\",\"sha\":\"${SHA}\"}"
+          else
+            curl -s -X PUT \
+              -H "Authorization: token $HOMEBREW_TAP_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/ivanfilhoz/homebrew-dotenc/contents/Formula/dotenc.rb" \
+              -d "{\"message\":\"Add dotenc v${VERSION}\",\"content\":\"${ENCODED}\"}"
+          fi

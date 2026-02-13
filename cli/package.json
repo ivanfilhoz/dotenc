@@ -15,6 +15,12 @@
     "dev": "bun src/cli.ts",
     "start": "node dist/cli.js",
     "build": "bun build src/cli.ts --outdir dist --target node --packages external && { echo '#!/usr/bin/env node'; cat dist/cli.js; } > dist/cli.tmp && mv dist/cli.tmp dist/cli.js",
+    "build:binary": "bun run build:binary:darwin-arm64 && bun run build:binary:darwin-x64 && bun run build:binary:linux-x64 && bun run build:binary:linux-arm64 && bun run build:binary:windows-x64",
+    "build:binary:darwin-arm64": "bun build src/cli.ts --compile --target=bun-darwin-arm64 --outfile dist/dotenc-darwin-arm64",
+    "build:binary:darwin-x64": "bun build src/cli.ts --compile --target=bun-darwin-x64 --outfile dist/dotenc-darwin-x64",
+    "build:binary:linux-x64": "bun build src/cli.ts --compile --target=bun-linux-x64 --outfile dist/dotenc-linux-x64",
+    "build:binary:linux-arm64": "bun build src/cli.ts --compile --target=bun-linux-arm64 --outfile dist/dotenc-linux-arm64",
+    "build:binary:windows-x64": "bun build src/cli.ts --compile --target=bun-windows-x64 --outfile dist/dotenc-windows-x64",
     "test": "bun test",
     "test:e2e": "docker build -t dotenc-e2e -f e2e/Dockerfile .. && docker run --rm dotenc-e2e"
   },

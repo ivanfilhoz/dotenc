@@ -1,6 +1,3 @@
-import fs from "node:fs"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
 import { Command, Option } from "commander"
 import { configCommand } from "./commands/config"
 import { createCommand } from "./commands/create"
@@ -12,12 +9,7 @@ import { keyRemoveCommand } from "./commands/key/remove"
 import { revokeCommand } from "./commands/revoke"
 import { rotateCommand } from "./commands/rotate"
 import { runCommand } from "./commands/run"
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const pkg = JSON.parse(
-	fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
-)
+import pkg from "../package.json"
 
 const program = new Command()
 
