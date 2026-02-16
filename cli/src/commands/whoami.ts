@@ -1,4 +1,3 @@
-import chalk from "chalk"
 import { passphraseProtectedKeyError } from "../helpers/errors"
 import { getEnvironmentByName } from "../helpers/getEnvironmentByName"
 import { getEnvironments } from "../helpers/getEnvironments"
@@ -6,8 +5,7 @@ import { getPrivateKeys } from "../helpers/getPrivateKeys"
 import { getPublicKeys } from "../helpers/getPublicKeys"
 
 export const whoamiCommand = async () => {
-	const { keys: privateKeys, passphraseProtectedKeys } =
-		await getPrivateKeys()
+	const { keys: privateKeys, passphraseProtectedKeys } = await getPrivateKeys()
 	const publicKeys = await getPublicKeys()
 
 	const privateFingerprints = new Set(privateKeys.map((k) => k.fingerprint))
@@ -17,10 +15,7 @@ export const whoamiCommand = async () => {
 	)
 
 	if (!matchingPublicKey) {
-		if (
-			privateKeys.length === 0 &&
-			passphraseProtectedKeys.length > 0
-		) {
+		if (privateKeys.length === 0 && passphraseProtectedKeys.length > 0) {
 			console.error(passphraseProtectedKeyError(passphraseProtectedKeys))
 		} else {
 			console.error(

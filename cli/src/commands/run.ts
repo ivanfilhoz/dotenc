@@ -54,9 +54,7 @@ export const runCommand = async (
 	)
 
 	if (failureCount === environments.length) {
-		console.error(
-			`${chalk.red("Error:")} All environments failed to load.`,
-		)
+		console.error(`${chalk.red("Error:")} All environments failed to load.`)
 		process.exit(1)
 	}
 

@@ -72,7 +72,6 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 						`Details: ${error instanceof Error ? error.message : error}`,
 					)
 					process.exit(1)
-
 				}
 			}
 		}

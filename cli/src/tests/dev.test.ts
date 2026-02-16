@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	spyOn,
+	test,
+} from "bun:test"
 import crypto from "node:crypto"
 import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
 import type { PublicKeyEntry } from "../helpers/getPublicKeys"
@@ -16,10 +24,19 @@ const fp = fingerprint(ed25519KeyPair.publicKey)
 describe("devCommand", () => {
 	let runCommandMock: ReturnType<typeof mock>
 	let consoleErrorSpy: ReturnType<typeof spyOn>
+	let processExitSpy: ReturnType<typeof spyOn>
 
 	beforeEach(() => {
 		runCommandMock = mock(() => Promise.resolve())
 		consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		processExitSpy = spyOn(process, "exit").mockImplementation(
+			() => undefined as never,
+		)
+	})
+
+	afterEach(() => {
+		consoleErrorSpy.mockRestore()
+		processExitSpy.mockRestore()
 	})
 
 	test("delegates to runCommand with development,<keyName>", async () => {
@@ -73,10 +90,19 @@ describe("devCommand", () => {
 			runCommand: runCommandMock,
 		}))
 
+		processExitSpy.mockImplementation(() => {
+			throw new Error("process.exit called")
+		})
+
 		const { devCommand } = await import("../commands/dev")
-		await devCommand("node", ["app.js"])
+		try {
+			await devCommand("node", ["app.js"])
+		} catch {
+			// Expected: process.exit mock throws
+		}
 
 		expect(runCommandMock).not.toHaveBeenCalled()
+		expect(processExitSpy).toHaveBeenCalledWith(1)
 		expect(consoleErrorSpy).toHaveBeenCalled()
 		const errorMessage = consoleErrorSpy.mock.calls[0][0] as string
 		expect(errorMessage).toContain("could not resolve your identity")

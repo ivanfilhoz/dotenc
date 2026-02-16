@@ -1,8 +1,8 @@
 import chalk from "chalk"
 import type { Environment } from "../schemas/environment"
 import { decryptData } from "./crypto"
-import { passphraseProtectedKeyError } from "./errors"
 import { decryptDataKey } from "./decryptDataKey"
+import { passphraseProtectedKeyError } from "./errors"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 
@@ -14,9 +14,7 @@ export const decryptEnvironmentData = async (
 
 	if (!availablePrivateKeys.length) {
 		if (passphraseProtectedKeys.length > 0) {
-			throw new Error(
-				passphraseProtectedKeyError(passphraseProtectedKeys),
-			)
+			throw new Error(passphraseProtectedKeyError(passphraseProtectedKeys))
 		}
 		throw new Error(
 			"No private keys found. Please ensure you have SSH keys in ~/.ssh/ or set the DOTENC_PRIVATE_KEY environment variable.",

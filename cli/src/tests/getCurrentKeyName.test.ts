@@ -40,7 +40,10 @@ describe("getCurrentKeyName", () => {
 	test("returns matching public key name", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
 			getPrivateKeys: () =>
-				Promise.resolve({ keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)], passphraseProtectedKeys: [] }),
+				Promise.resolve({
+					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+					passphraseProtectedKeys: [],
+				}),
 		}))
 		mock.module("../helpers/getPublicKeys", () => ({
 			getPublicKeys: () =>
@@ -55,7 +58,10 @@ describe("getCurrentKeyName", () => {
 	test("returns undefined when no fingerprints match", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
 			getPrivateKeys: () =>
-				Promise.resolve({ keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)], passphraseProtectedKeys: [] }),
+				Promise.resolve({
+					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+					passphraseProtectedKeys: [],
+				}),
 		}))
 		mock.module("../helpers/getPublicKeys", () => ({
 			getPublicKeys: () =>
@@ -70,7 +76,10 @@ describe("getCurrentKeyName", () => {
 	test("returns undefined when no public keys exist", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
 			getPrivateKeys: () =>
-				Promise.resolve({ keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)], passphraseProtectedKeys: [] }),
+				Promise.resolve({
+					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+					passphraseProtectedKeys: [],
+				}),
 		}))
 		mock.module("../helpers/getPublicKeys", () => ({
 			getPublicKeys: () => Promise.resolve([]),
@@ -83,7 +92,8 @@ describe("getCurrentKeyName", () => {
 
 	test("returns undefined when no private keys exist", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () => Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
+			getPrivateKeys: () =>
+				Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
 		}))
 		mock.module("../helpers/getPublicKeys", () => ({
 			getPublicKeys: () =>
@@ -98,7 +108,10 @@ describe("getCurrentKeyName", () => {
 	test("returns first matching key when multiple public keys exist", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
 			getPrivateKeys: () =>
-				Promise.resolve({ keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)], passphraseProtectedKeys: [] }),
+				Promise.resolve({
+					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+					passphraseProtectedKeys: [],
+				}),
 		}))
 		mock.module("../helpers/getPublicKeys", () => ({
 			getPublicKeys: () =>

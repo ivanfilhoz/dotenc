@@ -71,9 +71,7 @@ export const keyRemoveCommand = async (nameArg: string) => {
 			await encryptEnvironment(envName, content, {
 				revokePublicKeys: [name],
 			})
-			console.log(
-				`Revoked access from ${chalk.cyan(envName)} environment.`,
-			)
+			console.log(`Revoked access from ${chalk.cyan(envName)} environment.`)
 		} catch {
 			console.warn(
 				`${chalk.yellow("Warning:")} could not revoke access from ${chalk.cyan(envName)}. You may need to run ${chalk.gray(`dotenc auth revoke ${envName} ${name}`)} manually or rotate the environment.`,

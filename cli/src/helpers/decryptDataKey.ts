@@ -1,5 +1,5 @@
 import crypto from "node:crypto"
-import { ECIES_CONFIG, decrypt } from "eciesjs"
+import { decrypt, ECIES_CONFIG } from "eciesjs"
 
 ECIES_CONFIG.ellipticCurve = "ed25519"
 

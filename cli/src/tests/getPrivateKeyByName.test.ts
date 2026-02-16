@@ -20,7 +20,8 @@ const entry: PrivateKeyEntry = {
 describe("getPrivateKeyByName", () => {
 	test("returns matching private key entry", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () => Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
+			getPrivateKeys: () =>
+				Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
 		}))
 
 		const { getPrivateKeyByName } = await import(
@@ -33,7 +34,8 @@ describe("getPrivateKeyByName", () => {
 
 	test("throws when key name is not found", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () => Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
+			getPrivateKeys: () =>
+				Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
 		}))
 
 		const { getPrivateKeyByName } = await import(
@@ -46,7 +48,8 @@ describe("getPrivateKeyByName", () => {
 
 	test("throws with empty key list", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () => Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
+			getPrivateKeys: () =>
+				Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
 		}))
 
 		const { getPrivateKeyByName } = await import(

@@ -19,8 +19,7 @@ type Options = {
 
 export const initCommand = async (options: Options) => {
 	// Scan for SSH keys
-	const { keys: privateKeys, passphraseProtectedKeys } =
-		await getPrivateKeys()
+	const { keys: privateKeys, passphraseProtectedKeys } = await getPrivateKeys()
 
 	if (!privateKeys.length) {
 		if (passphraseProtectedKeys.length > 0) {

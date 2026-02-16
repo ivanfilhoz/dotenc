@@ -1,6 +1,4 @@
-type ValidationResult =
-	| { valid: true }
-	| { valid: false; reason: string }
+type ValidationResult = { valid: true } | { valid: false; reason: string }
 
 export const validateEnvironmentName = (name: string): ValidationResult => {
 	if (!name) {

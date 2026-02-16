@@ -51,10 +51,7 @@ env
 	.description("rotate the data key for an environment")
 	.action(rotateCommand)
 
-env
-	.command("list")
-	.description("list all environments")
-	.action(envListCommand)
+env.command("list").description("list all environments").action(envListCommand)
 
 const auth = program.command("auth").description("manage environment access")
 
