@@ -11,6 +11,7 @@ import { envListCommand } from "./commands/env/list"
 import { rotateCommand } from "./commands/env/rotate"
 import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
+import { keyListCommand } from "./commands/key/list"
 import { keyRemoveCommand } from "./commands/key/remove"
 import { runCommand } from "./commands/run"
 import { textconvCommand } from "./commands/textconv"
@@ -122,6 +123,11 @@ key
 	)
 	.description("add a public key to the project")
 	.action(keyAddCommand)
+
+key
+	.command("list")
+	.description("list all public keys in the project")
+	.action(keyListCommand)
 
 key
 	.command("remove")
