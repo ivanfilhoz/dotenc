@@ -1,19 +1,20 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
-import { createDataKey, encryptData } from "../helpers/crypto"
-import { encryptDataKey } from "../helpers/encryptDataKey"
-import { environmentExists } from "../helpers/environmentExists"
-import { getEnvironmentNameSuggestion } from "../helpers/getEnvironmentNameSuggestion"
-import { getPublicKeys } from "../helpers/getPublicKeys"
-import { getProjectConfig } from "../helpers/projectConfig"
-import { choosePublicKeyPrompt } from "../prompts/choosePublicKey"
-import { createEnvironmentPrompt } from "../prompts/createEnvironment"
-import type { Environment } from "../schemas/environment"
+import { createDataKey, encryptData } from "../../helpers/crypto"
+import { encryptDataKey } from "../../helpers/encryptDataKey"
+import { environmentExists } from "../../helpers/environmentExists"
+import { getEnvironmentNameSuggestion } from "../../helpers/getEnvironmentNameSuggestion"
+import { getPublicKeys } from "../../helpers/getPublicKeys"
+import { getProjectConfig } from "../../helpers/projectConfig"
+import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
+import { createEnvironmentPrompt } from "../../prompts/createEnvironment"
+import type { Environment } from "../../schemas/environment"
 
 export const createCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
+	initialContent?: string,
 ) => {
 	const { projectId } = await getProjectConfig()
 
@@ -40,7 +41,7 @@ export const createCommand = async (
 	if (environmentExists(environmentName)) {
 		console.log(
 			`${chalk.red("Error:")} environment ${environmentName} already exists. To edit it, use ${chalk.gray(
-				`dotenc edit ${environmentName}`,
+				`dotenc env edit ${environmentName}`,
 			)}`,
 		)
 		return
@@ -62,8 +63,8 @@ export const createCommand = async (
 			)
 	const dataKey = createDataKey()
 
-	const initialContent = `# ${environmentName} environment\n`
-	const encryptedContent = await encryptData(dataKey, initialContent)
+	const content = initialContent ?? `# ${environmentName} environment\n`
+	const encryptedContent = await encryptData(dataKey, content)
 
 	const environmentJson: Environment = {
 		keys: [],
@@ -103,7 +104,7 @@ export const createCommand = async (
 		`${chalk.green("✔")} Environment ${chalk.cyan(environmentName)} created!`,
 	)
 	console.log("\nSome useful tips:")
-	const editCommand = chalk.gray(`dotenc edit ${environmentName}`)
+	const editCommand = chalk.gray(`dotenc env edit ${environmentName}`)
 	console.log(`\n- To securely edit your environment:\t${editCommand}`)
 	const runCommand = chalk.gray(
 		`dotenc run -e ${environmentName} <command> [args...]`,

@@ -1,15 +1,20 @@
 import { Command, Option } from "commander"
+import pkg from "../package.json"
+import { grantCommand } from "./commands/auth/grant"
+import { authListCommand } from "./commands/auth/list"
+import { revokeCommand } from "./commands/auth/revoke"
 import { configCommand } from "./commands/config"
-import { createCommand } from "./commands/create"
-import { editCommand } from "./commands/edit"
-import { grantCommand } from "./commands/grant"
+import { devCommand } from "./commands/dev"
+import { createCommand } from "./commands/env/create"
+import { editCommand } from "./commands/env/edit"
+import { envListCommand } from "./commands/env/list"
+import { rotateCommand } from "./commands/env/rotate"
 import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
 import { keyRemoveCommand } from "./commands/key/remove"
-import { revokeCommand } from "./commands/revoke"
-import { rotateCommand } from "./commands/rotate"
 import { runCommand } from "./commands/run"
-import pkg from "../package.json"
+import { textconvCommand } from "./commands/textconv"
+import { whoamiCommand } from "./commands/whoami"
 
 const program = new Command()
 
@@ -17,10 +22,13 @@ program.name("dotenc").description(pkg.description).version(pkg.version)
 
 program
 	.command("init")
+	.addOption(new Option("-n, --name <name>", "your username for the project"))
 	.description("initialize a dotenc project in the current directory")
 	.action(initCommand)
 
-program
+const env = program.command("env").description("manage environments")
+
+env
 	.command("create")
 	.argument("[environment]", "the name of the new environment")
 	.argument(
@@ -28,15 +36,28 @@ program
 		"the name of the public key to grant access to the environment",
 	)
 	.description("create a new environment")
-	.action(createCommand)
+	.action((env, pubKey) => createCommand(env, pubKey))
 
-program
+env
 	.command("edit")
 	.argument("[environment]", "the environment to edit")
 	.description("edit an environment")
 	.action(editCommand)
 
-program
+env
+	.command("rotate")
+	.argument("[environment]", "the environment to rotate the data key for")
+	.description("rotate the data key for an environment")
+	.action(rotateCommand)
+
+env
+	.command("list")
+	.description("list all environments")
+	.action(envListCommand)
+
+const auth = program.command("auth").description("manage environment access")
+
+auth
 	.command("grant")
 	.argument("[environment]", "the environment to grant access to")
 	.argument(
@@ -46,7 +67,7 @@ program
 	.description("grant access to an environment")
 	.action(grantCommand)
 
-program
+auth
 	.command("revoke")
 	.argument("[environment]", "the environment to revoke access from")
 	.argument(
@@ -56,11 +77,11 @@ program
 	.description("revoke access from an environment")
 	.action(revokeCommand)
 
-program
-	.command("rotate")
-	.argument("[environment]", "the environment to rotate the data key for")
-	.description("rotate the data key for an environment")
-	.action(rotateCommand)
+auth
+	.command("list")
+	.argument("[environment]", "the environment to list access for")
+	.description("list keys with access to an environment")
+	.action(authListCommand)
 
 program
 	.command("run")
@@ -75,6 +96,13 @@ program
 	.description("run a command in an environment")
 	.action(runCommand)
 
+program
+	.command("dev")
+	.argument("<command>", "the command to run")
+	.argument("[args...]", "the arguments to pass to the command")
+	.description("run a command with development and personal environments")
+	.action(devCommand)
+
 const key = program.command("key").description("manage keys")
 
 key
@@ -86,7 +114,9 @@ key
 			"add a public key derived from an SSH key file",
 		),
 	)
-	.addOption(new Option("-f, --from-file <file>", "add the key from a PEM file"))
+	.addOption(
+		new Option("-f, --from-file <file>", "add the key from a PEM file"),
+	)
 	.addOption(
 		new Option("-s, --from-string <string>", "add a public key from a string"),
 	)
@@ -98,6 +128,17 @@ key
 	.argument("[name]", "the name of the public key to remove")
 	.description("remove a public key from the project")
 	.action(keyRemoveCommand)
+
+program
+	.command("textconv")
+	.argument("<filepath>", "path to the encrypted environment file")
+	.description("decrypt an environment file for git diff")
+	.action(textconvCommand)
+
+program
+	.command("whoami")
+	.description("show your identity in this project")
+	.action(whoamiCommand)
 
 program
 	.command("config")

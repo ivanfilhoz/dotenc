@@ -28,9 +28,7 @@ export const encryptDataKey = (
 	}
 
 	if (!keyInfo.rawPublicKey) {
-		throw new Error(
-			"Raw public key bytes are required for Ed25519 encryption.",
-		)
+		throw new Error("Raw public key bytes are required for Ed25519 encryption.")
 	}
 
 	const prevCurve = ECIES_CONFIG.ellipticCurve

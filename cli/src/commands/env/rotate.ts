@@ -1,6 +1,6 @@
-import { decryptEnvironment } from "../helpers/decryptEnvironment"
-import { encryptEnvironment } from "../helpers/encryptEnvironment"
-import { chooseEnvironmentPrompt } from "../prompts/chooseEnvironment"
+import { decryptEnvironment } from "../../helpers/decryptEnvironment"
+import { encryptEnvironment } from "../../helpers/encryptEnvironment"
+import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 
 export const rotateCommand = async (environmentNameArg: string) => {
 	const environmentName =

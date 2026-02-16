@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod"
 
 export const environmentSchema = z.object({
 	keys: z.array(
@@ -10,6 +10,6 @@ export const environmentSchema = z.object({
 		}),
 	),
 	encryptedContent: z.string(), // Base64 encoded encrypted content
-});
+})
 
-export type Environment = z.infer<typeof environmentSchema>;
+export type Environment = z.infer<typeof environmentSchema>

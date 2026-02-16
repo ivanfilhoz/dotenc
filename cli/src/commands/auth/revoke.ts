@@ -1,10 +1,10 @@
-import { decryptEnvironment } from "../helpers/decryptEnvironment"
-import { encryptEnvironment } from "../helpers/encryptEnvironment"
-import { getPublicKeyByName } from "../helpers/getPublicKeyByName"
-import { chooseEnvironmentPrompt } from "../prompts/chooseEnvironment"
-import { choosePublicKeyPrompt } from "../prompts/choosePublicKey"
+import { decryptEnvironment } from "../../helpers/decryptEnvironment"
+import { encryptEnvironment } from "../../helpers/encryptEnvironment"
+import { getPublicKeyByName } from "../../helpers/getPublicKeyByName"
+import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
+import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 
-export const grantCommand = async (
+export const revokeCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
 ) => {
@@ -29,7 +29,7 @@ export const grantCommand = async (
 	let publicKeyName = publicKeyNameArg
 	if (!publicKeyName) {
 		publicKeyName = await choosePublicKeyPrompt(
-			"Which public key do you want to grant access to this environment?",
+			"Which public key do you want to revoke access to this environment?",
 		)
 	}
 
@@ -46,7 +46,7 @@ export const grantCommand = async (
 
 	try {
 		await encryptEnvironment(environmentName, currentContent, {
-			grantPublicKeys: [publicKeyName],
+			revokePublicKeys: [publicKeyName],
 		})
 	} catch (error) {
 		console.error(

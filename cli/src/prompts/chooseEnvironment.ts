@@ -6,7 +6,7 @@ export const chooseEnvironmentPrompt = async (message: string) => {
 
 	if (!environments.length) {
 		console.log(
-			'No environment files found. To create a new environment, run "dotenc create"',
+			'No environment files found. To create a new environment, run "dotenc env create"',
 		)
 	}
 

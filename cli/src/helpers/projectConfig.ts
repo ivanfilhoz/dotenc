@@ -22,5 +22,5 @@ export const getProjectConfig = async () => {
 		return projectConfigSchema.parse(config)
 	}
 
-	return {} as ProjectConfig
+	return {} as Partial<ProjectConfig>
 }

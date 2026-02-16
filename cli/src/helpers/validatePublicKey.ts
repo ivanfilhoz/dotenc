@@ -1,8 +1,6 @@
 import type { KeyObject } from "node:crypto"
 
-type ValidationResult =
-	| { valid: true }
-	| { valid: false; reason: string }
+type ValidationResult = { valid: true } | { valid: false; reason: string }
 
 function getRsaModulusLength(key: KeyObject): number {
 	const der = key.export({ type: "spki", format: "der" })
@@ -76,7 +74,8 @@ export function validatePublicKey(key: KeyObject): ValidationResult {
 		case "ec":
 			return {
 				valid: false,
-				reason: "ECDSA keys are not supported. Use Ed25519 or RSA (2048+ bits).",
+				reason:
+					"ECDSA keys are not supported. Use Ed25519 or RSA (2048+ bits).",
 			}
 		default:
 			return {

@@ -95,10 +95,7 @@ export function parseOpenSSHPrivateKey(
 	return null
 }
 
-function parseEd25519(
-	priv: Buffer,
-	offset: number,
-): crypto.KeyObject | null {
+function parseEd25519(priv: Buffer, offset: number): crypto.KeyObject | null {
 	// Read 32-byte public key
 	const pubKey = readBytes(priv, offset)
 	if (!pubKey || pubKey.value.length !== 32) return null
@@ -113,12 +110,22 @@ function parseEd25519(
 	// Build PKCS#8 DER for Ed25519
 	// Fixed prefix for Ed25519 PKCS#8: 16 bytes
 	const pkcs8Prefix = Buffer.from([
-		0x30, 0x2e, // SEQUENCE (46 bytes)
-		0x02, 0x01, 0x00, // INTEGER 0 (version)
-		0x30, 0x05, // SEQUENCE (5 bytes)
-		0x06, 0x03, 0x2b, 0x65, 0x70, // OID 1.3.101.112 (Ed25519)
-		0x04, 0x22, // OCTET STRING (34 bytes)
-		0x04, 0x20, // OCTET STRING (32 bytes) - the seed
+		0x30,
+		0x2e, // SEQUENCE (46 bytes)
+		0x02,
+		0x01,
+		0x00, // INTEGER 0 (version)
+		0x30,
+		0x05, // SEQUENCE (5 bytes)
+		0x06,
+		0x03,
+		0x2b,
+		0x65,
+		0x70, // OID 1.3.101.112 (Ed25519)
+		0x04,
+		0x22, // OCTET STRING (34 bytes)
+		0x04,
+		0x20, // OCTET STRING (32 bytes) - the seed
 	])
 
 	const der = Buffer.concat([pkcs8Prefix, seed])
@@ -130,10 +137,7 @@ function parseEd25519(
 	}
 }
 
-function parseRSA(
-	priv: Buffer,
-	offset: number,
-): crypto.KeyObject | null {
+function parseRSA(priv: Buffer, offset: number): crypto.KeyObject | null {
 	// RSA private key fields in OpenSSH format:
 	// mpint n, mpint e, mpint d, mpint iqmp, mpint p, mpint q
 	const n = readMpint(priv, offset)
@@ -241,6 +245,6 @@ function bufToBigInt(buf: Buffer): bigint {
 function bigIntToBase64Url(n: bigint): string {
 	if (n === 0n) return "AA"
 	const hex = n.toString(16)
-	const padded = hex.length % 2 ? "0" + hex : hex
+	const padded = hex.length % 2 ? `0${hex}` : hex
 	return Buffer.from(padded, "hex").toString("base64url")
 }

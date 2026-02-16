@@ -4,13 +4,13 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
-import { createHash } from "../helpers/createHash"
-import { decryptEnvironment } from "../helpers/decryptEnvironment"
-import { encryptEnvironment } from "../helpers/encryptEnvironment"
-import { getDefaultEditor } from "../helpers/getDefaultEditor"
-import { getEnvironmentByName } from "../helpers/getEnvironmentByName"
-import { chooseEnvironmentPrompt } from "../prompts/chooseEnvironment"
-import type { Environment } from "../schemas/environment"
+import { createHash } from "../../helpers/createHash"
+import { decryptEnvironment } from "../../helpers/decryptEnvironment"
+import { encryptEnvironment } from "../../helpers/encryptEnvironment"
+import { getDefaultEditor } from "../../helpers/getDefaultEditor"
+import { getEnvironmentByName } from "../../helpers/getEnvironmentByName"
+import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
+import type { Environment } from "../../schemas/environment"
 
 export const editCommand = async (environmentNameArg: string) => {
 	const environmentName =
@@ -46,7 +46,7 @@ export const editCommand = async (environmentNameArg: string) => {
 # Any changes made here will be encrypted and saved back to the environment file.
 # The following public keys have access to this environment:
 ${environment.keys.map((key) => `# - ${key.name}`).join("\n")}
-# Use 'dotenc grant' and/or 'dotenc revoke' to manage access.
+# Use 'dotenc auth grant' and/or 'dotenc auth revoke' to manage access.
 # Make sure to save your changes before closing the editor.
 ${separator}${content}`
 
@@ -80,8 +80,7 @@ ${separator}${content}`
 			// strip the header and separator if they exist
 			const separatorIndex = newContent.indexOf(separator)
 			if (separatorIndex !== -1) {
-				const headerEndIndex =
-					newContent.indexOf(separator) + separator.length
+				const headerEndIndex = newContent.indexOf(separator) + separator.length
 				newContent = newContent.slice(headerEndIndex).trim()
 			}
 

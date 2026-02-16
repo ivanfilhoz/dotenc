@@ -1,7 +1,4 @@
 import { spawn } from "node:child_process"
-import { existsSync } from "node:fs"
-import fs from "node:fs/promises"
-import path from "node:path"
 import { decryptEnvironment } from "../helpers/decryptEnvironment"
 import { parseEnv } from "../helpers/parseEnv"
 
@@ -49,18 +46,8 @@ export const runCommand = async (
 		return { ...acc, ...env }
 	}, {})
 
-	// Get the local environment
-	let localEnv = {}
-
-	const localEnvironmentFilePath = path.join(process.cwd(), ".env")
-
-	if (existsSync(localEnvironmentFilePath)) {
-		const localEnvContent = await fs.readFile(localEnvironmentFilePath, "utf-8")
-		localEnv = parseEnv(localEnvContent)
-	}
-
 	// Merge the environment variables and run the command
-	const mergedEnv = { ...process.env, ...decryptedEnv, ...localEnv }
+	const mergedEnv = { ...process.env, ...decryptedEnv }
 
 	const child = spawn(command, args, {
 		env: mergedEnv,
