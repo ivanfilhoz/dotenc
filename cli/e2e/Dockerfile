@@ -1,7 +1,7 @@
 FROM oven/bun:1-slim
 
 # Install openssh-client for ssh-keygen
-RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openssh-client git && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -15,4 +15,4 @@ RUN bun install --frozen-lockfile
 # Copy source and e2e tests
 COPY cli/ cli/
 
-ENTRYPOINT ["bash", "/app/cli/e2e/run-tests.sh"]
+ENTRYPOINT ["bun", "test", "/app/cli/e2e/tests/"]
