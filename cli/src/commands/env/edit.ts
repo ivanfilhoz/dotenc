@@ -50,9 +50,23 @@ ${environment.keys.map((key) => `# - ${key.name}`).join("\n")}
 # Make sure to save your changes before closing the editor.
 ${separator}${content}`
 
-	const tempFilePath = path.join(os.tmpdir(), `.env.${environmentName}`)
-	await fs.writeFile(tempFilePath, content, "utf-8")
+	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dotenc-"))
+	const tempFilePath = path.join(tempDir, `.env.${environmentName}`)
+	await fs.writeFile(tempFilePath, content, { encoding: "utf-8", mode: 0o600 })
 	const initialHash = createHash(content)
+
+	const cleanup = async () => {
+		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+	}
+
+	const onSignal = () => {
+		fs.rm(tempDir, { recursive: true, force: true })
+			.catch(() => {})
+			.finally(() => process.exit(130))
+	}
+
+	process.on("SIGINT", onSignal)
+	process.on("SIGTERM", onSignal)
 
 	const editor = await getDefaultEditor()
 
@@ -94,6 +108,8 @@ ${separator}${content}`
 		console.error(`\nFailed to open editor: ${editor}`)
 		console.error(error instanceof Error ? error.message : error)
 	} finally {
-		await fs.unlink(tempFilePath).catch(() => {})
+		process.removeListener("SIGINT", onSignal)
+		process.removeListener("SIGTERM", onSignal)
+		await cleanup()
 	}
 }
