@@ -101,7 +101,7 @@ program
 	.command("dev")
 	.argument("<command>", "the command to run")
 	.argument("[args...]", "the arguments to pass to the command")
-	.description("run a command with development and personal environments")
+	.description("shortcut for 'run -e development,<yourname> <command>'")
 	.action(devCommand)
 
 const key = program.command("key").description("manage keys")
