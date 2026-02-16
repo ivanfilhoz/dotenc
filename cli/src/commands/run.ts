@@ -33,6 +33,7 @@ export const runCommand = async (
 		}
 	}
 
+	let failureCount = 0
 	const decryptedEnvs = await Promise.all(
 		environments.map(async (environment) => {
 			let content: string
@@ -44,13 +45,26 @@ export const runCommand = async (
 						? error.message
 						: `Unknown error occurred while decrypting the environment ${environment}.`,
 				)
-				console.error("This environment has been skipped.")
+				failureCount++
 				return {}
 			}
 			const decryptedEnv = parseEnv(content)
 			return decryptedEnv
 		}),
 	)
+
+	if (failureCount === environments.length) {
+		console.error(
+			`${chalk.red("Error:")} All environments failed to load.`,
+		)
+		process.exit(1)
+	}
+
+	if (failureCount > 0) {
+		console.error(
+			`${chalk.yellow("Warning:")} ${failureCount} of ${environments.length} environment(s) failed to load.`,
+		)
+	}
 
 	const decryptedEnv = decryptedEnvs.reduce((acc, env) => {
 		return { ...acc, ...env }
