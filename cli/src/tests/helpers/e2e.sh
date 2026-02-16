@@ -1,1 +1,0 @@
-echo $DOTENC_HELLO > e2e.txt

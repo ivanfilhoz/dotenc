@@ -1,5 +1,5 @@
-import crypto from "node:crypto"
 import { describe, expect, test } from "bun:test"
+import crypto from "node:crypto"
 import { validatePublicKey } from "../helpers/validatePublicKey"
 
 describe("validatePublicKey", () => {

@@ -1,5 +1,5 @@
-import crypto from "node:crypto"
 import { describe, expect, test } from "bun:test"
+import crypto from "node:crypto"
 import { getKeyFingerprint } from "../helpers/getKeyFingerprint"
 
 const rsaKeyPair = crypto.generateKeyPairSync("rsa", {

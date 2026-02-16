@@ -1,0 +1,49 @@
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import crypto from "node:crypto"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { getPublicKeyByName } from "../helpers/getPublicKeyByName"
+
+describe("getPublicKeyByName", () => {
+	let tmpDir: string
+	const originalCwd = process.cwd()
+
+	beforeAll(() => {
+		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeyname-"))
+		mkdirSync(path.join(tmpDir, ".dotenc"))
+
+		// Write a valid public key
+		const { publicKey } = crypto.generateKeyPairSync("ed25519")
+		const pem = publicKey.export({ type: "spki", format: "pem" }).toString()
+		writeFileSync(path.join(tmpDir, ".dotenc", "alice.pub"), pem, "utf-8")
+
+		// Write an invalid public key
+		writeFileSync(path.join(tmpDir, ".dotenc", "bad.pub"), "not a key", "utf-8")
+
+		process.chdir(tmpDir)
+	})
+
+	afterAll(() => {
+		process.chdir(originalCwd)
+		rmSync(tmpDir, { recursive: true, force: true })
+	})
+
+	test("returns a KeyObject for a valid public key", async () => {
+		const key = await getPublicKeyByName("alice")
+		expect(key.type).toBe("public")
+		expect(key.asymmetricKeyType).toBe("ed25519")
+	})
+
+	test("throws when key file does not exist", async () => {
+		await expect(getPublicKeyByName("nonexistent")).rejects.toThrow(
+			/No public key found with name nonexistent/,
+		)
+	})
+
+	test("throws when key file has invalid PEM", async () => {
+		await expect(getPublicKeyByName("bad")).rejects.toThrow(
+			/Invalid public key format for bad/,
+		)
+	})
+})
