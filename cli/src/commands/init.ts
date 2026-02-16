@@ -30,7 +30,7 @@ export const initCommand = async (options: Options) => {
 				`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
 			)
 		}
-		return
+		process.exit(1)
 	}
 
 	// Prompt for username
@@ -40,7 +40,7 @@ export const initCommand = async (options: Options) => {
 
 	if (!username) {
 		console.error(`${chalk.red("Error:")} no name provided.`)
-		return
+		process.exit(1)
 	}
 
 	// Bootstrap the project
@@ -59,7 +59,7 @@ export const initCommand = async (options: Options) => {
 			console.error(
 				`${chalk.red("Details:")} ${error instanceof Error ? error.message : error}`,
 			)
-			return
+			process.exit(1)
 		}
 	}
 
@@ -87,12 +87,12 @@ export const initCommand = async (options: Options) => {
 		console.error(
 			`${chalk.red("Error:")} no SSH key selected. Please select a key.`,
 		)
-		return
+		process.exit(1)
 	}
 
 	// Derive and add public key to the project
 	const keyEntry = privateKeys.find((k) => k.name === keyToAdd)
-	if (!keyEntry) return
+	if (!keyEntry) process.exit(1)
 
 	console.log(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)
 

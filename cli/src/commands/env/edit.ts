@@ -21,7 +21,7 @@ export const editCommand = async (environmentNameArg: string) => {
 	const nameValidation = validateEnvironmentName(environmentName)
 	if (!nameValidation.valid) {
 		console.error(`${chalk.red("Error:")} ${nameValidation.reason}`)
-		return
+		process.exit(1)
 	}
 
 	const environmentFile = `.env.${environmentName}.enc`
@@ -29,7 +29,7 @@ export const editCommand = async (environmentNameArg: string) => {
 
 	if (!existsSync(environmentFilePath)) {
 		console.error(`Environment file not found: ${environmentFilePath}`)
-		return
+		process.exit(1)
 	}
 
 	let environment: Environment
@@ -43,7 +43,7 @@ export const editCommand = async (environmentNameArg: string) => {
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		return
+		process.exit(1)
 	}
 
 	// Create header
@@ -87,7 +87,7 @@ ${separator}${content}`
 
 		if (result.status !== 0) {
 			console.error(`\nEditor exited with code ${result.status}`)
-			return
+			process.exit(1)
 		}
 
 		let newContent = await fs.readFile(tempFilePath, "utf-8")

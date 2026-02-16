@@ -16,7 +16,7 @@ export const keyRemoveCommand = async (nameArg: string) => {
 	const filePath = path.join(process.cwd(), ".dotenc", `${name}.pub`)
 	if (!existsSync(filePath)) {
 		console.error(`Public key ${chalk.cyan(name)} not found.`)
-		return
+		process.exit(1)
 	}
 
 	await fs.unlink(filePath)

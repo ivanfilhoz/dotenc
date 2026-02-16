@@ -21,7 +21,7 @@ export const createCommand = async (
 
 	if (!projectId) {
 		console.error('No project found. Run "dotenc init" to create one.')
-		return
+		process.exit(1)
 	}
 
 	// Prompt for the environment name
@@ -35,31 +35,31 @@ export const createCommand = async (
 	}
 
 	if (!environmentName) {
-		console.log(`${chalk.red("Error:")} no environment name provided`)
-		return
+		console.error(`${chalk.red("Error:")} no environment name provided`)
+		process.exit(1)
 	}
 
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
 		console.error(`${chalk.red("Error:")} ${validation.reason}`)
-		return
+		process.exit(1)
 	}
 
 	if (environmentExists(environmentName)) {
-		console.log(
+		console.error(
 			`${chalk.red("Error:")} environment ${environmentName} already exists. To edit it, use ${chalk.gray(
 				`dotenc env edit ${environmentName}`,
 			)}`,
 		)
-		return
+		process.exit(1)
 	}
 
 	const availablePublicKeys = await getPublicKeys()
 	if (!availablePublicKeys.length) {
-		console.log(
+		console.error(
 			`${chalk.red("Error:")} no public keys found. Please add a public key using ${chalk.gray("dotenc key add")}.`,
 		)
-		return
+		process.exit(1)
 	}
 
 	const publicKeys = publicKeyNameArg

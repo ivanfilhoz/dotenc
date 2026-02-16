@@ -20,7 +20,7 @@ export const runCommand = async (
 		console.error(
 			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo start a new environment, use "dotenc init [environment]".',
 		)
-		return
+		process.exit(1)
 	}
 
 	const environments = environmentName.split(",")

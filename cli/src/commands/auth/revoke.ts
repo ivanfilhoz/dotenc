@@ -19,7 +19,7 @@ export const revokeCommand = async (
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
 		console.error(`${chalk.red("Error:")} ${validation.reason}`)
-		return
+		process.exit(1)
 	}
 
 	let currentContent: string
@@ -31,7 +31,7 @@ export const revokeCommand = async (
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		return
+		process.exit(1)
 	}
 
 	let publicKeyName = publicKeyNameArg
@@ -49,7 +49,7 @@ export const revokeCommand = async (
 				? error.message
 				: "Unknown error occurred while retrieving the public key.",
 		)
-		return
+		process.exit(1)
 	}
 
 	try {
@@ -62,6 +62,6 @@ export const revokeCommand = async (
 				? error.message
 				: "Unknown error occurred while encrypting the environment.",
 		)
-		return
+		process.exit(1)
 	}
 }

@@ -9,7 +9,7 @@ export const devCommand = async (command: string, args: string[]) => {
 		console.error(
 			`${chalk.red("Error:")} could not resolve your identity. Run ${chalk.gray("dotenc init")} first.`,
 		)
-		return
+		process.exit(1)
 	}
 
 	await runCommand(command, args, { env: `development,${keyName}` })

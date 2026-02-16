@@ -24,7 +24,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 	if (!projectId) {
 		console.error('No project found. Run "dotenc init" to create one.')
-		return
+		process.exit(1)
 	}
 
 	let publicKey: KeyObject | undefined
@@ -39,7 +39,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`File ${chalk.cyan(sshPath)} does not exist. Please provide a valid SSH key path.`,
 			)
-			return
+			process.exit(1)
 		}
 
 		const keyContent = await fs.readFile(sshPath, "utf-8")
@@ -48,7 +48,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			return
+			process.exit(1)
 		}
 
 		try {
@@ -71,7 +71,8 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 					console.error(
 						`Details: ${error instanceof Error ? error.message : error}`,
 					)
-					return
+					process.exit(1)
+
 				}
 			}
 		}
@@ -82,7 +83,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`File ${chalk.cyan(options.fromFile)} does not exist. Please provide a valid file path.`,
 			)
-			return
+			process.exit(1)
 		}
 
 		const keyContent = await fs.readFile(options.fromFile, "utf-8")
@@ -91,7 +92,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			return
+			process.exit(1)
 		}
 
 		try {
@@ -109,7 +110,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 					console.error(
 						"Invalid key format. Please provide a valid PEM formatted public or private key.",
 					)
-					return
+					process.exit(1)
 				}
 			}
 		}
@@ -120,7 +121,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			return
+			process.exit(1)
 		}
 
 		try {
@@ -138,7 +139,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 					console.error(
 						"Invalid key format. Please provide a valid PEM formatted public or private key.",
 					)
-					return
+					process.exit(1)
 				}
 			}
 		}
@@ -179,7 +180,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 			if (!publicKeyInput) {
 				console.error("No public key provided. Add operation cancelled.")
-				return
+				process.exit(1)
 			}
 
 			try {
@@ -191,7 +192,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 				console.error(
 					`Details: ${error instanceof Error ? error.message : error}`,
 				)
-				return
+				process.exit(1)
 			}
 		} else {
 			const keyPrompt = await inquirer.prompt({
@@ -204,7 +205,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			const selectedKey = sshKeys.find((k) => k.name === keyPrompt.key)
 			if (!selectedKey) {
 				console.error("SSH key not found.")
-				return
+				process.exit(1)
 			}
 
 			publicKey = crypto.createPublicKey(selectedKey.privateKey)
@@ -220,13 +221,13 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		console.error(
 			"An unexpected error occurred. No public key was inferred from the provided input.",
 		)
-		return
+		process.exit(1)
 	}
 
 	const validation = validatePublicKey(publicKey)
 	if (!validation.valid) {
 		console.error(validation.reason)
-		return
+		process.exit(1)
 	}
 
 	const publicKeyOutput = publicKey.export({
@@ -249,7 +250,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 			console.error(
 				`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
 			)
-			return
+			process.exit(1)
 		}
 	}
 

@@ -14,7 +14,7 @@ export const rotateCommand = async (environmentNameArg: string) => {
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
 		console.error(`${chalk.red("Error:")} ${validation.reason}`)
-		return
+		process.exit(1)
 	}
 
 	let currentContent: string
@@ -26,7 +26,7 @@ export const rotateCommand = async (environmentNameArg: string) => {
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		return
+		process.exit(1)
 	}
 
 	try {
@@ -37,7 +37,7 @@ export const rotateCommand = async (environmentNameArg: string) => {
 				? error.message
 				: "Unknown error occurred while encrypting the environment.",
 		)
-		return
+		process.exit(1)
 	}
 
 	console.log(`Data key for ${environmentName} has been rotated.`)
