@@ -1,1 +1,3 @@
 /node_modules
+# Ignore local environment file
+.env
