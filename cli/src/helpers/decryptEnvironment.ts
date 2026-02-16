@@ -5,21 +5,28 @@ import { decryptDataKey } from "./decryptDataKey"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 
-export const decryptEnvironment = async (name: string) => {
-	const availablePrivateKeys = await getPrivateKeys()
+export const decryptEnvironmentData = async (
+	environment: Environment,
+): Promise<string> => {
+	const { keys: availablePrivateKeys, passphraseProtectedKeys } =
+		await getPrivateKeys()
 
 	if (!availablePrivateKeys.length) {
+		if (passphraseProtectedKeys.length > 0) {
+			throw new Error(
+				`Your SSH keys are passphrase-protected, which is not currently supported by dotenc.\n\nPassphrase-protected keys found:\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}\n\nTo generate a key without a passphrase:\n  ssh-keygen -t ed25519 -N ""\n\nOr use an existing key without a passphrase.`,
+			)
+		}
 		throw new Error(
 			"No private keys found. Please ensure you have SSH keys in ~/.ssh/ or set the DOTENC_PRIVATE_KEY environment variable.",
 		)
 	}
 
-	const environmentJson = await getEnvironmentByName(name)
 	let grantedKey: Environment["keys"][number] | undefined
 	let selectedPrivateKey: PrivateKeyEntry | undefined
 
 	for (const privateKeyEntry of availablePrivateKeys) {
-		grantedKey = environmentJson.keys.find((key) => {
+		grantedKey = environment.keys.find((key) => {
 			return key.fingerprint === privateKeyEntry.fingerprint
 		})
 
@@ -30,13 +37,6 @@ export const decryptEnvironment = async (name: string) => {
 	}
 
 	if (!grantedKey || !selectedPrivateKey) {
-		console.error(
-			`You do not have access to this environment.\n
-      These are your available private keys:\n
-      ${availablePrivateKeys.map((key) => `- ${chalk.green(key.name)}`).join("\n")}\n
-      Please ask the owners of any of the following keys to grant you access:\n
-      ${environmentJson.keys.map((key) => `- ${chalk.green(key.name)}`).join("\n")}\n`,
-		)
 		throw new Error("Access denied to the environment.")
 	}
 
@@ -47,16 +47,46 @@ export const decryptEnvironment = async (name: string) => {
 			Buffer.from(grantedKey.encryptedDataKey, "base64"),
 		)
 	} catch (error) {
-		console.error(
-			`${chalk.red("Error:")} failed to decrypt the data key. Please ensure you have the correct private key.`,
-		)
 		throw new Error("Failed to decrypt the data key.", { cause: error })
 	}
 
 	const decryptedContent = await decryptData(
 		dataKey,
-		Buffer.from(environmentJson.encryptedContent, "base64"),
+		Buffer.from(environment.encryptedContent, "base64"),
 	)
 
 	return decryptedContent
+}
+
+export const decryptEnvironment = async (name: string) => {
+	const { keys: availablePrivateKeys } = await getPrivateKeys()
+	const environmentJson = await getEnvironmentByName(name)
+
+	try {
+		return await decryptEnvironmentData(environmentJson)
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			error.message === "Access denied to the environment."
+		) {
+			console.error(
+				`You do not have access to this environment.\n
+      These are your available private keys:\n
+      ${availablePrivateKeys.map((key) => `- ${chalk.green(key.name)}`).join("\n")}\n
+      Please ask the owners of any of the following keys to grant you access:\n
+      ${environmentJson.keys.map((key) => `- ${chalk.green(key.name)}`).join("\n")}\n`,
+			)
+		}
+
+		if (
+			error instanceof Error &&
+			error.message === "Failed to decrypt the data key."
+		) {
+			console.error(
+				`${chalk.red("Error:")} failed to decrypt the data key. Please ensure you have the correct private key.`,
+			)
+		}
+
+		throw error
+	}
 }

@@ -1,22 +1,52 @@
 import crypto from "node:crypto"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
-import { createLocalEnvironment } from "../helpers/createLocalEnvironment"
 import { createProject } from "../helpers/createProject"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
+import { setupGitDiff } from "../helpers/setupGitDiff"
+import { inputNamePrompt } from "../prompts/inputName"
+import { createCommand } from "./env/create"
 import { keyAddCommand } from "./key/add"
 
-export const initCommand = async () => {
+type Options = {
+	name?: string
+}
+
+export const initCommand = async (options: Options) => {
 	// Scan for SSH keys
-	const privateKeys = await getPrivateKeys()
+	const { keys: privateKeys, passphraseProtectedKeys } =
+		await getPrivateKeys()
 
 	if (!privateKeys.length) {
-		console.error(
-			`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
-		)
+		if (passphraseProtectedKeys.length > 0) {
+			console.error(
+				`${chalk.red("Error:")} your SSH keys are passphrase-protected, which is not currently supported by dotenc.`,
+			)
+			console.error(
+				`\nPassphrase-protected keys found:\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}`,
+			)
+			console.error(
+				`\nTo generate a key without a passphrase:\n  ${chalk.gray('ssh-keygen -t ed25519 -N ""')}\n\nOr use an existing key without a passphrase.`,
+			)
+		} else {
+			console.error(
+				`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
+			)
+		}
+		return
+	}
+
+	// Prompt for username
+	const username =
+		options.name ||
+		(await inputNamePrompt("What's your name?", os.userInfo().username))
+
+	if (!username) {
+		console.error(`${chalk.red("Error:")} no name provided.`)
 		return
 	}
 
@@ -40,72 +70,77 @@ export const initCommand = async () => {
 		}
 	}
 
-	// Let user choose which SSH keys to add
-	let keysToAdd: string[] = []
+	// Single key selection
+	let keyToAdd: string
 
 	if (privateKeys.length === 1) {
-		keysToAdd = [privateKeys[0].name]
+		keyToAdd = privateKeys[0].name
 	} else {
 		const result = await inquirer.prompt([
 			{
-				type: "checkbox",
-				name: "keys",
-				message: "Which SSH keys would you like to use in this project?",
+				type: "list",
+				name: "key",
+				message: "Which SSH key would you like to use?",
 				choices: privateKeys.map((key) => ({
 					name: `${key.name} (${key.algorithm})`,
 					value: key.name,
 				})),
 			},
 		])
-		keysToAdd = result.keys
+		keyToAdd = result.key
 	}
 
-	if (!keysToAdd.length) {
+	if (!keyToAdd) {
 		console.error(
-			`${chalk.red("Error:")} no SSH keys selected. Please select at least one key.`,
+			`${chalk.red("Error:")} no SSH key selected. Please select a key.`,
 		)
 		return
 	}
 
-	// Derive and add public keys to the project
-	for (const keyName of keysToAdd) {
-		const keyEntry = privateKeys.find((k) => k.name === keyName)
-		if (!keyEntry) continue
+	// Derive and add public key to the project
+	const keyEntry = privateKeys.find((k) => k.name === keyToAdd)
+	if (!keyEntry) return
 
-		console.log(
-			`Adding key: ${chalk.cyan(keyName)} (${keyEntry.algorithm})`,
-		)
+	console.log(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)
 
-		// Derive public key from private key
-		const publicKey = crypto.createPublicKey(keyEntry.privateKey)
-		const publicKeyPem = publicKey
-			.export({ type: "spki", format: "pem" })
-			.toString()
+	const publicKey = crypto.createPublicKey(keyEntry.privateKey)
+	const publicKeyPem = publicKey
+		.export({ type: "spki", format: "pem" })
+		.toString()
 
-		await keyAddCommand(keyName, {
-			fromString: publicKeyPem,
-		})
-	}
+	await keyAddCommand(username, {
+		fromString: publicKeyPem,
+	})
 
-	// Create a local environment file for the user
+	// Set up git diff driver for encrypted files
 	try {
-		await createLocalEnvironment()
-	} catch (error) {
-		console.error(
-			`${chalk.red("Error:")} failed to create the local environment.`,
+		setupGitDiff()
+	} catch (_error) {
+		console.warn(
+			`${chalk.yellow("Warning:")} could not set up git diff driver. You can run ${chalk.gray("dotenc init")} again inside a git repository.`,
 		)
-		console.error(
-			`${chalk.red("Details:")} ${error instanceof Error ? error.message : error}`,
-		)
-		return
 	}
+
+	// Create personal encrypted environment
+	// If .env exists, use its contents as initial content, then delete it
+	let initialContent: string | undefined
+	const envPath = path.join(process.cwd(), ".env")
+
+	if (existsSync(envPath)) {
+		initialContent = await fs.readFile(envPath, "utf-8")
+		await fs.unlink(envPath)
+		console.log(
+			`Migrated ${chalk.gray(".env")} contents to ${chalk.cyan(username)} environment.`,
+		)
+	}
+
+	await createCommand(username, username, initialContent)
 
 	// Output success message
-	console.log(`${chalk.green("✔")} Initialization complete!`)
+	console.log(`\n${chalk.green("✔")} Initialization complete!`)
 	console.log("\nSome useful tips:")
-	const createCmd = chalk.gray("dotenc create [environment]")
-	console.log(`- To create a new environment:\t\t${createCmd}`)
-	console.log(
-		`- Use the git-ignored ${chalk.gray(".env")} file for local development. It will have priority over any encrypted environments.`,
-	)
+	const editCmd = chalk.gray(`dotenc env edit ${username}`)
+	console.log(`- To edit your personal environment:\t${editCmd}`)
+	const devCmd = chalk.gray("dotenc dev <command>")
+	console.log(`- To run with your encrypted env:\t${devCmd}`)
 }

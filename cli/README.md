@@ -9,13 +9,12 @@
 ## 30-Second Example
 
 ```bash
-dotenc init
-dotenc create production
-dotenc edit production
-dotenc run -e production node app.js
+dotenc init          # pick your SSH key, choose a name
+dotenc env edit alice    # add your personal secrets
+dotenc dev npm start # run with your encrypted env
 ```
 
-Encrypted `.env.production.enc` committed.
+Encrypted `.env.alice.enc` committed.
 No external services.
 Uses your existing SSH keys.
 Done.
@@ -27,6 +26,7 @@ Done.
 - 🚀 Secure command running with on-the-fly decryption
 - ✍️ Easy and secure environment variable editing
 - 🌍 Supports multiple and extensible environments
+- 👤 Personal encrypted environments per developer
 - 🔄 Automatic data key rotation on edits
 - 🛡️ Supports both RSA and Ed25519 SSH keys
 
@@ -44,11 +44,16 @@ Done.
   - [Creating a new environment](#creating-a-new-environment)
   - [Editing an environment](#editing-an-environment)
   - [Run commands on an environment](#run-commands-on-an-environment)
-- [Deploying your Application](#deploying-your-application)
 - [Team Collaboration](#team-collaboration)
   - [Granting access to a new team member](#granting-access-to-a-new-team-member)
   - [Revoking access from a team member](#revoking-access-from-a-team-member)
 - [Offboarding a Team Member](#offboarding-a-team-member)
+- [CI/CD Integration](#cicd-integration)
+  - [1. Generate a dedicated CI key](#1-generate-a-dedicated-ci-key)
+  - [2. Add the key and grant access](#2-add-the-key-and-grant-access)
+  - [3. Set the private key in your CI provider](#3-set-the-private-key-in-your-ci-provider)
+  - [4. Use dotenc in your CI pipeline](#4-use-dotenc-in-your-ci-pipeline)
+  - [GitHub Actions example](#github-actions-example)
 - [Key Management](#key-management)
   - [Adding a public key](#adding-a-public-key)
   - [Removing a public key](#removing-a-public-key)
@@ -99,12 +104,13 @@ After setup, your project will look like:
 │   ├── alice.pub
 │   ├── bob.pub
 │   └── ...
+├── .env.alice.enc
 ├── .env.production.enc
 ├── .env.development.enc
 └── dotenc.json
 ```
 
-Encrypted files are committed to Git. Public keys are stored inside `.dotenc/`.
+Encrypted files are committed to Git. Public keys are stored inside `.dotenc/`. Each developer gets a personal encrypted environment (e.g., `.env.alice.enc`).
 
 ## Installation
 
@@ -115,15 +121,15 @@ brew tap ivanfilhoz/dotenc
 brew install dotenc
 ```
 
-### Standalone binary
-
-Download the latest binary for your platform from the [GitHub Releases](https://github.com/ivanfilhoz/dotenc/releases) page.
-
 ### npm
 
 ```bash
 npm install -g @dotenc/cli
 ```
+
+### Standalone binary
+
+Download the latest binary for your platform from the [GitHub Releases](https://github.com/ivanfilhoz/dotenc/releases) page.
 
 ## Basic Usage
 
@@ -136,9 +142,11 @@ dotenc init
 This will interactively guide you through the setup process:
 
 1. Scanning your `~/.ssh/` directory for SSH keys (Ed25519, RSA, etc.);
-2. Letting you choose which SSH key(s) to use;
-3. Deriving the public key and storing it in `.dotenc/` (e.g., `.dotenc/john.pub`);
-4. Creating a `dotenc.json` configuration file in the root of your project.
+2. Prompting for your username (defaults to your system username);
+3. Letting you choose which SSH key to use;
+4. Deriving the public key and storing it in `.dotenc/` (e.g., `.dotenc/alice.pub`);
+5. Creating a `dotenc.json` configuration file in the root of your project;
+6. Creating your personal encrypted environment (e.g., `.env.alice.enc`).
 
 No keys to generate. If you already have an SSH key (and you probably do), you're ready to go.
 
@@ -147,15 +155,15 @@ If you don't have an SSH key yet, just run `ssh-keygen` first - you'll want one 
 ### Creating a new environment
 
 ```bash
-dotenc create [environment]
+dotenc env create [environment]
 ```
 
-This command creates a new encrypted environment file under the specified name (e.g., `.env.development.enc`).
+This command creates a new encrypted environment file under the specified name (e.g., `.env.development.enc`). Your personal environment is created automatically during `init`.
 
 ### Editing an environment
 
 ```bash
-dotenc edit [environment]
+dotenc env edit [environment]
 ```
 
 Opens your system's default editor to modify the specified environment. To set a custom editor, use the `dotenc config editor` command. It will take precedence over your system's default editor.
@@ -167,6 +175,20 @@ dotenc config editor vim
 ```
 
 ### Run commands on an environment
+
+For development, the `dev` command loads both the shared `development` environment and your personal environment automatically:
+
+```bash
+dotenc dev <command> [...args]
+```
+
+Example:
+
+```bash
+dotenc dev node app.js
+```
+
+For explicit environment control, use `run`:
 
 ```bash
 dotenc run --env <environment> <command> [...args]
@@ -188,47 +210,6 @@ dotenc run -e base,production node app.js
 
 In the example above, `production` will override any variables also present in `base`.
 
-## Deploying your Application
-
-Every machine needs an authorized private key to decrypt the environment variables. For CI/CD and hosting providers, the recommended approach is to use the `DOTENC_PRIVATE_KEY` environment variable.
-
-For example, if you're deploying to Netlify, generate an Ed25519 key pair for it:
-
-```bash
-ssh-keygen -t ed25519 -f netlify_key -N ""
-```
-
-Then add the public key to the project and grant access:
-
-```bash
-dotenc key add netlify --from-ssh ./netlify_key
-dotenc grant production netlify
-```
-
-Now, copy the contents of the private key and paste it into your Netlify environment variables:
-
-```bash
-DOTENC_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
-...
------END PRIVATE KEY-----"
-```
-
-And configure Netlify to run your application using the `dotenc` command:
-
-```bash
-dotenc run -e production node app.js
-```
-
-Then, commit the changes:
-
-```bash
-git add .
-git commit -m "Add Netlify's public key and grant access to production environment"
-git push
-```
-
-That's it! The private key stays in Netlify's environment variables, and the public key lives in your repository. Clean separation.
-
 ## Team Collaboration
 
 In a real-world scenario, you will likely have multiple environments (e.g., `development`, `test`, `production`) and a team of developers who need access to these environments. Let's walk through how to set this up.
@@ -242,8 +223,8 @@ She sends you her public key (`~/.ssh/id_ed25519.pub`) — it's a public key, so
 ```bash
 git checkout -b grant-alice-key
 dotenc key add alice --from-file alice.pub
-dotenc grant development alice
-dotenc grant test alice
+dotenc auth grant development alice
+dotenc auth grant test alice
 git add .
 git commit -m "Grant alice access to development and test environments"
 git push
@@ -277,8 +258,86 @@ For proper offboarding, we recommend:
 
 1. `dotenc key remove <user>`
 2. Rotate external secrets (database passwords, API tokens, etc.)
-3. (Optional) `dotenc rotate <environment>` to rotate the environment data key
+3. (Optional) `dotenc env rotate <environment>` to rotate the environment data key
 4. Deploy updated configuration
+
+## CI/CD Integration
+
+CI runners and build servers need their own identity to decrypt environments. The approach is the same as local development: generate a key, grant access, and provide the private key at runtime.
+
+### 1. Generate a dedicated CI key
+
+Create an Ed25519 key pair for your CI environment. Do **not** set a passphrase:
+
+```bash
+ssh-keygen -t ed25519 -f ci_key -N "" -C "ci"
+```
+
+This produces two files: `ci_key` (private) and `ci_key.pub` (public).
+
+### 2. Add the key and grant access
+
+Register the public key in the project and grant it access to the environments CI needs:
+
+```bash
+dotenc key add ci --from-ssh ./ci_key
+dotenc auth grant test ci
+dotenc auth grant production ci
+git add .
+git commit -m "Add CI key and grant access to test and production"
+git push
+```
+
+### 3. Set the private key in your CI provider
+
+Copy the **entire** contents of the private key file and store it as a secret environment variable named `DOTENC_PRIVATE_KEY` in your CI provider (GitHub Actions, GitLab CI, CircleCI, etc.):
+
+```bash
+cat ci_key
+```
+
+```
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbm...
+-----END OPENSSH PRIVATE KEY-----
+```
+
+Paste the full output — including the `BEGIN` and `END` lines — as the value of `DOTENC_PRIVATE_KEY`.
+
+Once stored, delete the local private key file:
+
+```bash
+rm ci_key
+```
+
+The public key (`ci_key.pub`) can also be deleted — it's already tracked inside `.dotenc/ci.pub`.
+
+### 4. Use dotenc in your CI pipeline
+
+With `DOTENC_PRIVATE_KEY` set, dotenc will automatically pick up the key. No `~/.ssh` directory required:
+
+```bash
+dotenc run -e test npm test
+dotenc run -e production node app.js
+```
+
+### GitHub Actions example
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm install -g @dotenc/cli
+      - run: dotenc run -e test npm test
+        env:
+          DOTENC_PRIVATE_KEY: ${{ secrets.DOTENC_PRIVATE_KEY }}
+```
 
 ## Key Management
 
@@ -295,6 +354,12 @@ dotenc supports the following SSH key types:
 - RSA (2048-bit or larger)
 
 These types are widely supported and provide strong security guarantees.
+
+> **Note:** Passphrase-protected SSH keys are not currently supported. dotenc needs to read your private key directly, and it cannot prompt for or decrypt passphrases. If all your keys are passphrase-protected, you can generate a dedicated key without a passphrase:
+>
+> ```bash
+> ssh-keygen -t ed25519 -N ""
+> ```
 
 ### Adding a public key
 
@@ -324,7 +389,7 @@ For convenience, you can setup your `package.json` file like this:
 ```jsonc
   // ...
   "scripts": {
-    "dev": "dotenc run -e development tsx src/app.ts",
+    "dev": "dotenc dev tsx src/app.ts",
     "start": "dotenc run -e production node dist/app.js",
     "test": "dotenc run -e test vitest"
   }

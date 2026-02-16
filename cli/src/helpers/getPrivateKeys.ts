@@ -4,6 +4,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { getKeyFingerprint } from "./getKeyFingerprint"
+import { isPassphraseProtected } from "./isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "./parseOpenSSHKey"
 
 export type PrivateKeyEntry = {
@@ -15,12 +16,7 @@ export type PrivateKeyEntry = {
 	rawPublicKey?: Buffer
 }
 
-const SSH_KEY_FILES = [
-	"id_ed25519",
-	"id_rsa",
-	"id_ecdsa",
-	"id_dsa",
-]
+const SSH_KEY_FILES = ["id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"]
 
 function extractEd25519RawKeys(privateKey: crypto.KeyObject): {
 	rawSeed: Buffer
@@ -45,9 +41,7 @@ function detectAlgorithm(
 	return null
 }
 
-function tryParsePrivateKey(
-	keyContent: string,
-): crypto.KeyObject | null {
+function tryParsePrivateKey(keyContent: string): crypto.KeyObject | null {
 	try {
 		return crypto.createPrivateKey(keyContent)
 	} catch {
@@ -56,16 +50,20 @@ function tryParsePrivateKey(
 	}
 }
 
-export const getPrivateKeys = async () => {
+export type GetPrivateKeysResult = {
+	keys: PrivateKeyEntry[]
+	passphraseProtectedKeys: string[]
+}
+
+export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 	const privateKeys: PrivateKeyEntry[] = []
+	const passphraseProtectedKeys: string[] = []
 
 	// Check DOTENC_PRIVATE_KEY env var first
 	if (process.env.DOTENC_PRIVATE_KEY) {
 		let privateKey: crypto.KeyObject | null = null
 		try {
-			privateKey = crypto.createPrivateKey(
-				process.env.DOTENC_PRIVATE_KEY,
-			)
+			privateKey = crypto.createPrivateKey(process.env.DOTENC_PRIVATE_KEY)
 		} catch {
 			// Fallback: parse OpenSSH format that Node/OpenSSL can't handle natively
 			privateKey = parseOpenSSHPrivateKey(process.env.DOTENC_PRIVATE_KEY)
@@ -83,8 +81,7 @@ export const getPrivateKeys = async () => {
 				}
 
 				if (algorithm === "ed25519") {
-					const { rawSeed, rawPublicKey } =
-						extractEd25519RawKeys(privateKey)
+					const { rawSeed, rawPublicKey } = extractEd25519RawKeys(privateKey)
 					entry.rawSeed = rawSeed
 					entry.rawPublicKey = rawPublicKey
 				}
@@ -96,6 +93,12 @@ export const getPrivateKeys = async () => {
 				)
 			}
 		} else {
+			if (isPassphraseProtected(process.env.DOTENC_PRIVATE_KEY)) {
+				console.error(
+					"Error: the key in DOTENC_PRIVATE_KEY is passphrase-protected, which is not currently supported by dotenc.",
+				)
+				process.exit(1)
+			}
 			console.error(
 				"Invalid private key format in DOTENC_PRIVATE_KEY environment variable. Please provide a valid private key (PEM or OpenSSH format).",
 			)
@@ -105,7 +108,7 @@ export const getPrivateKeys = async () => {
 	// Scan ~/.ssh/ for SSH key files
 	const sshDir = path.join(os.homedir(), ".ssh")
 	if (!existsSync(sshDir)) {
-		return privateKeys
+		return { keys: privateKeys, passphraseProtectedKeys }
 	}
 
 	const files = await fs.readdir(sshDir)
@@ -146,7 +149,9 @@ export const getPrivateKeys = async () => {
 		const privateKey = tryParsePrivateKey(keyContent)
 
 		if (!privateKey) {
-			// Could be passphrase-protected — skip silently in auto-scan
+			if (isPassphraseProtected(keyContent)) {
+				passphraseProtectedKeys.push(fileName)
+			}
 			continue
 		}
 
@@ -161,8 +166,7 @@ export const getPrivateKeys = async () => {
 		}
 
 		if (algorithm === "ed25519") {
-			const { rawSeed, rawPublicKey } =
-				extractEd25519RawKeys(privateKey)
+			const { rawSeed, rawPublicKey } = extractEd25519RawKeys(privateKey)
 			entry.rawSeed = rawSeed
 			entry.rawPublicKey = rawPublicKey
 		}
@@ -170,5 +174,5 @@ export const getPrivateKeys = async () => {
 		privateKeys.push(entry)
 	}
 
-	return privateKeys
+	return { keys: privateKeys, passphraseProtectedKeys }
 }

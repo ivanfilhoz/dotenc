@@ -6,9 +6,10 @@ import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
 import { getPrivateKeys } from "../../helpers/getPrivateKeys"
-import { validatePublicKey } from "../../helpers/validatePublicKey"
+import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
 import { getProjectConfig } from "../../helpers/projectConfig"
+import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
 import { inputNamePrompt } from "../../prompts/inputName"
 
@@ -42,6 +43,14 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		}
 
 		const keyContent = await fs.readFile(sshPath, "utf-8")
+
+		if (isPassphraseProtected(keyContent)) {
+			console.error(
+				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
+			)
+			return
+		}
+
 		try {
 			// Try as private key first, derive public key
 			const privateKey = crypto.createPrivateKey(keyContent)
@@ -77,6 +86,14 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		}
 
 		const keyContent = await fs.readFile(options.fromFile, "utf-8")
+
+		if (isPassphraseProtected(keyContent)) {
+			console.error(
+				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
+			)
+			return
+		}
+
 		try {
 			publicKey = crypto.createPublicKey(keyContent)
 		} catch {
@@ -99,6 +116,13 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 	}
 
 	if (options?.fromString) {
+		if (isPassphraseProtected(options.fromString)) {
+			console.error(
+				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
+			)
+			return
+		}
+
 		try {
 			publicKey = crypto.createPublicKey(options.fromString)
 		} catch {
@@ -122,14 +146,18 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 	// Interactive mode
 	if (!publicKey) {
-		const sshKeys = await getPrivateKeys()
+		const { keys: sshKeys, passphraseProtectedKeys } = await getPrivateKeys()
 
-		const choices: { name: string; value: string }[] = sshKeys.map(
-			(key) => ({
-				name: `${key.name} (${key.algorithm})`,
-				value: key.name,
-			}),
-		)
+		if (sshKeys.length === 0 && passphraseProtectedKeys.length > 0) {
+			console.warn(
+				`${chalk.yellow("Warning:")} SSH keys were found but are passphrase-protected (not supported by dotenc):\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}\n`,
+			)
+		}
+
+		const choices: { name: string; value: string }[] = sshKeys.map((key) => ({
+			name: `${key.name} (${key.algorithm})`,
+			value: key.name,
+		}))
 
 		const modePrompt = await inquirer.prompt({
 			type: "list",
@@ -173,9 +201,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 				choices,
 			})
 
-			const selectedKey = sshKeys.find(
-				(k) => k.name === keyPrompt.key,
-			)
+			const selectedKey = sshKeys.find((k) => k.name === keyPrompt.key)
 			if (!selectedKey) {
 				console.error("SSH key not found.")
 				return

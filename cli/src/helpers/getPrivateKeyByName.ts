@@ -3,7 +3,7 @@ import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 export const getPrivateKeyByName = async (
 	name: string,
 ): Promise<PrivateKeyEntry> => {
-	const privateKeys = await getPrivateKeys()
+	const { keys: privateKeys } = await getPrivateKeys()
 	const entry = privateKeys.find((k) => k.name === name)
 
 	if (!entry) {
