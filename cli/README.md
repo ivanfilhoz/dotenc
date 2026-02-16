@@ -121,6 +121,13 @@ brew tap ivanfilhoz/dotenc
 brew install dotenc
 ```
 
+### Scoop (Windows)
+
+```bash
+scoop bucket add dotenc https://github.com/ivanfilhoz/scoop-dotenc
+scoop install dotenc
+```
+
 ### npm
 
 ```bash

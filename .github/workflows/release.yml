@@ -158,3 +158,56 @@ jobs:
               "https://api.github.com/repos/ivanfilhoz/homebrew-dotenc/contents/Formula/dotenc.rb" \
               -d "{\"message\":\"Add dotenc v${VERSION}\",\"content\":\"${ENCODED}\"}"
           fi
+
+      - name: Update Scoop bucket
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          SHA_WINDOWS_X64=$(sha256sum cli/dist/dotenc-windows-x64.zip | awk '{print $1}')
+
+          MANIFEST=$(cat <<JSON
+          {
+            "version": "${VERSION}",
+            "description": "Git-native encrypted environments powered by your SSH keys",
+            "homepage": "https://github.com/ivanfilhoz/dotenc",
+            "license": "MIT",
+            "url": "https://github.com/ivanfilhoz/dotenc/releases/download/v${VERSION}/dotenc-windows-x64.zip",
+            "hash": "sha256:${SHA_WINDOWS_X64}",
+            "bin": [["dotenc-windows-x64.exe", "dotenc"]],
+            "checkver": {
+              "github": "https://github.com/ivanfilhoz/dotenc"
+            },
+            "autoupdate": {
+              "url": "https://github.com/ivanfilhoz/dotenc/releases/download/v\$version/dotenc-windows-x64.zip"
+            }
+          }
+          JSON
+          )
+
+          # Push manifest to scoop-dotenc bucket repo via GitHub API
+          ENCODED=$(echo -n "$MANIFEST" | base64 -w 0)
+
+          # Check if manifest already exists
+          EXISTING=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token $SCOOP_BUCKET_TOKEN" \
+            "https://api.github.com/repos/ivanfilhoz/scoop-dotenc/contents/bucket/dotenc.json")
+
+          if [ "$EXISTING" = "200" ]; then
+            SHA=$(curl -s \
+              -H "Authorization: token $SCOOP_BUCKET_TOKEN" \
+              "https://api.github.com/repos/ivanfilhoz/scoop-dotenc/contents/bucket/dotenc.json" \
+              | jq -r '.sha')
+
+            curl -s -X PUT \
+              -H "Authorization: token $SCOOP_BUCKET_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/ivanfilhoz/scoop-dotenc/contents/bucket/dotenc.json" \
+              -d "{\"message\":\"Update dotenc to v${VERSION}\",\"content\":\"${ENCODED}\",\"sha\":\"${SHA}\"}"
+          else
+            curl -s -X PUT \
+              -H "Authorization: token $SCOOP_BUCKET_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/ivanfilhoz/scoop-dotenc/contents/bucket/dotenc.json" \
+              -d "{\"message\":\"Add dotenc v${VERSION}\",\"content\":\"${ENCODED}\"}"
+          fi
