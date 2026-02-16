@@ -42,11 +42,14 @@ Done.
 - [Basic Usage](#basic-usage)
   - [Setup](#setup)
   - [Creating a new environment](#creating-a-new-environment)
+  - [Listing environments](#listing-environments)
   - [Editing an environment](#editing-an-environment)
   - [Run commands on an environment](#run-commands-on-an-environment)
+  - [Checking your identity](#checking-your-identity)
 - [Team Collaboration](#team-collaboration)
   - [Granting access to a new team member](#granting-access-to-a-new-team-member)
   - [Revoking access from a team member](#revoking-access-from-a-team-member)
+  - [Listing access](#listing-access)
 - [Offboarding a Team Member](#offboarding-a-team-member)
 - [CI/CD Integration](#cicd-integration)
   - [1. Generate a dedicated CI key](#1-generate-a-dedicated-ci-key)
@@ -55,7 +58,9 @@ Done.
   - [4. Use dotenc in your CI pipeline](#4-use-dotenc-in-your-ci-pipeline)
   - [GitHub Actions example](#github-actions-example)
 - [Key Management](#key-management)
+  - [Supported Key Types](#supported-key-types)
   - [Adding a public key](#adding-a-public-key)
+  - [Listing public keys](#listing-public-keys)
   - [Removing a public key](#removing-a-public-key)
 - [Tips](#tips)
 - [How dotenc compares](#how-dotenc-compares)
@@ -167,6 +172,14 @@ dotenc env create [environment]
 
 This command creates a new encrypted environment file under the specified name (e.g., `.env.development.enc`). Your personal environment is created automatically during `init`.
 
+### Listing environments
+
+```bash
+dotenc env list
+```
+
+Lists all encrypted environments in the current project.
+
 ### Editing an environment
 
 ```bash
@@ -217,6 +230,14 @@ dotenc run -e base,production node app.js
 
 In the example above, `production` will override any variables also present in `base`.
 
+### Checking your identity
+
+```bash
+dotenc whoami
+```
+
+Shows your name, active SSH key, fingerprint, and the environments you have access to in this project.
+
 ## Team Collaboration
 
 In a real-world scenario, you will likely have multiple environments (e.g., `development`, `test`, `production`) and a team of developers who need access to these environments. Let's walk through how to set this up.
@@ -257,6 +278,14 @@ git push origin revoke-john-key
 ```
 
 Once merged, he will no longer be able to decrypt any environments.
+
+### Listing access
+
+```bash
+dotenc auth list [environment]
+```
+
+Lists all public keys that have access to the specified environment.
 
 ## Offboarding a Team Member
 
@@ -371,15 +400,23 @@ These types are widely supported and provide strong security guarantees.
 ### Adding a public key
 
 ```bash
-dotenc key add [name] [--from-ssh <path>] [--from-file <file>] [--from-string <pem_string>]
+dotenc key add [name] [--from-ssh <path>] [-f, --from-file <file>] [-s, --from-string <pem_string>]
 ```
 
 Adds a public key into the project (`.dotenc/<name>.pub`).
 
 - `--from-ssh <path>` — Derive the public key from an SSH key file (private or public). Supports both Ed25519 and RSA keys.
-- `--from-file <file>` — Read a public (or private) key from a PEM file.
-- `--from-string <pem_string>` — Use a PEM string directly.
+- `-f, --from-file <file>` — Read a public (or private) key from a PEM file.
+- `-s, --from-string <pem_string>` — Use a PEM string directly.
 - No arguments — Interactive mode: choose from your SSH keys or paste a PEM public key.
+
+### Listing public keys
+
+```bash
+dotenc key list
+```
+
+Lists all public keys in the project, showing each key's name and algorithm.
 
 ### Removing a public key
 
@@ -408,6 +445,8 @@ Alternatively, the `DOTENC_ENV` variable can be used to set the environment, so 
   export DOTENC_ENV="production"
   dotenc run node app.js
 ```
+
+> **Note:** `dotenc textconv` is an internal command used by the git diff driver. It is set up automatically during `dotenc init` and allows `git diff` to show decrypted content of `.env.*.enc` files.
 
 ## How dotenc compares
 
