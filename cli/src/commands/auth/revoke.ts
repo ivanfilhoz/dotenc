@@ -13,7 +13,7 @@ export const revokeCommand = async (
 	const environmentName =
 		environmentNameArg ||
 		(await chooseEnvironmentPrompt(
-			"What environment do you want to grant access to?",
+			"What environment do you want to revoke access from?",
 		))
 
 	const validation = validateEnvironmentName(environmentName)
