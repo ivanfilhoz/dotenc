@@ -46,6 +46,12 @@ export async function decryptData(key: Buffer, input: Buffer) {
 		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
 
+	if (input.length < IV_LENGTH + AUTH_TAG_LENGTH) {
+		throw new Error(
+			`Encrypted input is too short (${input.length} bytes). Expected at least ${IV_LENGTH + AUTH_TAG_LENGTH} bytes.`,
+		)
+	}
+
 	// Extract the IV from the start of the file
 	const iv = input.subarray(0, IV_LENGTH)
 

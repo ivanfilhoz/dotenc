@@ -22,6 +22,13 @@ describe("crypto helpers", () => {
 		)
 	})
 
+	test("decrypt rejects too-short input", async () => {
+		const shortInput = Buffer.alloc(10)
+		await expect(decryptData(key, shortInput)).rejects.toThrow(
+			/Encrypted input is too short/,
+		)
+	})
+
 	test("key must be 32 bytes", async () => {
 		const shortKey = crypto.randomBytes(16)
 		await expect(encryptData(shortKey, message)).rejects.toThrow(
