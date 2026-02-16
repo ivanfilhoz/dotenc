@@ -1,4 +1,5 @@
 import chalk from "chalk"
+import { passphraseProtectedKeyError } from "../helpers/errors"
 import { getEnvironmentByName } from "../helpers/getEnvironmentByName"
 import { getEnvironments } from "../helpers/getEnvironments"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
@@ -20,15 +21,7 @@ export const whoamiCommand = async () => {
 			privateKeys.length === 0 &&
 			passphraseProtectedKeys.length > 0
 		) {
-			console.error(
-				`${chalk.red("Error:")} your SSH keys are passphrase-protected, which is not currently supported by dotenc.`,
-			)
-			console.error(
-				`\nPassphrase-protected keys found:\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}`,
-			)
-			console.error(
-				`\nTo generate a key without a passphrase:\n  ${chalk.gray('ssh-keygen -t ed25519 -N ""')}\n\nOr use an existing key without a passphrase.`,
-			)
+			console.error(passphraseProtectedKeyError(passphraseProtectedKeys))
 		} else {
 			console.error(
 				'No matching key found in this project. Run "dotenc init" to set up your identity.',

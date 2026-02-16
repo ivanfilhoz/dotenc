@@ -1,6 +1,7 @@
 import chalk from "chalk"
 import type { Environment } from "../schemas/environment"
 import { decryptData } from "./crypto"
+import { passphraseProtectedKeyError } from "./errors"
 import { decryptDataKey } from "./decryptDataKey"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
@@ -14,7 +15,7 @@ export const decryptEnvironmentData = async (
 	if (!availablePrivateKeys.length) {
 		if (passphraseProtectedKeys.length > 0) {
 			throw new Error(
-				`Your SSH keys are passphrase-protected, which is not currently supported by dotenc.\n\nPassphrase-protected keys found:\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}\n\nTo generate a key without a passphrase:\n  ssh-keygen -t ed25519 -N ""\n\nOr use an existing key without a passphrase.`,
+				passphraseProtectedKeyError(passphraseProtectedKeys),
 			)
 		}
 		throw new Error(

@@ -6,6 +6,7 @@ import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
 import { createProject } from "../helpers/createProject"
+import { passphraseProtectedKeyError } from "../helpers/errors"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
 import { setupGitDiff } from "../helpers/setupGitDiff"
 import { inputNamePrompt } from "../prompts/inputName"
@@ -23,15 +24,7 @@ export const initCommand = async (options: Options) => {
 
 	if (!privateKeys.length) {
 		if (passphraseProtectedKeys.length > 0) {
-			console.error(
-				`${chalk.red("Error:")} your SSH keys are passphrase-protected, which is not currently supported by dotenc.`,
-			)
-			console.error(
-				`\nPassphrase-protected keys found:\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}`,
-			)
-			console.error(
-				`\nTo generate a key without a passphrase:\n  ${chalk.gray('ssh-keygen -t ed25519 -N ""')}\n\nOr use an existing key without a passphrase.`,
-			)
+			console.error(passphraseProtectedKeyError(passphraseProtectedKeys))
 		} else {
 			console.error(
 				`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
