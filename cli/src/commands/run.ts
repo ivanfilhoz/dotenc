@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process"
+import chalk from "chalk"
 import { decryptEnvironment } from "../helpers/decryptEnvironment"
 import { parseEnv } from "../helpers/parseEnv"
+import { validateEnvironmentName } from "../helpers/validateEnvironmentName"
 
 type Options = {
 	env: string
@@ -22,6 +24,14 @@ export const runCommand = async (
 	}
 
 	const environments = environmentName.split(",")
+
+	for (const env of environments) {
+		const validation = validateEnvironmentName(env)
+		if (!validation.valid) {
+			console.error(`${chalk.red("Error:")} ${validation.reason}`)
+			process.exit(1)
+		}
+	}
 
 	const decryptedEnvs = await Promise.all(
 		environments.map(async (environment) => {

@@ -7,6 +7,7 @@ import { environmentExists } from "../../helpers/environmentExists"
 import { getEnvironmentNameSuggestion } from "../../helpers/getEnvironmentNameSuggestion"
 import { getPublicKeys } from "../../helpers/getPublicKeys"
 import { getProjectConfig } from "../../helpers/projectConfig"
+import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { createEnvironmentPrompt } from "../../prompts/createEnvironment"
 import type { Environment } from "../../schemas/environment"
@@ -35,6 +36,12 @@ export const createCommand = async (
 
 	if (!environmentName) {
 		console.log(`${chalk.red("Error:")} no environment name provided`)
+		return
+	}
+
+	const validation = validateEnvironmentName(environmentName)
+	if (!validation.valid) {
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
 		return
 	}
 

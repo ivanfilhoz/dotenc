@@ -9,6 +9,7 @@ import { decryptEnvironment } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
 import { getDefaultEditor } from "../../helpers/getDefaultEditor"
 import { getEnvironmentByName } from "../../helpers/getEnvironmentByName"
+import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import type { Environment } from "../../schemas/environment"
 
@@ -16,6 +17,12 @@ export const editCommand = async (environmentNameArg: string) => {
 	const environmentName =
 		environmentNameArg ||
 		(await chooseEnvironmentPrompt("What environment do you want to edit?"))
+
+	const nameValidation = validateEnvironmentName(environmentName)
+	if (!nameValidation.valid) {
+		console.error(`${chalk.red("Error:")} ${nameValidation.reason}`)
+		return
+	}
 
 	const environmentFile = `.env.${environmentName}.enc`
 	const environmentFilePath = path.join(process.cwd(), environmentFile)

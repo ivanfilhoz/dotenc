@@ -1,5 +1,7 @@
+import chalk from "chalk"
 import { decryptEnvironment } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
+import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 
 export const rotateCommand = async (environmentNameArg: string) => {
@@ -8,6 +10,12 @@ export const rotateCommand = async (environmentNameArg: string) => {
 		(await chooseEnvironmentPrompt(
 			"What environment do you want to rotate the data key for?",
 		))
+
+	const validation = validateEnvironmentName(environmentName)
+	if (!validation.valid) {
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		return
+	}
 
 	let currentContent: string
 	try {

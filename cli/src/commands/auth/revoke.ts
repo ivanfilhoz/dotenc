@@ -1,6 +1,8 @@
+import chalk from "chalk"
 import { decryptEnvironment } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
 import { getPublicKeyByName } from "../../helpers/getPublicKeyByName"
+import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 
@@ -13,6 +15,12 @@ export const revokeCommand = async (
 		(await chooseEnvironmentPrompt(
 			"What environment do you want to grant access to?",
 		))
+
+	const validation = validateEnvironmentName(environmentName)
+	if (!validation.valid) {
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		return
+	}
 
 	let currentContent: string
 	try {
