@@ -1,5 +1,7 @@
 import crypto from "node:crypto"
-import { decrypt, ECIES_CONFIG } from "eciesjs"
+import { ECIES_CONFIG, decrypt } from "eciesjs"
+
+ECIES_CONFIG.ellipticCurve = "ed25519"
 
 type PrivateKeyInfo = {
 	algorithm: "rsa" | "ed25519"
@@ -31,11 +33,5 @@ export const decryptDataKey = (
 		throw new Error("Raw seed bytes are required for Ed25519 decryption.")
 	}
 
-	const prevCurve = ECIES_CONFIG.ellipticCurve
-	ECIES_CONFIG.ellipticCurve = "ed25519"
-	try {
-		return Buffer.from(decrypt(keyInfo.rawSeed, encryptedDataKey))
-	} finally {
-		ECIES_CONFIG.ellipticCurve = prevCurve
-	}
+	return Buffer.from(decrypt(keyInfo.rawSeed, encryptedDataKey))
 }

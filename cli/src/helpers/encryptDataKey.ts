@@ -1,6 +1,8 @@
 import crypto from "node:crypto"
 import { ECIES_CONFIG, encrypt } from "eciesjs"
 
+ECIES_CONFIG.ellipticCurve = "ed25519"
+
 type PublicKeyInfo = {
 	algorithm: "rsa" | "ed25519"
 	publicKey: crypto.KeyObject
@@ -31,11 +33,5 @@ export const encryptDataKey = (
 		throw new Error("Raw public key bytes are required for Ed25519 encryption.")
 	}
 
-	const prevCurve = ECIES_CONFIG.ellipticCurve
-	ECIES_CONFIG.ellipticCurve = "ed25519"
-	try {
-		return Buffer.from(encrypt(keyInfo.rawPublicKey, dataKey))
-	} finally {
-		ECIES_CONFIG.ellipticCurve = prevCurve
-	}
+	return Buffer.from(encrypt(keyInfo.rawPublicKey, dataKey))
 }
