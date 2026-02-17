@@ -50,7 +50,13 @@ jobs:
         run: cd cli && bun install
 
       - name: Run tests
-        run: cd cli && bun test
+        run: cd cli && bun test --coverage --coverage-reporter=lcov
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./cli/coverage/lcov.info
 
   e2e:
     runs-on: ubuntu-latest
