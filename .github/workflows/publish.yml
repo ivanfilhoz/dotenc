@@ -64,6 +64,9 @@ jobs:
   publish:
     needs: [lint, typecheck, test, e2e]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -110,9 +113,7 @@ jobs:
         if: steps.version-check.outputs.bumped == 'true'
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            cd cli && npm publish
+            cd cli && npm publish --provenance --access public
           elif [ "${{ github.ref }}" == "refs/heads/beta" ]; then
-            cd cli && npm publish --tag beta
+            cd cli && npm publish --provenance --access public --tag beta
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
