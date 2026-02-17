@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test"
+import { afterEach, describe, expect, mock, test } from "bun:test"
 import crypto from "node:crypto"
 import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
 
@@ -18,6 +18,10 @@ const entry: PrivateKeyEntry = {
 }
 
 describe("getPrivateKeyByName", () => {
+	afterEach(() => {
+		mock.restore()
+	})
+
 	test("returns matching private key entry", async () => {
 		mock.module("../helpers/getPrivateKeys", () => ({
 			getPrivateKeys: () =>

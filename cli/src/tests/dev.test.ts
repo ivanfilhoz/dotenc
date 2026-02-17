@@ -35,6 +35,7 @@ describe("devCommand", () => {
 	})
 
 	afterEach(() => {
+		mock.restore()
 		consoleErrorSpy.mockRestore()
 		processExitSpy.mockRestore()
 	})

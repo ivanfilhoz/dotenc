@@ -43,20 +43,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: cd cli && bun install
+      - name: Build test Docker image
+        run: docker build -t dotenc-tests -f cli/tests.Dockerfile .
 
       - name: Run tests
-        run: cd cli && bun test --max-concurrency 1 --coverage --coverage-reporter=lcov
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./cli/coverage/lcov.info
+        run: docker run --rm dotenc-tests
 
   e2e:
     runs-on: ubuntu-latest

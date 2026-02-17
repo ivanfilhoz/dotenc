@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { getPrivateKeys } from "../helpers/getPrivateKeys"
+import { getPrivateKeys } from "../../helpers/getPrivateKeys"
 
 describe("getPrivateKeys", () => {
 	let tmpDir: string
@@ -53,20 +53,20 @@ describe("getPrivateKeys", () => {
 	test("parses Ed25519 key from DOTENC_PRIVATE_KEY", async () => {
 		process.env.DOTENC_PRIVATE_KEY = ed25519PrivateKeyPem
 		const { keys } = await getPrivateKeys()
-		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
-		expect(envKey).toBeDefined()
-		expect(envKey?.algorithm).toBe("ed25519")
-		expect(envKey?.fingerprint).toBeDefined()
+		expect(keys.map((k) => k.name)).toContain("env.DOTENC_PRIVATE_KEY")
+		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")!
+		expect(envKey.algorithm).toBe("ed25519")
+		expect(envKey.fingerprint).toBeDefined()
 		delete process.env.DOTENC_PRIVATE_KEY
 	})
 
 	test("parses RSA key from DOTENC_PRIVATE_KEY", async () => {
 		process.env.DOTENC_PRIVATE_KEY = rsaPrivateKeyPem
 		const { keys } = await getPrivateKeys()
-		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
-		expect(envKey).toBeDefined()
-		expect(envKey?.algorithm).toBe("rsa")
-		expect(envKey?.fingerprint).toBeDefined()
+		expect(keys.map((k) => k.name)).toContain("env.DOTENC_PRIVATE_KEY")
+		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")!
+		expect(envKey.algorithm).toBe("rsa")
+		expect(envKey.fingerprint).toBeDefined()
 		delete process.env.DOTENC_PRIVATE_KEY
 	})
 
