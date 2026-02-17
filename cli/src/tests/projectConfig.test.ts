@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
 import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
 describe("projectConfig", () => {
 	let tmpDir: string
-	const originalCwd = process.cwd()
+	let cwdSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-projectconfig-"))
-		process.chdir(tmpDir)
+		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		process.chdir(originalCwd)
+		cwdSpy.mockRestore()
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 

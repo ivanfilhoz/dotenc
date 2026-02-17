@@ -50,7 +50,7 @@ jobs:
         run: cd cli && bun install
 
       - name: Run tests
-        run: cd cli && bun test src/tests
+        run: cd cli && bun test
 
   e2e:
     runs-on: ubuntu-latest

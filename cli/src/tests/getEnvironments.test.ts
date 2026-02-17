@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -6,7 +6,7 @@ import { getEnvironments } from "../helpers/getEnvironments"
 
 describe("getEnvironments", () => {
 	let tmpDir: string
-	const originalCwd = process.cwd()
+	let cwdSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-getenvs-"))
@@ -16,11 +16,11 @@ describe("getEnvironments", () => {
 		// Not an env file — should be excluded
 		writeFileSync(path.join(tmpDir, "dotenc.json"), "{}", "utf-8")
 		writeFileSync(path.join(tmpDir, ".env"), "", "utf-8")
-		process.chdir(tmpDir)
+		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		process.chdir(originalCwd)
+		cwdSpy.mockRestore()
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 

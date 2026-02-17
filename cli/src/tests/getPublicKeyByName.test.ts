@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -7,7 +7,7 @@ import { getPublicKeyByName } from "../helpers/getPublicKeyByName"
 
 describe("getPublicKeyByName", () => {
 	let tmpDir: string
-	const originalCwd = process.cwd()
+	let cwdSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeyname-"))
@@ -21,11 +21,11 @@ describe("getPublicKeyByName", () => {
 		// Write an invalid public key
 		writeFileSync(path.join(tmpDir, ".dotenc", "bad.pub"), "not a key", "utf-8")
 
-		process.chdir(tmpDir)
+		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		process.chdir(originalCwd)
+		cwdSpy.mockRestore()
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 

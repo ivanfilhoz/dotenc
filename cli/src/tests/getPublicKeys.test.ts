@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -7,7 +7,7 @@ import { getPublicKeys } from "../helpers/getPublicKeys"
 
 describe("getPublicKeys", () => {
 	let tmpDir: string
-	const originalCwd = process.cwd()
+	let cwdSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeys-"))
@@ -32,11 +32,11 @@ describe("getPublicKeys", () => {
 		// Write a non-.pub file (should be ignored)
 		writeFileSync(path.join(tmpDir, ".dotenc", "readme.txt"), "hi", "utf-8")
 
-		process.chdir(tmpDir)
+		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		process.chdir(originalCwd)
+		cwdSpy.mockRestore()
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 
@@ -68,10 +68,10 @@ describe("getPublicKeys", () => {
 
 	test("returns empty array when .dotenc/ does not exist", async () => {
 		const emptyDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeys-empty-"))
-		process.chdir(emptyDir)
+		cwdSpy.mockReturnValue(emptyDir)
 		const keys = await getPublicKeys()
 		expect(keys).toHaveLength(0)
-		process.chdir(tmpDir)
+		cwdSpy.mockReturnValue(tmpDir)
 		rmSync(emptyDir, { recursive: true, force: true })
 	})
 })

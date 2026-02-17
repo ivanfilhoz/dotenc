@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
-import { execSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import crypto from "node:crypto"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
@@ -10,29 +10,41 @@ describe("getPrivateKeys", () => {
 	let ed25519PrivateKeyPem: string
 	let rsaPrivateKeyPem: string
 	const originalDotencKey = process.env.DOTENC_PRIVATE_KEY
+	let homeSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-privkeys-"))
 		mkdirSync(path.join(tmpDir, ".ssh"), { recursive: true })
 
-		execSync(
-			`ssh-keygen -t ed25519 -f ${path.join(tmpDir, ".ssh", "id_ed25519")} -N "" -q`,
-		)
-		ed25519PrivateKeyPem = readFileSync(
+		// Generate keys using crypto (portable, no ssh-keygen dependency)
+		const ed = crypto.generateKeyPairSync("ed25519")
+		ed25519PrivateKeyPem = ed.privateKey
+			.export({ type: "pkcs8", format: "pem" })
+			.toString()
+
+		const rsa = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 })
+		rsaPrivateKeyPem = rsa.privateKey
+			.export({ type: "pkcs8", format: "pem" })
+			.toString()
+
+		// Write keys to SSH dir for the homedir scan
+		writeFileSync(
 			path.join(tmpDir, ".ssh", "id_ed25519"),
+			ed25519PrivateKeyPem,
+			"utf-8",
+		)
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_rsa"),
+			rsaPrivateKeyPem,
 			"utf-8",
 		)
 
-		execSync(
-			`ssh-keygen -t rsa -b 2048 -f ${path.join(tmpDir, ".ssh", "id_rsa")} -N "" -q`,
-		)
-		rsaPrivateKeyPem = readFileSync(
-			path.join(tmpDir, ".ssh", "id_rsa"),
-			"utf-8",
-		)
+		// Mock homedir to isolate from runner's SSH keys
+		homeSpy = spyOn(os, "homedir").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
+		homeSpy.mockRestore()
 		if (originalDotencKey) process.env.DOTENC_PRIVATE_KEY = originalDotencKey
 		else delete process.env.DOTENC_PRIVATE_KEY
 		rmSync(tmpDir, { recursive: true, force: true })
