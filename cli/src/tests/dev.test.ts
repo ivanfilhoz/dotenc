@@ -16,8 +16,9 @@ describe("devCommand", () => {
 		}
 		const runCommand = ((...args: unknown[]) =>
 			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-		const logError = ((message: string) =>
-			logErrorMock(message)) as (message: string) => void
+		const logError = ((message: string) => logErrorMock(message)) as (
+			message: string,
+		) => void
 
 		await devCommand("node", ["app.js"], {
 			getCurrentKeyName: async () => "alice",
@@ -39,8 +40,9 @@ describe("devCommand", () => {
 		})
 		const runCommand = ((...args: unknown[]) =>
 			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-		const logError = ((message: string) =>
-			logErrorMock(message)) as (message: string) => void
+		const logError = ((message: string) => logErrorMock(message)) as (
+			message: string,
+		) => void
 
 		await expect(
 			devCommand("node", ["app.js"], {

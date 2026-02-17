@@ -54,7 +54,10 @@ describe("getPrivateKeys", () => {
 		process.env.DOTENC_PRIVATE_KEY = ed25519PrivateKeyPem
 		const { keys } = await getPrivateKeys()
 		expect(keys.map((k) => k.name)).toContain("env.DOTENC_PRIVATE_KEY")
-		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")!
+		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
+		if (!envKey) {
+			throw new Error("Expected env.DOTENC_PRIVATE_KEY to be present")
+		}
 		expect(envKey.algorithm).toBe("ed25519")
 		expect(envKey.fingerprint).toBeDefined()
 		delete process.env.DOTENC_PRIVATE_KEY
@@ -64,7 +67,10 @@ describe("getPrivateKeys", () => {
 		process.env.DOTENC_PRIVATE_KEY = rsaPrivateKeyPem
 		const { keys } = await getPrivateKeys()
 		expect(keys.map((k) => k.name)).toContain("env.DOTENC_PRIVATE_KEY")
-		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")!
+		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
+		if (!envKey) {
+			throw new Error("Expected env.DOTENC_PRIVATE_KEY to be present")
+		}
 		expect(envKey.algorithm).toBe("rsa")
 		expect(envKey.fingerprint).toBeDefined()
 		delete process.env.DOTENC_PRIVATE_KEY
