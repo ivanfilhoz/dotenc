@@ -104,7 +104,7 @@ Your SSH private keys never leave `~/.ssh/`. dotenc reads them in place - nothin
 
 After setup, your project will look like:
 
-```
+```plaintext
 .
 ├── .dotenc/
 │   ├── alice.pub
@@ -333,7 +333,7 @@ Copy the **entire** contents of the private key file and store it as a secret en
 cat ci_key
 ```
 
-```
+```plaintext
 -----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbm...
 -----END OPENSSH PRIVATE KEY-----
