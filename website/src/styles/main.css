@@ -149,7 +149,6 @@
 	background: var(--color-cyber-surface);
 	color: var(--color-cyber-cyan);
 	font-weight: 600;
-	text-align: left;
 }
 
 .comparison-table tbody tr:hover {
