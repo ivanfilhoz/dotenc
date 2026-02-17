@@ -50,7 +50,7 @@ jobs:
         run: cd cli && bun install
 
       - name: Run tests
-        run: cd cli && bun test
+        run: cd cli && bun test --max-concurrency 1
 
   e2e:
     runs-on: ubuntu-latest
