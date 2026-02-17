@@ -55,12 +55,14 @@ if (menuBtn && mobileNav) {
 	})
 }
 
-// ===== Scroll Animations =====
+// ===== Scroll Animations (staggered) =====
 const observer = new IntersectionObserver(
 	(entries) => {
+		let delay = 0
 		for (const entry of entries) {
 			if (entry.isIntersecting) {
-				entry.target.classList.add("visible")
+				setTimeout(() => entry.target.classList.add("visible"), delay)
+				delay += 80
 				observer.unobserve(entry.target)
 			}
 		}
