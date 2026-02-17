@@ -55,7 +55,9 @@ export type GetPrivateKeysResult = {
 	passphraseProtectedKeys: string[]
 }
 
-export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
+export const getPrivateKeys = async (
+	homeDir?: string,
+): Promise<GetPrivateKeysResult> => {
 	const privateKeys: PrivateKeyEntry[] = []
 	const passphraseProtectedKeys: string[] = []
 
@@ -106,7 +108,7 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 	}
 
 	// Scan ~/.ssh/ for SSH key files
-	const sshDir = path.join(os.homedir(), ".ssh")
+	const sshDir = path.join(homeDir ?? os.homedir(), ".ssh")
 	if (!existsSync(sshDir)) {
 		return { keys: privateKeys, passphraseProtectedKeys }
 	}

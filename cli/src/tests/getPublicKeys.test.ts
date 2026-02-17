@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
@@ -7,7 +7,6 @@ import { getPublicKeys } from "../helpers/getPublicKeys"
 
 describe("getPublicKeys", () => {
 	let tmpDir: string
-	let cwdSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeys-"))
@@ -31,17 +30,14 @@ describe("getPublicKeys", () => {
 
 		// Write a non-.pub file (should be ignored)
 		writeFileSync(path.join(tmpDir, ".dotenc", "readme.txt"), "hi", "utf-8")
-
-		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		cwdSpy.mockRestore()
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 
 	test("finds all .pub keys in .dotenc/", async () => {
-		const keys = await getPublicKeys()
+		const keys = await getPublicKeys(tmpDir)
 		expect(keys).toHaveLength(2)
 		const names = keys.map((k) => k.name)
 		expect(names).toContain("alice")
@@ -49,7 +45,7 @@ describe("getPublicKeys", () => {
 	})
 
 	test("detects correct algorithms", async () => {
-		const keys = await getPublicKeys()
+		const keys = await getPublicKeys(tmpDir)
 		const alice = keys.find((k) => k.name === "alice")
 		const bob = keys.find((k) => k.name === "bob")
 		expect(alice?.algorithm).toBe("ed25519")
@@ -57,7 +53,7 @@ describe("getPublicKeys", () => {
 	})
 
 	test("each key has required fields", async () => {
-		const keys = await getPublicKeys()
+		const keys = await getPublicKeys(tmpDir)
 		for (const key of keys) {
 			expect(key.name).toBeDefined()
 			expect(key.publicKey).toBeDefined()
@@ -68,10 +64,8 @@ describe("getPublicKeys", () => {
 
 	test("returns empty array when .dotenc/ does not exist", async () => {
 		const emptyDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeys-empty-"))
-		cwdSpy.mockReturnValue(emptyDir)
-		const keys = await getPublicKeys()
+		const keys = await getPublicKeys(emptyDir)
 		expect(keys).toHaveLength(0)
-		cwdSpy.mockReturnValue(tmpDir)
 		rmSync(emptyDir, { recursive: true, force: true })
 	})
 })

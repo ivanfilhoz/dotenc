@@ -26,12 +26,14 @@ function extractEd25519RawPublicKey(publicKey: crypto.KeyObject): Buffer {
 	return Buffer.from(pubDer.subarray(pubDer.length - 32))
 }
 
-export const getPublicKeys = async () => {
-	if (!existsSync(path.join(process.cwd(), ".dotenc"))) {
+export const getPublicKeys = async (baseDir?: string) => {
+	const dir = baseDir ?? process.cwd()
+
+	if (!existsSync(path.join(dir, ".dotenc"))) {
 		return []
 	}
 
-	const files = await fs.readdir(path.join(process.cwd(), ".dotenc"))
+	const files = await fs.readdir(path.join(dir, ".dotenc"))
 
 	const publicKeys: PublicKeyEntry[] = []
 	for (const fileName of files) {
@@ -40,7 +42,7 @@ export const getPublicKeys = async () => {
 		}
 
 		const keyInput = await fs.readFile(
-			path.join(process.cwd(), ".dotenc", fileName),
+			path.join(dir, ".dotenc", fileName),
 			"utf-8",
 		)
 		let publicKey: crypto.KeyObject

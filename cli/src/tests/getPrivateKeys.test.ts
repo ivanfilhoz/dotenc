@@ -10,7 +10,6 @@ describe("getPrivateKeys", () => {
 	let ed25519PrivateKeyPem: string
 	let rsaPrivateKeyPem: string
 	const originalDotencKey = process.env.DOTENC_PRIVATE_KEY
-	let homeSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
 		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-privkeys-"))
@@ -38,13 +37,9 @@ describe("getPrivateKeys", () => {
 			rsaPrivateKeyPem,
 			"utf-8",
 		)
-
-		// Mock homedir to isolate from runner's SSH keys
-		homeSpy = spyOn(os, "homedir").mockReturnValue(tmpDir)
 	})
 
 	afterAll(() => {
-		homeSpy.mockRestore()
 		if (originalDotencKey) process.env.DOTENC_PRIVATE_KEY = originalDotencKey
 		else delete process.env.DOTENC_PRIVATE_KEY
 		rmSync(tmpDir, { recursive: true, force: true })
@@ -52,7 +47,7 @@ describe("getPrivateKeys", () => {
 
 	test("parses Ed25519 key from DOTENC_PRIVATE_KEY", async () => {
 		process.env.DOTENC_PRIVATE_KEY = ed25519PrivateKeyPem
-		const { keys } = await getPrivateKeys()
+		const { keys } = await getPrivateKeys(tmpDir)
 		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
 		expect(envKey).toBeDefined()
 		expect(envKey?.algorithm).toBe("ed25519")
@@ -62,7 +57,7 @@ describe("getPrivateKeys", () => {
 
 	test("parses RSA key from DOTENC_PRIVATE_KEY", async () => {
 		process.env.DOTENC_PRIVATE_KEY = rsaPrivateKeyPem
-		const { keys } = await getPrivateKeys()
+		const { keys } = await getPrivateKeys(tmpDir)
 		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
 		expect(envKey).toBeDefined()
 		expect(envKey?.algorithm).toBe("rsa")
@@ -73,7 +68,7 @@ describe("getPrivateKeys", () => {
 	test("ignores invalid DOTENC_PRIVATE_KEY", async () => {
 		const spy = spyOn(console, "error").mockImplementation(() => {})
 		process.env.DOTENC_PRIVATE_KEY = "not a key"
-		const { keys } = await getPrivateKeys()
+		const { keys } = await getPrivateKeys(tmpDir)
 		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
 		expect(envKey).toBeUndefined()
 		delete process.env.DOTENC_PRIVATE_KEY
@@ -82,7 +77,7 @@ describe("getPrivateKeys", () => {
 
 	test("each key entry has required fields", async () => {
 		process.env.DOTENC_PRIVATE_KEY = ed25519PrivateKeyPem
-		const { keys } = await getPrivateKeys()
+		const { keys } = await getPrivateKeys(tmpDir)
 		for (const key of keys) {
 			expect(typeof key.name).toBe("string")
 			expect(key.privateKey).toBeDefined()
@@ -94,7 +89,7 @@ describe("getPrivateKeys", () => {
 
 	test("returns keys and passphraseProtectedKeys properties", async () => {
 		delete process.env.DOTENC_PRIVATE_KEY
-		const result = await getPrivateKeys()
+		const result = await getPrivateKeys(tmpDir)
 		expect(result).toHaveProperty("keys")
 		expect(result).toHaveProperty("passphraseProtectedKeys")
 		expect(Array.isArray(result.keys)).toBe(true)
