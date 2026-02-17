@@ -15,7 +15,10 @@ import { encryptEnvironment } from "../helpers/encryptEnvironment"
 import { getKeyFingerprint } from "../helpers/getKeyFingerprint"
 import type { Environment } from "../schemas/environment"
 
-type KeyPair = ReturnType<typeof crypto.generateKeyPairSync<"rsa">>
+type KeyPair = {
+	publicKey: crypto.KeyObject
+	privateKey: crypto.KeyObject
+}
 
 const toBase64 = (value: string) =>
 	Buffer.from(value, "utf-8").toString("base64")
