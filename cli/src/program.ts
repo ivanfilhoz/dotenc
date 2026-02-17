@@ -99,7 +99,7 @@ program
 	.argument("<command>", "the command to run")
 	.argument("[args...]", "the arguments to pass to the command")
 	.description("shortcut for 'run -e development,<yourname> <command>'")
-	.action(devCommand)
+	.action((command, args) => devCommand(command, args))
 
 const key = program.command("key").description("manage keys")
 
