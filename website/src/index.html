@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>dotenc - Git-native encrypted environments powered by your SSH keys</title>
+	<meta name="description" content="Encrypt environment variables directly in your Git repository using your existing SSH keys. No external services, no vendor lock-in, no extra key management.">
+	<meta name="keywords" content="dotenv, environment variables, encryption, ssh keys, git, secrets management, cli">
+
+	<!-- Open Graph -->
+	<meta property="og:title" content="dotenc - Git-native encrypted environments">
+	<meta property="og:description" content="Encrypt environment variables directly in your Git repository using your existing SSH keys.">
+	<meta property="og:image" content="https://dotenc.org/logo.png">
+	<meta property="og:url" content="https://dotenc.org">
+	<meta property="og:type" content="website">
+
+	<!-- Twitter Card -->
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:title" content="dotenc - Git-native encrypted environments">
+	<meta name="twitter:description" content="Encrypt environment variables directly in your Git repository using your existing SSH keys.">
+	<meta name="twitter:image" content="https://dotenc.org/logo.png">
+
+	<!-- Favicon -->
+	<link rel="icon" type="image/png" href="/logo-square.png">
+
+	<!-- Fonts -->
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+	<!-- Styles -->
+	<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-cyber-bg text-cyber-text font-sans grid-bg min-h-screen">
+
+	<!-- ===== STICKY NAV ===== -->
+	<nav class="fixed top-0 left-0 right-0 z-50 border-b border-cyber-border bg-cyber-bg/80 backdrop-blur-lg">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+			<a href="#" class="flex items-center gap-3">
+				<img src="/logo-square.png" alt="dotenc" class="h-8 w-8 rounded">
+				<span class="text-xl font-bold gradient-text">dotenc</span>
+			</a>
+			<div class="hidden md:flex items-center gap-8">
+				<a href="#features" class="text-sm text-cyber-muted hover:text-cyber-cyan transition-colors">Features</a>
+				<a href="#how-it-works" class="text-sm text-cyber-muted hover:text-cyber-cyan transition-colors">How It Works</a>
+				<a href="#installation" class="text-sm text-cyber-muted hover:text-cyber-cyan transition-colors">Install</a>
+				<a href="#comparison" class="text-sm text-cyber-muted hover:text-cyber-cyan transition-colors">Compare</a>
+				<a href="https://github.com/ivanfilhoz/dotenc" target="_blank" rel="noopener" class="text-sm text-cyber-muted hover:text-cyber-cyan transition-colors flex items-center gap-1">
+					<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+					GitHub
+				</a>
+			</div>
+			<!-- Mobile hamburger -->
+			<button id="mobile-menu-btn" class="md:hidden text-cyber-muted hover:text-cyber-cyan p-2" aria-label="Toggle menu">
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+				</svg>
+			</button>
+		</div>
+		<!-- Mobile nav -->
+		<div id="mobile-nav" class="mobile-nav fixed top-16 right-0 bottom-0 w-64 bg-cyber-surface border-l border-cyber-border p-6 flex flex-col gap-4 md:hidden">
+			<a href="#features" class="text-cyber-muted hover:text-cyber-cyan transition-colors mobile-nav-link">Features</a>
+			<a href="#how-it-works" class="text-cyber-muted hover:text-cyber-cyan transition-colors mobile-nav-link">How It Works</a>
+			<a href="#installation" class="text-cyber-muted hover:text-cyber-cyan transition-colors mobile-nav-link">Install</a>
+			<a href="#comparison" class="text-cyber-muted hover:text-cyber-cyan transition-colors mobile-nav-link">Compare</a>
+			<a href="https://github.com/ivanfilhoz/dotenc" target="_blank" rel="noopener" class="text-cyber-muted hover:text-cyber-cyan transition-colors">GitHub</a>
+		</div>
+	</nav>
+
+	<!-- ===== HERO ===== -->
+	<section class="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center max-w-4xl mx-auto">
+			<h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
+				<span class="gradient-text">Git-native encrypted</span><br>
+				<span class="text-white">environments powered by</span><br>
+				<span class="gradient-text">your SSH keys</span>
+			</h1>
+			<p class="text-lg sm:text-xl text-cyber-muted mb-10 max-w-2xl mx-auto">
+				Encrypt environment variables directly in your Git repository. No external services, no vendor lock-in, no extra key management.
+			</p>
+
+			<!-- Install command -->
+			<div class="inline-flex items-center gap-3 bg-cyber-surface border border-cyber-border rounded-lg px-5 py-3 mb-8 box-glow-cyan">
+				<span class="text-cyber-muted font-mono text-sm">$</span>
+				<code class="font-mono text-cyber-cyan text-sm sm:text-base" id="hero-install-cmd">curl -fsSL https://dotenc.org/install.sh | sh</code>
+				<button class="copy-btn text-cyber-muted hover:text-cyber-cyan" data-copy="curl -fsSL https://dotenc.org/install.sh | sh" aria-label="Copy command">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+					</svg>
+				</button>
+			</div>
+
+			<!-- CTAs -->
+			<div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+				<a href="#installation" class="px-8 py-3 bg-cyber-cyan text-cyber-bg font-semibold rounded-lg hover:bg-cyan-300 transition-colors">
+					Get Started
+				</a>
+				<a href="https://github.com/ivanfilhoz/dotenc" target="_blank" rel="noopener" class="px-8 py-3 border border-cyber-border text-cyber-text font-semibold rounded-lg hover:border-cyber-cyan hover:text-cyber-cyan transition-colors">
+					View on GitHub
+				</a>
+			</div>
+
+			<!-- Terminal animation -->
+			<div class="terminal max-w-2xl mx-auto text-left box-glow-cyan">
+				<div class="terminal-header">
+					<div class="terminal-dot bg-red-500"></div>
+					<div class="terminal-dot bg-yellow-500"></div>
+					<div class="terminal-dot bg-green-500"></div>
+					<span class="text-xs text-cyber-muted ml-2">terminal</span>
+				</div>
+				<div class="terminal-body text-cyber-text" id="hero-terminal">
+					<div class="terminal-line"><span class="text-cyber-green">$</span> <span class="text-cyber-cyan">dotenc init</span></div>
+					<div class="terminal-line text-cyber-muted">✔ Found SSH key: ~/.ssh/id_ed25519</div>
+					<div class="terminal-line text-cyber-muted">✔ Username: alice</div>
+					<div class="terminal-line text-cyber-muted">✔ Created dotenc.json</div>
+					<div class="terminal-line text-cyber-muted">✔ Created .env.alice.enc</div>
+					<div class="terminal-line mt-3"><span class="text-cyber-green">$</span> <span class="text-cyber-cyan">dotenc env edit alice</span></div>
+					<div class="terminal-line text-cyber-muted">✔ Decrypted → editor opened → re-encrypted</div>
+					<div class="terminal-line mt-3"><span class="text-cyber-green">$</span> <span class="text-cyber-cyan">dotenc dev npm start</span></div>
+					<div class="terminal-line text-cyber-muted">✔ Loaded 12 env vars from alice + development</div>
+					<div class="terminal-line text-cyber-green">🚀 Server running on http://localhost:3000</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== FEATURES GRID ===== -->
+	<section id="features" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-16 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Features</h2>
+			<p class="text-cyber-muted text-lg">Everything you need, nothing you don't.</p>
+		</div>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F512;</div>
+				<h3 class="text-white font-semibold mb-2">AES-256-GCM</h3>
+				<p class="text-cyber-muted text-sm">Battle-tested authenticated encryption for your secrets.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F511;</div>
+				<h3 class="text-white font-semibold mb-2">SSH Key Identity</h3>
+				<p class="text-cyber-muted text-sm">Uses your existing SSH keys. No extra key management needed.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F680;</div>
+				<h3 class="text-white font-semibold mb-2">On-the-fly Decryption</h3>
+				<p class="text-cyber-muted text-sm">Run commands with decrypted env vars injected automatically.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x270D;&#xFE0F;</div>
+				<h3 class="text-white font-semibold mb-2">Secure Editing</h3>
+				<p class="text-cyber-muted text-sm">Edit secrets in your preferred editor. Re-encrypted on save.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F30D;</div>
+				<h3 class="text-white font-semibold mb-2">Multiple Environments</h3>
+				<p class="text-cyber-muted text-sm">Development, staging, production. As many as you need.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F464;</div>
+				<h3 class="text-white font-semibold mb-2">Personal Environments</h3>
+				<p class="text-cyber-muted text-sm">Each developer gets their own encrypted env file.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F504;</div>
+				<h3 class="text-white font-semibold mb-2">Auto Key Rotation</h3>
+				<p class="text-cyber-muted text-sm">Data keys are automatically rotated on every edit.</p>
+			</div>
+			<div class="feature-card bg-cyber-surface rounded-xl p-6 fade-in-up">
+				<div class="text-3xl mb-4">&#x1F6E1;&#xFE0F;</div>
+				<h3 class="text-white font-semibold mb-2">RSA &amp; Ed25519</h3>
+				<p class="text-cyber-muted text-sm">Supports both key types. Use whatever you already have.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== WHY DOTENC ===== -->
+	<section class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-16 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Why dotenc?</h2>
+			<p class="text-cyber-muted text-lg max-w-2xl mx-auto">Most secret managers rely on third-party services and web dashboards. dotenc keeps everything in your repo.</p>
+		</div>
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">No Vendor Lock-In</h3>
+				<p class="text-cyber-muted text-sm">Your secrets live in your repository. Never tied to a third-party provider.</p>
+			</div>
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">Improved Security</h3>
+				<p class="text-cyber-muted text-sm">All encryption happens locally. Private keys never leave your machine.</p>
+			</div>
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">Zero Key Management</h3>
+				<p class="text-cyber-muted text-sm">You already have SSH keys. dotenc uses them directly.</p>
+			</div>
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">Seamless Collaboration</h3>
+				<p class="text-cyber-muted text-sm">Onboard or revoke team members with a single command.</p>
+			</div>
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">Fully Auditable</h3>
+				<p class="text-cyber-muted text-sm">Every grant and revoke is tracked in your Git history.</p>
+			</div>
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 fade-in-up">
+				<h3 class="text-cyber-cyan font-semibold mb-2">PR-Safe Changes</h3>
+				<p class="text-cyber-muted text-sm">Env updates live in the same PR as your feature code.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== HOW IT WORKS ===== -->
+	<section id="how-it-works" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-16 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">How It Works</h2>
+			<p class="text-cyber-muted text-lg">Simple, transparent, secure.</p>
+		</div>
+		<div class="max-w-2xl mx-auto space-y-0">
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">1</div>
+				<h3 class="text-white font-semibold mb-1">Detect SSH Keys</h3>
+				<p class="text-cyber-muted text-sm">dotenc scans <code class="text-cyber-cyan">~/.ssh/</code> for your Ed25519 or RSA keys.</p>
+			</div>
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">2</div>
+				<h3 class="text-white font-semibold mb-1">Store Public Key</h3>
+				<p class="text-cyber-muted text-sm">Your public key is derived and stored in <code class="text-cyber-cyan">.dotenc/</code>.</p>
+			</div>
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">3</div>
+				<h3 class="text-white font-semibold mb-1">Generate Data Key</h3>
+				<p class="text-cyber-muted text-sm">A unique 256-bit data key is generated for each environment.</p>
+			</div>
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">4</div>
+				<h3 class="text-white font-semibold mb-1">Encrypt Data Key</h3>
+				<p class="text-cyber-muted text-sm">The data key is encrypted per-user with each authorized public key.</p>
+			</div>
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">5</div>
+				<h3 class="text-white font-semibold mb-1">Encrypt Variables</h3>
+				<p class="text-cyber-muted text-sm">Environment variables are encrypted with AES-256-GCM.</p>
+			</div>
+			<div class="relative pl-14 pb-10 fade-in-up">
+				<div class="step-connector"></div>
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-cyan flex items-center justify-center text-cyber-cyan font-bold text-sm z-10">6</div>
+				<h3 class="text-white font-semibold mb-1">Commit to Git</h3>
+				<p class="text-cyber-muted text-sm">Encrypted <code class="text-cyber-cyan">.env.*.enc</code> files are committed to your repository.</p>
+			</div>
+			<div class="relative pl-14 fade-in-up">
+				<div class="absolute left-0 top-0 w-10 h-10 rounded-full bg-cyber-surface border-2 border-cyber-green flex items-center justify-center text-cyber-green font-bold text-sm z-10">7</div>
+				<h3 class="text-white font-semibold mb-1">Decrypt On-the-fly</h3>
+				<p class="text-cyber-muted text-sm">When running commands, variables are decrypted using your SSH private key. Keys never leave <code class="text-cyber-cyan">~/.ssh/</code>.</p>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== INSTALLATION ===== -->
+	<section id="installation" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-12 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Installation</h2>
+			<p class="text-cyber-muted text-lg">Pick your favorite method.</p>
+		</div>
+
+		<!-- Universal install -->
+		<div class="max-w-2xl mx-auto mb-10 fade-in-up">
+			<div class="bg-cyber-surface border border-cyber-border rounded-xl p-6 text-center">
+				<p class="text-cyber-muted text-sm mb-3">Universal install (macOS / Linux)</p>
+				<div class="inline-flex items-center gap-3 bg-cyber-bg rounded-lg px-5 py-3 border border-cyber-border">
+					<code class="font-mono text-cyber-cyan text-sm">curl -fsSL https://dotenc.org/install.sh | sh</code>
+					<button class="copy-btn text-cyber-muted" data-copy="curl -fsSL https://dotenc.org/install.sh | sh" aria-label="Copy command">
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+						</svg>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Tabbed install methods -->
+		<div class="max-w-2xl mx-auto fade-in-up">
+			<div class="flex border-b border-cyber-border mb-0">
+				<button class="install-tab active px-4 py-2 text-sm font-medium border-b-2 border-transparent -mb-px" data-tab="homebrew">Homebrew</button>
+				<button class="install-tab px-4 py-2 text-sm font-medium border-b-2 border-transparent -mb-px text-cyber-muted" data-tab="scoop">Scoop</button>
+				<button class="install-tab px-4 py-2 text-sm font-medium border-b-2 border-transparent -mb-px text-cyber-muted" data-tab="npm">npm</button>
+				<button class="install-tab px-4 py-2 text-sm font-medium border-b-2 border-transparent -mb-px text-cyber-muted" data-tab="binary">Binary</button>
+			</div>
+			<div class="bg-cyber-surface border border-t-0 border-cyber-border rounded-b-xl">
+				<div id="tab-homebrew" class="install-content p-6">
+					<p class="text-cyber-muted text-sm mb-3">macOS / Linux</p>
+					<div class="bg-cyber-bg rounded-lg p-4 font-mono text-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<div><span class="text-cyber-green">$</span> <span class="text-cyber-text">brew tap ivanfilhoz/dotenc</span></div>
+								<div><span class="text-cyber-green">$</span> <span class="text-cyber-text">brew install dotenc</span></div>
+							</div>
+							<button class="copy-btn text-cyber-muted" data-copy="brew tap ivanfilhoz/dotenc && brew install dotenc" aria-label="Copy command">
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+				<div id="tab-scoop" class="install-content p-6 hidden">
+					<p class="text-cyber-muted text-sm mb-3">Windows</p>
+					<div class="bg-cyber-bg rounded-lg p-4 font-mono text-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<div><span class="text-cyber-green">&gt;</span> <span class="text-cyber-text">scoop bucket add dotenc https://github.com/ivanfilhoz/scoop-dotenc</span></div>
+								<div><span class="text-cyber-green">&gt;</span> <span class="text-cyber-text">scoop install dotenc</span></div>
+							</div>
+							<button class="copy-btn text-cyber-muted" data-copy="scoop bucket add dotenc https://github.com/ivanfilhoz/scoop-dotenc && scoop install dotenc" aria-label="Copy command">
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+				<div id="tab-npm" class="install-content p-6 hidden">
+					<p class="text-cyber-muted text-sm mb-3">Any platform with Node.js</p>
+					<div class="bg-cyber-bg rounded-lg p-4 font-mono text-sm">
+						<div class="flex items-center justify-between">
+							<div><span class="text-cyber-green">$</span> <span class="text-cyber-text">npm install -g @dotenc/cli</span></div>
+							<button class="copy-btn text-cyber-muted" data-copy="npm install -g @dotenc/cli" aria-label="Copy command">
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+				<div id="tab-binary" class="install-content p-6 hidden">
+					<p class="text-cyber-muted text-sm mb-3">Standalone binary</p>
+					<p class="text-cyber-text text-sm">Download the latest binary for your platform from the <a href="https://github.com/ivanfilhoz/dotenc/releases" target="_blank" rel="noopener" class="text-cyber-cyan hover:underline">GitHub Releases</a> page.</p>
+					<p class="text-cyber-muted text-xs mt-3">Available for macOS (arm64, x64), Linux (x64, arm64), and Windows (x64).</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== TEAM COLLABORATION ===== -->
+	<section id="team" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-12 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Team Collaboration</h2>
+			<p class="text-cyber-muted text-lg max-w-2xl mx-auto">Onboard and offboard team members with simple commands. Git tracks every change.</p>
+		</div>
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+			<!-- Grant access -->
+			<div class="fade-in-up">
+				<h3 class="text-cyber-green font-semibold mb-4 flex items-center gap-2">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+					Granting Access
+				</h3>
+				<div class="terminal">
+					<div class="terminal-header">
+						<div class="terminal-dot bg-red-500"></div>
+						<div class="terminal-dot bg-yellow-500"></div>
+						<div class="terminal-dot bg-green-500"></div>
+					</div>
+					<div class="terminal-body text-sm">
+						<div><span class="text-cyber-green">$</span> dotenc key add alice \</div>
+						<div class="pl-4">--from-file alice.pub</div>
+						<div class="mt-2"><span class="text-cyber-green">$</span> dotenc auth grant dev alice</div>
+						<div class="mt-2"><span class="text-cyber-green">$</span> dotenc auth grant test alice</div>
+						<div class="mt-2"><span class="text-cyber-green">$</span> git add . && git commit -m \</div>
+						<div class="pl-4">"Grant alice access"</div>
+					</div>
+				</div>
+			</div>
+			<!-- Revoke access -->
+			<div class="fade-in-up">
+				<h3 class="text-red-400 font-semibold mb-4 flex items-center gap-2">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg>
+					Revoking Access
+				</h3>
+				<div class="terminal">
+					<div class="terminal-header">
+						<div class="terminal-dot bg-red-500"></div>
+						<div class="terminal-dot bg-yellow-500"></div>
+						<div class="terminal-dot bg-green-500"></div>
+					</div>
+					<div class="terminal-body text-sm">
+						<div><span class="text-cyber-green">$</span> dotenc key remove john</div>
+						<div class="text-cyber-muted mt-1">✔ Removed key and re-encrypted envs</div>
+						<div class="mt-2"><span class="text-cyber-green">$</span> git add . && git commit -m \</div>
+						<div class="pl-4">"Revoke john's access"</div>
+						<div class="mt-3 text-cyber-muted text-xs">Tip: Rotate external secrets after offboarding.</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== CI/CD INTEGRATION ===== -->
+	<section id="cicd" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-12 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">CI/CD Integration</h2>
+			<p class="text-cyber-muted text-lg max-w-2xl mx-auto">Give your CI runners their own identity. Same workflow as local development.</p>
+		</div>
+		<div class="max-w-3xl mx-auto fade-in-up">
+			<p class="text-cyber-muted text-sm mb-4">GitHub Actions example:</p>
+			<div class="terminal box-glow-purple">
+				<div class="terminal-header">
+					<div class="terminal-dot bg-red-500"></div>
+					<div class="terminal-dot bg-yellow-500"></div>
+					<div class="terminal-dot bg-green-500"></div>
+					<span class="text-xs text-cyber-muted ml-2">.github/workflows/test.yml</span>
+				</div>
+				<div class="terminal-body text-sm">
+<pre class="text-cyber-text"><span class="text-cyber-purple">jobs</span>:
+  <span class="text-cyber-cyan">test</span>:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm install -g @dotenc/cli
+      - run: dotenc run -e test npm test
+        <span class="text-cyber-purple">env</span>:
+          <span class="text-cyber-cyan">DOTENC_PRIVATE_KEY</span>: ${{ secrets.DOTENC_PRIVATE_KEY }}</pre>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ===== COMPARISON TABLE ===== -->
+	<section id="comparison" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+		<div class="text-center mb-12 fade-in-up">
+			<h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">How dotenc Compares</h2>
+			<p class="text-cyber-muted text-lg max-w-2xl mx-auto">dotenc is a Git-native encryption layer. It doesn't replace centralized secret managers &mdash; it serves a different operational model.</p>
+		</div>
+		<div class="max-w-5xl mx-auto overflow-x-auto fade-in-up">
+			<table class="comparison-table w-full text-sm border border-cyber-border rounded-xl overflow-hidden">
+				<thead>
+					<tr>
+						<th>Capability</th>
+						<th class="text-center">dotenc</th>
+						<th class="text-center">SOPS</th>
+						<th class="text-center">Vault</th>
+						<th class="text-center">Doppler</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td class="text-cyber-text">Git-native encrypted files</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Uses existing SSH identity</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">No external service required</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Envs versioned with code</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Centralized runtime API</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Dynamic / short-lived secrets</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Built-in org policy engine</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+						<td class="text-center text-cyber-green">&#x2714;</td>
+					</tr>
+					<tr>
+						<td class="text-cyber-text">Requires running infrastructure</td>
+						<td class="text-center text-cyber-green">&#x2718;</td>
+						<td class="text-center text-cyber-green">&#x2718;</td>
+						<td class="text-center text-red-400">&#x2714;</td>
+						<td class="text-center text-red-400">&#x2718;</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<!-- ===== FOOTER ===== -->
+	<footer class="border-t border-cyber-border py-12 px-4 sm:px-6 lg:px-8">
+		<div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+			<div class="flex items-center gap-3">
+				<img src="/logo-square.png" alt="dotenc" class="h-6 w-6 rounded">
+				<span class="text-cyber-muted text-sm">dotenc &copy; 2025. MIT License.</span>
+			</div>
+			<div class="flex items-center gap-6">
+				<a href="https://github.com/ivanfilhoz/dotenc" target="_blank" rel="noopener" class="text-cyber-muted hover:text-cyber-cyan transition-colors text-sm">GitHub</a>
+				<a href="https://npmjs.org/package/@dotenc/cli" target="_blank" rel="noopener" class="text-cyber-muted hover:text-cyber-cyan transition-colors text-sm">npm</a>
+				<a href="https://github.com/ivanfilhoz/dotenc/blob/main/LICENSE" target="_blank" rel="noopener" class="text-cyber-muted hover:text-cyber-cyan transition-colors text-sm">License</a>
+			</div>
+		</div>
+	</footer>
+
+	<!-- Scripts -->
+	<script src="/scripts/main.js"></script>
+</body>
+</html>

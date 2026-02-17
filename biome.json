@@ -9,6 +9,7 @@
 		"ignoreUnknown": false,
 		"includes": [
 			"cli/src/**",
+			"website/src/**",
 			"vscode-extension/src/**",
 			"vscode-extension/**/*.json",
 			"*.json",

@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+@theme {
+	--color-cyber-bg: #0a0e1a;
+	--color-cyber-surface: #0f1629;
+	--color-cyber-border: #1a2540;
+	--color-cyber-cyan: #00e5ff;
+	--color-cyber-green: #39ff14;
+	--color-cyber-purple: #b347ea;
+	--color-cyber-text: #c9d8f0;
+	--color-cyber-muted: #5a7090;
+
+	--font-sans: "Inter", sans-serif;
+	--font-mono: "JetBrains Mono", monospace;
+}
+
+/* Neon glow utilities */
+.glow-cyan {
+	text-shadow: 0 0 10px rgba(0, 229, 255, 0.5), 0 0 40px rgba(0, 229, 255, 0.2);
+}
+
+.glow-green {
+	text-shadow: 0 0 10px rgba(57, 255, 20, 0.5), 0 0 40px rgba(57, 255, 20, 0.2);
+}
+
+.glow-purple {
+	text-shadow: 0 0 10px rgba(179, 71, 234, 0.5), 0 0 40px rgba(179, 71, 234, 0.2);
+}
+
+.box-glow-cyan {
+	box-shadow: 0 0 15px rgba(0, 229, 255, 0.15), 0 0 30px rgba(0, 229, 255, 0.05);
+}
+
+.box-glow-purple {
+	box-shadow: 0 0 15px rgba(179, 71, 234, 0.15), 0 0 30px rgba(179, 71, 234, 0.05);
+}
+
+/* Terminal styling */
+.terminal {
+	background: #0c0c14;
+	border: 1px solid var(--color-cyber-border);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.terminal-header {
+	background: #12121e;
+	padding: 10px 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border-bottom: 1px solid var(--color-cyber-border);
+}
+
+.terminal-dot {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+}
+
+.terminal-body {
+	padding: 20px;
+	font-family: "JetBrains Mono", monospace;
+	font-size: 14px;
+	line-height: 1.7;
+}
+
+/* Gradient text */
+.gradient-text {
+	background: linear-gradient(135deg, var(--color-cyber-cyan), var(--color-cyber-purple));
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+/* Grid background pattern */
+.grid-bg {
+	background-image:
+		linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+	background-size: 60px 60px;
+}
+
+/* Feature card hover effect */
+.feature-card {
+	transition: all 0.3s ease;
+	border: 1px solid var(--color-cyber-border);
+}
+
+.feature-card:hover {
+	border-color: var(--color-cyber-cyan);
+	box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+	transform: translateY(-2px);
+}
+
+/* Connector line for steps */
+.step-connector {
+	position: absolute;
+	left: 19px;
+	top: 40px;
+	bottom: 0;
+	width: 2px;
+	background: linear-gradient(to bottom, var(--color-cyber-cyan), var(--color-cyber-purple));
+}
+
+/* Install tab active state */
+.install-tab {
+	transition: all 0.2s ease;
+}
+
+.install-tab.active {
+	color: var(--color-cyber-cyan);
+	border-color: var(--color-cyber-cyan);
+	background: rgba(0, 229, 255, 0.05);
+}
+
+/* Copy button */
+.copy-btn {
+	transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+	color: var(--color-cyber-cyan);
+}
+
+.copy-btn.copied {
+	color: var(--color-cyber-green);
+}
+
+/* Typewriter cursor */
+.typewriter-cursor::after {
+	content: "▊";
+	animation: blink 1s step-end infinite;
+	color: var(--color-cyber-cyan);
+}
+
+@keyframes blink {
+	50% { opacity: 0; }
+}
+
+/* Comparison table */
+.comparison-table th,
+.comparison-table td {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--color-cyber-border);
+}
+
+.comparison-table thead th {
+	background: var(--color-cyber-surface);
+	color: var(--color-cyber-cyan);
+	font-weight: 600;
+	text-align: left;
+}
+
+.comparison-table tbody tr:hover {
+	background: rgba(0, 229, 255, 0.02);
+}
+
+/* Scroll animation */
+.fade-in-up {
+	opacity: 0;
+	transform: translateY(20px);
+	transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.fade-in-up.visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+/* Mobile nav */
+.mobile-nav {
+	transform: translateX(100%);
+	transition: transform 0.3s ease;
+}
+
+.mobile-nav.open {
+	transform: translateX(0);
+}
+
+/* Smooth scroll */
+html {
+	scroll-behavior: smooth;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-cyber-bg);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-cyber-border);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-cyber-muted);
+}

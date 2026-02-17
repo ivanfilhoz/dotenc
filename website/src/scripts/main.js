@@ -1,0 +1,135 @@
+// ===== Copy to Clipboard =====
+document.querySelectorAll(".copy-btn").forEach((btn) => {
+	btn.addEventListener("click", async () => {
+		const text = btn.dataset.copy
+		if (!text) return
+
+		try {
+			await navigator.clipboard.writeText(text)
+			btn.classList.add("copied")
+
+			const svg = btn.querySelector("svg")
+			const originalPath = svg.innerHTML
+			svg.innerHTML =
+				'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+
+			setTimeout(() => {
+				btn.classList.remove("copied")
+				svg.innerHTML = originalPath
+			}, 2000)
+		} catch {
+			// Fallback for older browsers
+			const textarea = document.createElement("textarea")
+			textarea.value = text
+			textarea.style.position = "fixed"
+			textarea.style.opacity = "0"
+			document.body.appendChild(textarea)
+			textarea.select()
+			document.execCommand("copy")
+			document.body.removeChild(textarea)
+		}
+	})
+})
+
+// ===== Mobile Nav Toggle =====
+const menuBtn = document.getElementById("mobile-menu-btn")
+const mobileNav = document.getElementById("mobile-nav")
+
+if (menuBtn && mobileNav) {
+	menuBtn.addEventListener("click", () => {
+		mobileNav.classList.toggle("open")
+	})
+
+	// Close mobile nav when clicking a link
+	mobileNav.querySelectorAll(".mobile-nav-link").forEach((link) => {
+		link.addEventListener("click", () => {
+			mobileNav.classList.remove("open")
+		})
+	})
+
+	// Close on outside click
+	document.addEventListener("click", (e) => {
+		if (!mobileNav.contains(e.target) && !menuBtn.contains(e.target)) {
+			mobileNav.classList.remove("open")
+		}
+	})
+}
+
+// ===== Scroll Animations =====
+const observer = new IntersectionObserver(
+	(entries) => {
+		for (const entry of entries) {
+			if (entry.isIntersecting) {
+				entry.target.classList.add("visible")
+				observer.unobserve(entry.target)
+			}
+		}
+	},
+	{ threshold: 0.1 },
+)
+
+document.querySelectorAll(".fade-in-up").forEach((el) => {
+	observer.observe(el)
+})
+
+// ===== Install Tabs =====
+const tabs = document.querySelectorAll(".install-tab")
+const contents = document.querySelectorAll(".install-content")
+
+tabs.forEach((tab) => {
+	tab.addEventListener("click", () => {
+		const target = tab.dataset.tab
+
+		// Update tab states
+		tabs.forEach((t) => {
+			t.classList.remove("active")
+			t.classList.add("text-cyber-muted")
+		})
+		tab.classList.add("active")
+		tab.classList.remove("text-cyber-muted")
+
+		// Show target content, hide others
+		contents.forEach((content) => {
+			if (content.id === `tab-${target}`) {
+				content.classList.remove("hidden")
+			} else {
+				content.classList.add("hidden")
+			}
+		})
+	})
+})
+
+// ===== Active Nav Highlight =====
+const sections = document.querySelectorAll("section[id]")
+const navLinks = document.querySelectorAll('nav a[href^="#"]')
+
+window.addEventListener(
+	"scroll",
+	() => {
+		let current = ""
+		const atBottom =
+			window.innerHeight + window.scrollY >= document.body.offsetHeight - 50
+		if (atBottom && sections.length) {
+			current = sections[sections.length - 1].getAttribute("id")
+		} else {
+			for (const section of sections) {
+				const top = section.offsetTop - 100
+				if (scrollY >= top) {
+					current = section.getAttribute("id")
+				}
+			}
+		}
+
+		navLinks.forEach((link) => {
+			link.classList.remove("text-cyber-cyan")
+			if (!link.classList.contains("text-cyber-cyan")) {
+				link.classList.add("text-cyber-muted")
+			}
+			if (link.getAttribute("href") === `#${current}`) {
+				link.classList.remove("text-cyber-muted")
+				link.classList.add("text-cyber-cyan")
+			}
+		})
+	},
+	{ passive: true },
+)

@@ -5,7 +5,8 @@
 	"author": "Ivan Filho <i@ivanfilho.com>",
 	"license": "MIT",
 	"workspaces": [
-		"cli"
+		"cli",
+		"website"
 	],
 	"scripts": {
 		"lint": "biome check",

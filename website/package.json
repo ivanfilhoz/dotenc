@@ -1,0 +1,14 @@
+{
+	"name": "@dotenc/website",
+	"version": "1.0.0",
+	"private": true,
+	"description": "dotenc marketing website",
+	"scripts": {
+		"dev": "bun run src/serve.ts",
+		"build": "bun run src/build.ts",
+		"build:css": "bunx @tailwindcss/cli -i src/styles/main.css -o dist/styles.css --minify"
+	},
+	"devDependencies": {
+		"@tailwindcss/cli": "^4.1.0"
+	}
+}
