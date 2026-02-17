@@ -10,7 +10,7 @@
 	"scripts": {
 		"lint": "biome check",
 		"lint:fix": "biome check --write --unsafe",
-		"typecheck": "tsc --noEmit -p cli/tsconfig.json"
+		"typecheck": "(cd cli && bun run typecheck) && (cd vscode-extension && bun run typecheck)"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.1"

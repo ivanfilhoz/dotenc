@@ -7,7 +7,14 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["cli/src/**", "*.json"]
+		"includes": [
+			"cli/src/**",
+			"vscode-extension/src/**",
+			"vscode-extension/**/*.json",
+			"*.json",
+			"!!**/vscode-extension/.vscode-test",
+			"!!**/vscode-extension/node_modules"
+		]
 	},
 	"formatter": {
 		"enabled": true,

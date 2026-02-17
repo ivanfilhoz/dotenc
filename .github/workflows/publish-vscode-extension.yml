@@ -1,0 +1,63 @@
+name: Publish VS Code Extension (disabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install extension dependencies
+        run: cd vscode-extension && bun install --frozen-lockfile
+
+      - name: Typecheck extension
+        run: cd vscode-extension && bun run typecheck
+
+      - name: Run extension unit tests
+        run: cd vscode-extension && bun run test
+
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "VSCE_PAT secret is required to publish the extension."
+            exit 1
+          fi
+
+          cd vscode-extension
+          if [ "${{ github.ref }}" = "refs/heads/beta" ]; then
+            bun run publish:vsce:pre
+          else
+            bun run publish:vsce
+          fi
+
+      - name: Publish to OpenVSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "OVSX_PAT secret is required to publish the extension."
+            exit 1
+          fi
+
+          cd vscode-extension
+          if [ "${{ github.ref }}" = "refs/heads/beta" ]; then
+            bun run publish:ovsx:pre
+          else
+            bun run publish:ovsx
+          fi

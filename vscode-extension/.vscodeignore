@@ -1,0 +1,7 @@
+.vscode/**
+.gitignore
+bun.lock
+tsconfig.json
+test/**
+src/**/*.test.js
+src/vscode.d.ts

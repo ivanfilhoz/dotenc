@@ -1,0 +1,68 @@
+{
+	"name": "dotenc-vscode-extension",
+	"displayName": "dotenc",
+	"description": "Seamless editing for dotenc encrypted environment files.",
+	"version": "0.0.1",
+	"publisher": "dotenc",
+	"icon": "assets/logo-square.png",
+	"license": "MIT",
+	"homepage": "https://github.com/ivanfilhoz/dotenc",
+	"bugs": {
+		"url": "https://github.com/ivanfilhoz/dotenc/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ivanfilhoz/dotenc.git"
+	},
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onCustomEditor:dotenc.envEditor"
+	],
+	"main": "./src/extension.js",
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "dotenc.envEditor",
+				"displayName": "dotenc Environment Editor",
+				"selector": [
+					{
+						"filenamePattern": "**/.env.*.enc"
+					}
+				],
+				"priority": "default"
+			}
+		],
+		"configuration": {
+			"title": "dotenc",
+			"properties": {
+				"dotenc.executablePath": {
+					"type": "string",
+					"default": "dotenc",
+					"description": "Path to the dotenc CLI executable used by this extension."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"test": "bun test ./src/core.test.js",
+		"test:integration": "node ./test/run-integration.js",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"package": "vsce package",
+		"publish:vsce": "vsce publish --skip-duplicate",
+		"publish:vsce:pre": "vsce publish --skip-duplicate --pre-release",
+		"publish:ovsx": "ovsx publish --skip-duplicate",
+		"publish:ovsx:pre": "ovsx publish --skip-duplicate --pre-release"
+	},
+	"devDependencies": {
+		"@vscode/vsce": "^3.6.2",
+		"@vscode/test-electron": "^2.5.2",
+		"mocha": "^10.8.2",
+		"ovsx": "^0.10.9",
+		"typescript": "^5.8.2"
+	}
+}
