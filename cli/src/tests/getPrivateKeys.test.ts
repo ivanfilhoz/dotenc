@@ -3,7 +3,7 @@ import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { getPrivateKeys } from "../../helpers/getPrivateKeys"
+import { getPrivateKeys } from "../helpers/getPrivateKeys"
 
 describe("getPrivateKeys", () => {
 	let tmpDir: string

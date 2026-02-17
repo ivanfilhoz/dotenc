@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, mock, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import crypto from "node:crypto"
+import { getPrivateKeyByName } from "../helpers/getPrivateKeyByName"
 import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
 
 const ed25519KeyPair = crypto.generateKeyPairSync("ed25519")
@@ -18,49 +19,36 @@ const entry: PrivateKeyEntry = {
 }
 
 describe("getPrivateKeyByName", () => {
-	afterEach(() => {
-		mock.restore()
-	})
-
 	test("returns matching private key entry", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
-		}))
-
-		const { getPrivateKeyByName } = await import(
-			"../helpers/getPrivateKeyByName"
-		)
-		const result = await getPrivateKeyByName("id_ed25519")
+		const result = await getPrivateKeyByName("id_ed25519", {
+			getPrivateKeys: async () => ({
+				keys: [entry],
+				passphraseProtectedKeys: [],
+			}),
+		})
 		expect(result.name).toBe("id_ed25519")
 		expect(result.algorithm).toBe("ed25519")
 	})
 
 	test("throws when key name is not found", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({ keys: [entry], passphraseProtectedKeys: [] }),
-		}))
-
-		const { getPrivateKeyByName } = await import(
-			"../helpers/getPrivateKeyByName"
-		)
-		await expect(getPrivateKeyByName("id_rsa")).rejects.toThrow(
-			/No SSH private key found with name id_rsa/,
-		)
+		await expect(
+			getPrivateKeyByName("id_rsa", {
+				getPrivateKeys: async () => ({
+					keys: [entry],
+					passphraseProtectedKeys: [],
+				}),
+			}),
+		).rejects.toThrow(/No SSH private key found with name id_rsa/)
 	})
 
 	test("throws with empty key list", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
-		}))
-
-		const { getPrivateKeyByName } = await import(
-			"../helpers/getPrivateKeyByName"
-		)
-		await expect(getPrivateKeyByName("anything")).rejects.toThrow(
-			/No SSH private key found/,
-		)
+		await expect(
+			getPrivateKeyByName("anything", {
+				getPrivateKeys: async () => ({
+					keys: [],
+					passphraseProtectedKeys: [],
+				}),
+			}),
+		).rejects.toThrow(/No SSH private key found/)
 	})
 })

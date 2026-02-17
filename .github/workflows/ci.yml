@@ -43,11 +43,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Build test Docker image
-        run: docker build -t dotenc-tests -f cli/tests.Dockerfile .
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Run tests
-        run: docker run --rm dotenc-tests
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run unit tests
+        run: cd cli && bun test src/tests
 
   e2e:
     runs-on: ubuntu-latest

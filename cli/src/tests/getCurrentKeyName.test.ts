@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, mock, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import crypto from "node:crypto"
+import { getCurrentKeyName } from "../helpers/getCurrentKeyName"
 import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
 import type { PublicKeyEntry } from "../helpers/getPublicKeys"
 
@@ -37,96 +38,61 @@ function makePublicEntry(
 }
 
 describe("getCurrentKeyName", () => {
-	afterEach(() => {
-		mock.restore()
-	})
-
 	test("returns matching public key name", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({
-					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
-					passphraseProtectedKeys: [],
-				}),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () =>
-				Promise.resolve([makePublicEntry("alice", ed25519KeyPair)]),
-		}))
-
-		const { getCurrentKeyName } = await import("../helpers/getCurrentKeyName")
-		const result = await getCurrentKeyName()
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [makePublicEntry("alice", ed25519KeyPair)],
+		})
 		expect(result).toBe("alice")
 	})
 
 	test("returns undefined when no fingerprints match", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({
-					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
-					passphraseProtectedKeys: [],
-				}),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () =>
-				Promise.resolve([makePublicEntry("bob", ed25519KeyPair2)]),
-		}))
-
-		const { getCurrentKeyName } = await import("../helpers/getCurrentKeyName")
-		const result = await getCurrentKeyName()
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [makePublicEntry("bob", ed25519KeyPair2)],
+		})
 		expect(result).toBeUndefined()
 	})
 
 	test("returns undefined when no public keys exist", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({
-					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
-					passphraseProtectedKeys: [],
-				}),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () => Promise.resolve([]),
-		}))
-
-		const { getCurrentKeyName } = await import("../helpers/getCurrentKeyName")
-		const result = await getCurrentKeyName()
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [],
+		})
 		expect(result).toBeUndefined()
 	})
 
 	test("returns undefined when no private keys exist", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () =>
-				Promise.resolve([makePublicEntry("alice", ed25519KeyPair)]),
-		}))
-
-		const { getCurrentKeyName } = await import("../helpers/getCurrentKeyName")
-		const result = await getCurrentKeyName()
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [makePublicEntry("alice", ed25519KeyPair)],
+		})
 		expect(result).toBeUndefined()
 	})
 
 	test("returns first matching key when multiple public keys exist", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({
-					keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
-					passphraseProtectedKeys: [],
-				}),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () =>
-				Promise.resolve([
-					makePublicEntry("bob", ed25519KeyPair2),
-					makePublicEntry("alice", ed25519KeyPair),
-				]),
-		}))
-
-		const { getCurrentKeyName } = await import("../helpers/getCurrentKeyName")
-		const result = await getCurrentKeyName()
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [
+				makePublicEntry("bob", ed25519KeyPair2),
+				makePublicEntry("alice", ed25519KeyPair),
+			],
+		})
 		expect(result).toBe("alice")
 	})
 })

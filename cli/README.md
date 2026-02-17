@@ -9,9 +9,9 @@
 ## 30-Second Example
 
 ```bash
-dotenc init          # pick your SSH key, choose a name
-dotenc env edit alice    # add your personal secrets
-dotenc dev npm start # run with your encrypted env
+dotenc init            # pick your SSH key, choose a name
+dotenc env edit alice  # add your personal secrets
+dotenc dev npm start   # run with your encrypted env
 ```
 
 Encrypted `.env.alice.enc` committed.

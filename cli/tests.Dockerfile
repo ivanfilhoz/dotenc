@@ -15,6 +15,5 @@ RUN bun install --frozen-lockfile
 # Copy source and tests
 COPY cli/ cli/
 
-# Run isolated tests first (separate process to avoid mock.module contamination),
-# then run the rest sequentially (glob avoids recursing into isolated/)
-ENTRYPOINT ["sh", "-c", "bun test /app/cli/src/tests/isolated/ && bun test --max-concurrency 1 /app/cli/src/tests/*.test.ts"]
+# Run unit tests only (e2e has a dedicated Docker image/job)
+ENTRYPOINT ["bun", "test", "/app/cli/src/tests"]

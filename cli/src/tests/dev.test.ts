@@ -1,111 +1,60 @@
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	mock,
-	spyOn,
-	test,
-} from "bun:test"
-import crypto from "node:crypto"
-import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
-import type { PublicKeyEntry } from "../helpers/getPublicKeys"
-
-const ed25519KeyPair = crypto.generateKeyPairSync("ed25519")
-
-function fingerprint(key: crypto.KeyObject): string {
-	const pub = key.type === "public" ? key : crypto.createPublicKey(key)
-	const der = pub.export({ type: "spki", format: "der" }) as Buffer
-	return crypto.createHash("sha256").update(der).digest("hex")
-}
-
-const fp = fingerprint(ed25519KeyPair.publicKey)
+import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { devCommand } from "../commands/dev"
 
 describe("devCommand", () => {
 	let runCommandMock: ReturnType<typeof mock>
-	let consoleErrorSpy: ReturnType<typeof spyOn>
-	let processExitSpy: ReturnType<typeof spyOn>
+	let logErrorMock: ReturnType<typeof mock>
 
 	beforeEach(() => {
 		runCommandMock = mock(() => Promise.resolve())
-		consoleErrorSpy = spyOn(console, "error").mockImplementation(() => {})
-		processExitSpy = spyOn(process, "exit").mockImplementation(
-			() => undefined as never,
-		)
-	})
-
-	afterEach(() => {
-		mock.restore()
-		consoleErrorSpy.mockRestore()
-		processExitSpy.mockRestore()
+		logErrorMock = mock(() => {})
 	})
 
 	test("delegates to runCommand with development,<keyName>", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({
-					keys: [
-						{
-							name: "id_ed25519",
-							privateKey: ed25519KeyPair.privateKey,
-							fingerprint: fp,
-							algorithm: "ed25519",
-						} satisfies PrivateKeyEntry,
-					],
-					passphraseProtectedKeys: [],
-				}),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () =>
-				Promise.resolve([
-					{
-						name: "alice",
-						publicKey: ed25519KeyPair.publicKey,
-						fingerprint: fp,
-						algorithm: "ed25519",
-					} satisfies PublicKeyEntry,
-				]),
-		}))
-		mock.module("../commands/run", () => ({
-			runCommand: runCommandMock,
-		}))
+		const exit = (code: number): never => {
+			throw new Error(`Unexpected process.exit(${code})`)
+		}
+		const runCommand = ((...args: unknown[]) =>
+			runCommandMock(...args)) as typeof import("../commands/run").runCommand
+		const logError = ((message: string) =>
+			logErrorMock(message)) as (message: string) => void
 
-		const { devCommand } = await import("../commands/dev")
-		await devCommand("node", ["app.js"])
+		await devCommand("node", ["app.js"], {
+			getCurrentKeyName: async () => "alice",
+			runCommand,
+			logError,
+			exit,
+		})
 
 		expect(runCommandMock).toHaveBeenCalledTimes(1)
 		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
 			env: "development,alice",
 		})
+		expect(logErrorMock).not.toHaveBeenCalled()
 	})
 
 	test("prints error when no identity is found", async () => {
-		mock.module("../helpers/getPrivateKeys", () => ({
-			getPrivateKeys: () =>
-				Promise.resolve({ keys: [], passphraseProtectedKeys: [] }),
-		}))
-		mock.module("../helpers/getPublicKeys", () => ({
-			getPublicKeys: () => Promise.resolve([]),
-		}))
-		mock.module("../commands/run", () => ({
-			runCommand: runCommandMock,
-		}))
-
-		processExitSpy.mockImplementation(() => {
-			throw new Error("process.exit called")
+		const exitMock = mock((code: number): never => {
+			throw new Error(`process.exit(${code})`)
 		})
+		const runCommand = ((...args: unknown[]) =>
+			runCommandMock(...args)) as typeof import("../commands/run").runCommand
+		const logError = ((message: string) =>
+			logErrorMock(message)) as (message: string) => void
 
-		const { devCommand } = await import("../commands/dev")
-		try {
-			await devCommand("node", ["app.js"])
-		} catch {
-			// Expected: process.exit mock throws
-		}
+		await expect(
+			devCommand("node", ["app.js"], {
+				getCurrentKeyName: async () => undefined,
+				runCommand,
+				logError,
+				exit: exitMock,
+			}),
+		).rejects.toThrow("process.exit(1)")
 
 		expect(runCommandMock).not.toHaveBeenCalled()
-		expect(processExitSpy).toHaveBeenCalledWith(1)
-		expect(consoleErrorSpy).toHaveBeenCalled()
-		const errorMessage = consoleErrorSpy.mock.calls[0][0] as string
+		expect(exitMock).toHaveBeenCalledWith(1)
+		expect(logErrorMock).toHaveBeenCalledTimes(1)
+		const errorMessage = logErrorMock.mock.calls[0][0] as string
 		expect(errorMessage).toContain("could not resolve your identity")
 	})
 })

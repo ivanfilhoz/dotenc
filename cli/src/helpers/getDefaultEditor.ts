@@ -1,12 +1,33 @@
 import { execSync } from "node:child_process"
 import { getHomeConfig } from "./homeConfig"
 
+type GetDefaultEditorDeps = {
+	getHomeConfig: typeof getHomeConfig
+	commandExists: (command: string) => boolean
+	platform: NodeJS.Platform
+}
+
+const defaultGetDefaultEditorDeps: GetDefaultEditorDeps = {
+	getHomeConfig,
+	commandExists: (command) => {
+		try {
+			execSync(`command -v ${command}`, { stdio: "ignore" })
+			return true
+		} catch {
+			return false
+		}
+	},
+	platform: process.platform,
+}
+
 /**
  * Determines the default text editor for the system.
  * @returns {string} The command to launch the default text editor.
  */
-export const getDefaultEditor = async () => {
-	const config = await getHomeConfig()
+export const getDefaultEditor = async (
+	deps: GetDefaultEditorDeps = defaultGetDefaultEditorDeps,
+) => {
+	const config = await deps.getHomeConfig()
 
 	// Check the editor field in the config file
 	if (config.editor) {
@@ -23,7 +44,7 @@ export const getDefaultEditor = async () => {
 		return process.env.VISUAL
 	}
 	// Platform-specific defaults
-	const platform = process.platform
+	const platform = deps.platform
 
 	if (platform === "win32") {
 		// Windows: Use notepad as the fallback editor
@@ -33,12 +54,9 @@ export const getDefaultEditor = async () => {
 	// Linux/macOS: Try nano, vim, or vi
 	const editors = ["nano", "vim", "vi"]
 	for (const editor of editors) {
-		try {
-			// Check if the editor is available
-			execSync(`command -v ${editor}`, { stdio: "ignore" })
+		// Check if the editor is available
+		if (deps.commandExists(editor)) {
 			return editor // Return the first available editor
-		} catch {
-			// Ignore errors and try the next editor
 		}
 	}
 
