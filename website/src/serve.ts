@@ -1,5 +1,5 @@
-import { watch } from "fs"
-import { join } from "path"
+import { watch } from "node:fs"
+import { join } from "node:path"
 import { $ } from "bun"
 
 const ROOT = join(import.meta.dir, "..")

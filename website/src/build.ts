@@ -1,5 +1,12 @@
-import { cpSync, existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "fs"
-import { join } from "path"
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
+import { join } from "node:path"
 import { $ } from "bun"
 
 const ROOT = join(import.meta.dir, "..")

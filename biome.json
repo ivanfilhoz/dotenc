@@ -9,7 +9,9 @@
 		"ignoreUnknown": false,
 		"includes": [
 			"cli/src/**",
-			"website/src/**",
+			"website/src/**/*.ts",
+			"website/src/**/*.js",
+			"website/src/**/*.html",
 			"vscode-extension/src/**",
 			"vscode-extension/**/*.json",
 			"*.json",
@@ -27,6 +29,10 @@
 			"recommended": true,
 			"performance": {
 				"noAccumulatingSpread": "off"
+			},
+			"a11y": {
+				"noSvgWithoutTitle": "off",
+				"useButtonType": "off"
 			}
 		}
 	},
