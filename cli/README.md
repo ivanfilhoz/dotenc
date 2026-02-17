@@ -1,4 +1,4 @@
-# ![dotenc](/assets/logo.png "dotenc logo")
+# ![dotenc](/assets/logo.jpg "dotenc logo")
 
 [![NPM Version][npm-image]][npm-url]
 [![Github License][license-image]](LICENSE)
