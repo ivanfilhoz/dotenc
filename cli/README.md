@@ -447,7 +447,6 @@ Alternatively, the `DOTENC_ENV` variable can be used to set the environment, so 
   dotenc run node app.js
 ```
 
-> **Note:** `dotenc textconv` is an internal command used by the git diff driver. It is set up automatically during `dotenc init` and allows `git diff` to show decrypted content of `.env.*.enc` files.
 
 ## How dotenc compares
 

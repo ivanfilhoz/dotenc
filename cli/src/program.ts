@@ -6,7 +6,9 @@ import { revokeCommand } from "./commands/auth/revoke"
 import { configCommand } from "./commands/config"
 import { devCommand } from "./commands/dev"
 import { createCommand } from "./commands/env/create"
+import { decryptCommand } from "./commands/env/decrypt"
 import { editCommand } from "./commands/env/edit"
+import { encryptCommand } from "./commands/env/encrypt"
 import { envListCommand } from "./commands/env/list"
 import { rotateCommand } from "./commands/env/rotate"
 import { initCommand } from "./commands/init"
@@ -44,6 +46,21 @@ env
 	.argument("[environment]", "the environment to edit")
 	.description("edit an environment")
 	.action(editCommand)
+
+env
+	.command("decrypt", { hidden: true })
+	.argument("<environment>", "the environment to decrypt")
+	.addOption(new Option("--json", "output machine-readable JSON"))
+	.description("decrypt an environment and print plaintext to stdout")
+	.action(decryptCommand)
+
+env
+	.command("encrypt", { hidden: true })
+	.argument("<environment>", "the environment to encrypt")
+	.addOption(new Option("--stdin", "read plaintext content from stdin"))
+	.addOption(new Option("--json", "output machine-readable JSON"))
+	.description("encrypt plaintext content and write it to an environment file")
+	.action(encryptCommand)
 
 env
 	.command("rotate")
@@ -133,7 +150,7 @@ key
 	.action(keyRemoveCommand)
 
 program
-	.command("textconv")
+	.command("textconv", { hidden: true })
 	.argument("<filepath>", "path to the encrypted environment file")
 	.description("decrypt an environment file for git diff")
 	.action(textconvCommand)
