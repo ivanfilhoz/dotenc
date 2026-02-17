@@ -29,6 +29,21 @@ describe("getPublicKeys", () => {
 			"utf-8",
 		)
 
+		// Write unsupported ECDSA public key (should be ignored)
+		const ec = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" })
+		writeFileSync(
+			path.join(tmpDir, ".dotenc", "carol.pub"),
+			ec.publicKey.export({ type: "spki", format: "pem" }).toString(),
+			"utf-8",
+		)
+
+		// Write invalid .pub content (should be ignored)
+		writeFileSync(
+			path.join(tmpDir, ".dotenc", "broken.pub"),
+			"definitely-not-a-valid-public-key",
+			"utf-8",
+		)
+
 		// Write a non-.pub file (should be ignored)
 		writeFileSync(path.join(tmpDir, ".dotenc", "readme.txt"), "hi", "utf-8")
 
@@ -73,5 +88,31 @@ describe("getPublicKeys", () => {
 		expect(keys).toHaveLength(0)
 		cwdSpy.mockReturnValue(tmpDir)
 		rmSync(emptyDir, { recursive: true, force: true })
+	})
+
+	test("ignores invalid PEM public keys and logs an error", async () => {
+		const errorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const keys = await getPublicKeys()
+		expect(keys.find((k) => k.name === "broken")).toBeUndefined()
+
+		const messages = errorSpy.mock.calls.map((c) => String(c[0]))
+		expect(
+			messages.some((m) =>
+				m.includes("Invalid public key format in broken.pub"),
+			),
+		).toBe(true)
+		errorSpy.mockRestore()
+	})
+
+	test("ignores unsupported key types and logs an error", async () => {
+		const errorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const keys = await getPublicKeys()
+		expect(keys.find((k) => k.name === "carol")).toBeUndefined()
+
+		const messages = errorSpy.mock.calls.map((c) => String(c[0]))
+		expect(
+			messages.some((m) => m.includes("Unsupported key type in carol.pub")),
+		).toBe(true)
+		errorSpy.mockRestore()
 	})
 })

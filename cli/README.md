@@ -3,6 +3,7 @@
 [![NPM Version][npm-image]][npm-url]
 [![Github License][license-image]](LICENSE)
 [![NPM Downloads][downloads-image]][npm-url]
+[![Codecov][codecov-image]][codecov-url]
 
 🔐 Git-native encrypted environments powered by your SSH keys
 
@@ -478,3 +479,5 @@ It does not aim to replace centralized secret managers like Vault or Doppler —
 [license-image]: https://img.shields.io/github/license/ivanfilhoz/dotenc.svg
 [downloads-image]: https://img.shields.io/npm/dm/@dotenc/cli.svg
 [npm-url]: https://npmjs.org/package/@dotenc/cli
+[codecov-image]: https://codecov.io/gh/ivanfilhoz/dotenc/graph/badge.svg?token=U2MKXVGBA0
+[codecov-url]: https://codecov.io/gh/ivanfilhoz/dotenc

@@ -10,14 +10,16 @@ const homeConfigSchema = z.object({
 
 type HomeConfig = z.infer<typeof homeConfigSchema>
 
-const configPath = path.join(os.homedir(), ".dotenc", "config.json")
+const getConfigPath = () => path.join(os.homedir(), ".dotenc", "config.json")
 
 export const setHomeConfig = async (config: HomeConfig) => {
 	const parsedConfig = homeConfigSchema.parse(config)
+	const configPath = getConfigPath()
 	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), "utf-8")
 }
 
 export const getHomeConfig = async () => {
+	const configPath = getConfigPath()
 	if (existsSync(configPath)) {
 		const config = JSON.parse(await fs.readFile(configPath, "utf-8"))
 		return homeConfigSchema.parse(config)

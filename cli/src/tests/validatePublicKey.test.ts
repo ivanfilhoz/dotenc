@@ -48,8 +48,25 @@ describe("validatePublicKey", () => {
 		}
 	})
 
-	// DSA key generation is not supported by BoringSSL (used by Bun),
-	// so we skip this test. The "dsa" branch is covered by the default
-	// case in validatePublicKey since Bun can't produce DSA KeyObjects.
-	test.skip("rejects DSA key", () => {})
+	test("rejects DSA key type", () => {
+		const fakeDsaKey = {
+			asymmetricKeyType: "dsa",
+		} as unknown as crypto.KeyObject
+		const result = validatePublicKey(fakeDsaKey)
+		expect(result.valid).toBe(false)
+		if (!result.valid) {
+			expect(result.reason).toContain("DSA keys are not supported")
+		}
+	})
+
+	test("rejects unknown key types", () => {
+		const fakeUnknownKey = {
+			asymmetricKeyType: "x25519",
+		} as unknown as crypto.KeyObject
+		const result = validatePublicKey(fakeUnknownKey)
+		expect(result.valid).toBe(false)
+		if (!result.valid) {
+			expect(result.reason).toContain("Unsupported key type: x25519")
+		}
+	})
 })

@@ -7,16 +7,18 @@ type GetDefaultEditorDeps = {
 	platform: NodeJS.Platform
 }
 
+export const commandExists = (command: string) => {
+	try {
+		execSync(`command -v ${command}`, { stdio: "ignore" })
+		return true
+	} catch {
+		return false
+	}
+}
+
 const defaultGetDefaultEditorDeps: GetDefaultEditorDeps = {
 	getHomeConfig,
-	commandExists: (command) => {
-		try {
-			execSync(`command -v ${command}`, { stdio: "ignore" })
-			return true
-		} catch {
-			return false
-		}
-	},
+	commandExists,
 	platform: process.platform,
 }
 

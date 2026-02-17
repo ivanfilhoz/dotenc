@@ -9,6 +9,7 @@ describe("getPrivateKeys", () => {
 	let tmpDir: string
 	let ed25519PrivateKeyPem: string
 	let rsaPrivateKeyPem: string
+	let ecdsaPrivateKeyPem: string
 	const originalDotencKey = process.env.DOTENC_PRIVATE_KEY
 	let homeSpy: ReturnType<typeof spyOn>
 
@@ -24,6 +25,11 @@ describe("getPrivateKeys", () => {
 
 		const rsa = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 })
 		rsaPrivateKeyPem = rsa.privateKey
+			.export({ type: "pkcs8", format: "pem" })
+			.toString()
+
+		const ec = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" })
+		ecdsaPrivateKeyPem = ec.privateKey
 			.export({ type: "pkcs8", format: "pem" })
 			.toString()
 
@@ -105,5 +111,75 @@ describe("getPrivateKeys", () => {
 		expect(result).toHaveProperty("passphraseProtectedKeys")
 		expect(Array.isArray(result.keys)).toBe(true)
 		expect(Array.isArray(result.passphraseProtectedKeys)).toBe(true)
+	})
+
+	test("ignores unsupported key types in DOTENC_PRIVATE_KEY", async () => {
+		const errorSpy = spyOn(console, "error").mockImplementation(() => {})
+		process.env.DOTENC_PRIVATE_KEY = ecdsaPrivateKeyPem
+
+		const { keys } = await getPrivateKeys()
+		expect(
+			keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY"),
+		).toBeUndefined()
+
+		const messages = errorSpy.mock.calls.map((c) => String(c[0]))
+		expect(
+			messages.some((m) =>
+				m.includes("Unsupported key type in DOTENC_PRIVATE_KEY"),
+			),
+		).toBe(true)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		errorSpy.mockRestore()
+	})
+
+	test("exits for passphrase-protected DOTENC_PRIVATE_KEY", async () => {
+		const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+			throw new Error("process.exit(1)")
+		})
+		const errorSpy = spyOn(console, "error").mockImplementation(() => {})
+		process.env.DOTENC_PRIVATE_KEY = [
+			"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+			"ZmFrZQ==",
+			"-----END ENCRYPTED PRIVATE KEY-----",
+		].join("\n")
+
+		await expect(getPrivateKeys()).rejects.toThrow("process.exit(1)")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		errorSpy.mockRestore()
+		exitSpy.mockRestore()
+	})
+
+	test("tracks passphrase-protected keys found in ~/.ssh", async () => {
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_protected"),
+			[
+				"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+				"ZmFrZQ==",
+				"-----END ENCRYPTED PRIVATE KEY-----",
+			].join("\n"),
+			"utf-8",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		const result = await getPrivateKeys()
+		expect(result.passphraseProtectedKeys).toContain("id_protected")
+	})
+
+	test("returns empty result when ~/.ssh does not exist", async () => {
+		const emptyHome = mkdtempSync(
+			path.join(os.tmpdir(), "test-privkeys-empty-"),
+		)
+		homeSpy.mockReturnValue(emptyHome)
+		delete process.env.DOTENC_PRIVATE_KEY
+
+		const result = await getPrivateKeys()
+		expect(result.keys).toHaveLength(0)
+		expect(result.passphraseProtectedKeys).toHaveLength(0)
+
+		homeSpy.mockReturnValue(tmpDir)
+		rmSync(emptyHome, { recursive: true, force: true })
 	})
 })

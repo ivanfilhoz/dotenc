@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test"
-import { getDefaultEditor } from "../helpers/getDefaultEditor"
+import { commandExists, getDefaultEditor } from "../helpers/getDefaultEditor"
 
 describe("getDefaultEditor", () => {
 	const originalEditor = process.env.EDITOR
@@ -55,5 +55,32 @@ describe("getDefaultEditor", () => {
 			platform: "linux",
 		})
 		expect(editor).toBe("vim")
+	})
+
+	test("returns notepad on win32", async () => {
+		const editor = await getDefaultEditor({
+			getHomeConfig: async () => ({}),
+			commandExists: () => false,
+			platform: "win32",
+		})
+		expect(editor).toBe("notepad")
+	})
+
+	test("throws when no editor is available", async () => {
+		await expect(
+			getDefaultEditor({
+				getHomeConfig: async () => ({}),
+				commandExists: () => false,
+				platform: "linux",
+			}),
+		).rejects.toThrow(/No text editor found/)
+	})
+
+	test("commandExists returns true for a valid command", () => {
+		expect(commandExists("bun")).toBe(true)
+	})
+
+	test("commandExists returns false for a missing command", () => {
+		expect(commandExists("dotenc_command_that_does_not_exist_123")).toBe(false)
 	})
 })

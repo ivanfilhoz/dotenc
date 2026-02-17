@@ -1,0 +1,202 @@
+import { describe, expect, mock, test } from "bun:test"
+import crypto from "node:crypto"
+import {
+	decryptEnvironment,
+	decryptEnvironmentData,
+} from "../helpers/decryptEnvironment"
+import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
+import type { Environment } from "../schemas/environment"
+
+type DecryptEnvironmentDataDeps = NonNullable<
+	Parameters<typeof decryptEnvironmentData>[1]
+>
+type DecryptEnvironmentDeps = NonNullable<
+	Parameters<typeof decryptEnvironment>[1]
+>
+
+function makePrivateKeyEntry(
+	fingerprint: string,
+	name = "id_ed25519",
+): PrivateKeyEntry {
+	const keyPair = crypto.generateKeyPairSync("ed25519")
+	return {
+		name,
+		privateKey: keyPair.privateKey,
+		fingerprint,
+		algorithm: "ed25519",
+	}
+}
+
+function makeEnvironment(fingerprint: string, name = "alice"): Environment {
+	return {
+		keys: [
+			{
+				name,
+				fingerprint,
+				encryptedDataKey: Buffer.from("encrypted-data-key").toString("base64"),
+				algorithm: "ed25519",
+			},
+		],
+		encryptedContent: Buffer.from("encrypted-content").toString("base64"),
+	}
+}
+
+describe("decryptEnvironmentData", () => {
+	test("throws passphrase-protected error when no usable private keys exist", async () => {
+		const deps: DecryptEnvironmentDataDeps = {
+			getPrivateKeys: async () => ({
+				keys: [],
+				passphraseProtectedKeys: ["id_ed25519"],
+			}),
+			decryptDataKey: (() => Buffer.alloc(32)) as never,
+			decryptData: (async () => "") as never,
+		}
+
+		await expect(
+			decryptEnvironmentData(makeEnvironment("fp-1"), deps),
+		).rejects.toThrow("passphrase-protected")
+	})
+
+	test("throws when no private keys are found", async () => {
+		const deps: DecryptEnvironmentDataDeps = {
+			getPrivateKeys: async () => ({
+				keys: [],
+				passphraseProtectedKeys: [],
+			}),
+			decryptDataKey: (() => Buffer.alloc(32)) as never,
+			decryptData: (async () => "") as never,
+		}
+
+		await expect(
+			decryptEnvironmentData(makeEnvironment("fp-1"), deps),
+		).rejects.toThrow("No private keys found")
+	})
+
+	test("throws access denied when no key fingerprint matches", async () => {
+		const deps: DecryptEnvironmentDataDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-private")],
+				passphraseProtectedKeys: [],
+			}),
+			decryptDataKey: (() => Buffer.alloc(32)) as never,
+			decryptData: (async () => "") as never,
+		}
+
+		await expect(
+			decryptEnvironmentData(makeEnvironment("fp-environment"), deps),
+		).rejects.toThrow("Access denied to the environment.")
+	})
+
+	test("wraps data key decryption failures", async () => {
+		const deps: DecryptEnvironmentDataDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-match")],
+				passphraseProtectedKeys: [],
+			}),
+			decryptDataKey: () => {
+				throw new Error("decryptDataKey failed")
+			},
+			decryptData: (async () => "") as never,
+		}
+
+		await expect(
+			decryptEnvironmentData(makeEnvironment("fp-match"), deps),
+		).rejects.toThrow("Failed to decrypt the data key.")
+	})
+
+	test("decrypts environment content when authorized key matches", async () => {
+		const decryptDataKey = mock(
+			(_privateKey: PrivateKeyEntry, _encryptedDataKey: Buffer) =>
+				Buffer.alloc(32, 7),
+		)
+		const decryptData = mock(async () => "API_KEY=abc123")
+
+		const deps: DecryptEnvironmentDataDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-match")],
+				passphraseProtectedKeys: [],
+			}),
+			decryptDataKey: decryptDataKey as never,
+			decryptData: decryptData as never,
+		}
+
+		const env = makeEnvironment("fp-match")
+		const result = await decryptEnvironmentData(env, deps)
+
+		expect(result).toBe("API_KEY=abc123")
+		expect(decryptDataKey).toHaveBeenCalledTimes(1)
+		const encryptedDataKeyArg = decryptDataKey.mock.calls[0][1] as Buffer
+		expect(encryptedDataKeyArg.toString("utf-8")).toBe("encrypted-data-key")
+		expect(decryptData).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe("decryptEnvironment", () => {
+	test("logs guidance when access is denied", async () => {
+		const logError = mock((_message: string) => {})
+		const deps: DecryptEnvironmentDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-private", "id_my_key")],
+				passphraseProtectedKeys: [],
+			}),
+			getEnvironmentByName: async () =>
+				makeEnvironment("fp-environment", "alice"),
+			decryptDataKey: (() => Buffer.alloc(32)) as never,
+			decryptData: (async () => "") as never,
+			logError,
+		}
+
+		await expect(decryptEnvironment("staging", deps)).rejects.toThrow(
+			"Access denied to the environment.",
+		)
+
+		expect(logError).toHaveBeenCalledTimes(1)
+		const message = String(logError.mock.calls[0][0])
+		expect(message).toContain("You do not have access to this environment")
+		expect(message).toContain("id_my_key")
+		expect(message).toContain("alice")
+	})
+
+	test("logs a specific error when data key decryption fails", async () => {
+		const logError = mock((_message: string) => {})
+		const deps: DecryptEnvironmentDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-match", "id_my_key")],
+				passphraseProtectedKeys: [],
+			}),
+			getEnvironmentByName: async () => makeEnvironment("fp-match", "alice"),
+			decryptDataKey: () => {
+				throw new Error("bad key")
+			},
+			decryptData: (async () => "") as never,
+			logError,
+		}
+
+		await expect(decryptEnvironment("staging", deps)).rejects.toThrow(
+			"Failed to decrypt the data key.",
+		)
+
+		expect(logError).toHaveBeenCalledTimes(1)
+		expect(String(logError.mock.calls[0][0])).toContain(
+			"failed to decrypt the data key",
+		)
+	})
+
+	test("returns decrypted content on success without logging errors", async () => {
+		const logError = mock((_message: string) => {})
+		const deps: DecryptEnvironmentDeps = {
+			getPrivateKeys: async () => ({
+				keys: [makePrivateKeyEntry("fp-match", "id_my_key")],
+				passphraseProtectedKeys: [],
+			}),
+			getEnvironmentByName: async () => makeEnvironment("fp-match", "alice"),
+			decryptDataKey: () => Buffer.alloc(32, 1),
+			decryptData: async () => "TOKEN=xyz",
+			logError,
+		}
+
+		const result = await decryptEnvironment("staging", deps)
+		expect(result).toBe("TOKEN=xyz")
+		expect(logError).not.toHaveBeenCalled()
+	})
+})

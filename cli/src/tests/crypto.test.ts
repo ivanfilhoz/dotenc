@@ -22,6 +22,19 @@ describe("crypto helpers", () => {
 		)
 	})
 
+	test("rethrows non-authentication decrypt errors", async () => {
+		const encrypted = await encryptData(key, message)
+		const invalidKey = { length: 32 } as Buffer
+
+		try {
+			await decryptData(invalidKey, encrypted)
+			throw new Error("Expected decryptData to throw")
+		} catch (error) {
+			expect(error).toBeInstanceOf(Error)
+			expect((error as Error).message).not.toContain("Failed to decrypt file")
+		}
+	})
+
 	test("decrypt rejects too-short input", async () => {
 		const shortInput = Buffer.alloc(10)
 		await expect(decryptData(key, shortInput)).rejects.toThrow(

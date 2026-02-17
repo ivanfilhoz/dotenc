@@ -1,79 +1,52 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { getHomeConfig, setHomeConfig } from "../helpers/homeConfig"
 
 describe("homeConfig", () => {
 	let tmpHome: string
-	let configPath: string
+	let homeSpy: ReturnType<typeof spyOn>
 
-	beforeAll(() => {
+	beforeEach(() => {
 		tmpHome = mkdtempSync(path.join(os.tmpdir(), "test-homeconfig-"))
 		mkdirSync(path.join(tmpHome, ".dotenc"), { recursive: true })
-		configPath = path.join(tmpHome, ".dotenc", "config.json")
+		homeSpy = spyOn(os, "homedir").mockReturnValue(tmpHome)
 	})
 
-	afterAll(() => {
+	afterEach(() => {
+		homeSpy.mockRestore()
 		rmSync(tmpHome, { recursive: true, force: true })
 	})
 
 	test("getHomeConfig returns empty object when no config exists", async () => {
-		const fs = await import("node:fs")
-		const _fsp = await import("node:fs/promises")
-		const { z } = await import("zod")
-
-		const _homeConfigSchema = z.object({ editor: z.string().nullish() })
-
-		// Simulate what homeConfig does but with our configPath
-		if (!fs.existsSync(configPath)) {
-			const config = {}
-			expect(config).toEqual({})
-		}
+		const result = await getHomeConfig()
+		expect(result).toEqual({})
 	})
 
 	test("setHomeConfig writes and getHomeConfig reads config", async () => {
-		const fsp = await import("node:fs/promises")
-		const { z } = await import("zod")
-
-		const homeConfigSchema = z.object({ editor: z.string().nullish() })
-
-		// Write
-		const config = { editor: "vim" }
-		const parsed = homeConfigSchema.parse(config)
-		await fsp.writeFile(configPath, JSON.stringify(parsed, null, 2), "utf-8")
-
-		// Read
-		const content = JSON.parse(await fsp.readFile(configPath, "utf-8"))
-		const result = homeConfigSchema.parse(content)
+		await setHomeConfig({ editor: "vim" })
+		const result = await getHomeConfig()
 		expect(result.editor).toBe("vim")
 	})
 
 	test("setHomeConfig overwrites existing config", async () => {
-		const fsp = await import("node:fs/promises")
-		const { z } = await import("zod")
-
-		const homeConfigSchema = z.object({ editor: z.string().nullish() })
-
-		await fsp.writeFile(
-			configPath,
-			JSON.stringify({ editor: "vim" }, null, 2),
-			"utf-8",
-		)
-		await fsp.writeFile(
-			configPath,
-			JSON.stringify({ editor: "code" }, null, 2),
-			"utf-8",
-		)
-
-		const content = JSON.parse(await fsp.readFile(configPath, "utf-8"))
-		const result = homeConfigSchema.parse(content)
+		await setHomeConfig({ editor: "vim" })
+		await setHomeConfig({ editor: "code" })
+		const result = await getHomeConfig()
 		expect(result.editor).toBe("code")
 	})
 
-	test("rejects invalid config schema", async () => {
-		const { z } = await import("zod")
-		const homeConfigSchema = z.object({ editor: z.string().nullish() })
+	test("rejects invalid config schema on set", async () => {
+		await expect(
+			setHomeConfig({ editor: 123 as unknown as string }),
+		).rejects.toThrow()
+	})
 
-		expect(() => homeConfigSchema.parse({ editor: 123 })).toThrow()
+	test("rejects invalid config schema on get", async () => {
+		const configPath = path.join(tmpHome, ".dotenc", "config.json")
+		writeFileSync(configPath, JSON.stringify({ editor: 123 }), "utf-8")
+
+		await expect(getHomeConfig()).rejects.toThrow()
 	})
 })

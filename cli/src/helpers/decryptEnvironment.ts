@@ -6,11 +6,24 @@ import { passphraseProtectedKeyError } from "./errors"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
 
+type DecryptEnvironmentDataDeps = {
+	getPrivateKeys: typeof getPrivateKeys
+	decryptDataKey: typeof decryptDataKey
+	decryptData: typeof decryptData
+}
+
+const defaultDecryptEnvironmentDataDeps: DecryptEnvironmentDataDeps = {
+	getPrivateKeys,
+	decryptDataKey,
+	decryptData,
+}
+
 export const decryptEnvironmentData = async (
 	environment: Environment,
+	deps: DecryptEnvironmentDataDeps = defaultDecryptEnvironmentDataDeps,
 ): Promise<string> => {
 	const { keys: availablePrivateKeys, passphraseProtectedKeys } =
-		await getPrivateKeys()
+		await deps.getPrivateKeys()
 
 	if (!availablePrivateKeys.length) {
 		if (passphraseProtectedKeys.length > 0) {
@@ -41,7 +54,7 @@ export const decryptEnvironmentData = async (
 
 	let dataKey: Buffer
 	try {
-		dataKey = decryptDataKey(
+		dataKey = deps.decryptDataKey(
 			selectedPrivateKey,
 			Buffer.from(grantedKey.encryptedDataKey, "base64"),
 		)
@@ -49,7 +62,7 @@ export const decryptEnvironmentData = async (
 		throw new Error("Failed to decrypt the data key.", { cause: error })
 	}
 
-	const decryptedContent = await decryptData(
+	const decryptedContent = await deps.decryptData(
 		dataKey,
 		Buffer.from(environment.encryptedContent, "base64"),
 	)
@@ -57,18 +70,32 @@ export const decryptEnvironmentData = async (
 	return decryptedContent
 }
 
-export const decryptEnvironment = async (name: string) => {
-	const { keys: availablePrivateKeys } = await getPrivateKeys()
-	const environmentJson = await getEnvironmentByName(name)
+type DecryptEnvironmentDeps = DecryptEnvironmentDataDeps & {
+	getEnvironmentByName: typeof getEnvironmentByName
+	logError: (message: string) => void
+}
+
+const defaultDecryptEnvironmentDeps: DecryptEnvironmentDeps = {
+	...defaultDecryptEnvironmentDataDeps,
+	getEnvironmentByName,
+	logError: (message) => console.error(message),
+}
+
+export const decryptEnvironment = async (
+	name: string,
+	deps: DecryptEnvironmentDeps = defaultDecryptEnvironmentDeps,
+) => {
+	const { keys: availablePrivateKeys } = await deps.getPrivateKeys()
+	const environmentJson = await deps.getEnvironmentByName(name)
 
 	try {
-		return await decryptEnvironmentData(environmentJson)
+		return await decryptEnvironmentData(environmentJson, deps)
 	} catch (error) {
 		if (
 			error instanceof Error &&
 			error.message === "Access denied to the environment."
 		) {
-			console.error(
+			deps.logError(
 				`You do not have access to this environment.\n
       These are your available private keys:\n
       ${availablePrivateKeys.map((key) => `- ${chalk.green(key.name)}`).join("\n")}\n
@@ -81,7 +108,7 @@ export const decryptEnvironment = async (name: string) => {
 			error instanceof Error &&
 			error.message === "Failed to decrypt the data key."
 		) {
-			console.error(
+			deps.logError(
 				`${chalk.red("Error:")} failed to decrypt the data key. Please ensure you have the correct private key.`,
 			)
 		}

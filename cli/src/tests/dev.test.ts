@@ -7,7 +7,7 @@ describe("devCommand", () => {
 
 	beforeEach(() => {
 		runCommandMock = mock(() => Promise.resolve())
-		logErrorMock = mock(() => {})
+		logErrorMock = mock((_message: string) => {})
 	})
 
 	test("delegates to runCommand with development,<keyName>", async () => {
@@ -56,7 +56,7 @@ describe("devCommand", () => {
 		expect(runCommandMock).not.toHaveBeenCalled()
 		expect(exitMock).toHaveBeenCalledWith(1)
 		expect(logErrorMock).toHaveBeenCalledTimes(1)
-		const errorMessage = logErrorMock.mock.calls[0][0] as string
+		const [errorMessage] = logErrorMock.mock.calls[0]
 		expect(errorMessage).toContain("could not resolve your identity")
 	})
 })

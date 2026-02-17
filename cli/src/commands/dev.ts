@@ -9,15 +9,17 @@ type DevCommandDeps = {
 	exit: (code: number) => never
 }
 
+const defaultDevCommandDeps: DevCommandDeps = {
+	getCurrentKeyName,
+	runCommand,
+	logError: console.error,
+	exit: process.exit as (code: number) => never,
+}
+
 export const devCommand = async (
 	command: string,
 	args: string[],
-	deps: DevCommandDeps = {
-		getCurrentKeyName,
-		runCommand,
-		logError: (message) => console.error(message),
-		exit: (code) => process.exit(code),
-	},
+	deps: DevCommandDeps = defaultDevCommandDeps,
 ) => {
 	const keyName = await deps.getCurrentKeyName()
 
