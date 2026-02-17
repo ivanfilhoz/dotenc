@@ -8,6 +8,7 @@ WORKDIR /app
 # Copy workspace config for layer caching
 COPY package.json bun.lockb ./
 COPY cli/package.json cli/
+COPY website/package.json website/
 
 # Install dependencies
 RUN bun install --frozen-lockfile
