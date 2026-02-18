@@ -3,9 +3,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import inquirer from "inquirer"
-import { installClaudeCodeSkillCommand } from "../commands/tools/install-claude-code-skill"
+import { installAgentSkillCommand } from "../commands/tools/install-agent-skill"
 
-describe("installClaudeCodeSkillCommand", () => {
+describe("installAgentSkillCommand", () => {
 	let tmpDir: string
 	let cwdSpy: ReturnType<typeof spyOn>
 	let homeSpy: ReturnType<typeof spyOn>
@@ -39,7 +39,7 @@ describe("installClaudeCodeSkillCommand", () => {
 	})
 
 	test("installs locally and writes SKILL.md under .claude/", async () => {
-		await installClaudeCodeSkillCommand({})
+		await installAgentSkillCommand({})
 
 		const skillPath = path.join(
 			tmpDir,
@@ -56,7 +56,7 @@ describe("installClaudeCodeSkillCommand", () => {
 	test("installs globally under ~/.claude/", async () => {
 		promptSpy.mockResolvedValue({ scope: "global" } as never)
 
-		await installClaudeCodeSkillCommand({})
+		await installAgentSkillCommand({})
 
 		// homedir is mocked to tmpDir, so global path is also under tmpDir
 		const skillPath = path.join(
@@ -70,17 +70,17 @@ describe("installClaudeCodeSkillCommand", () => {
 	})
 
 	test("prints success message with installed path", async () => {
-		await installClaudeCodeSkillCommand({})
+		await installAgentSkillCommand({})
 
 		const allLogs = logSpy.mock.calls
 			.map((c: unknown[]) => String(c[0]))
 			.join("\n")
-		expect(allLogs).toContain("Claude Code skill installed")
+		expect(allLogs).toContain("Agent skill installed")
 		expect(allLogs).toContain(".claude")
 	})
 
 	test("prints /dotenc usage hint after install", async () => {
-		await installClaudeCodeSkillCommand({})
+		await installAgentSkillCommand({})
 
 		const allLogs = logSpy.mock.calls
 			.map((c: unknown[]) => String(c[0]))
@@ -89,9 +89,9 @@ describe("installClaudeCodeSkillCommand", () => {
 	})
 
 	test("errors when SKILL.md already exists without --force", async () => {
-		await installClaudeCodeSkillCommand({})
+		await installAgentSkillCommand({})
 
-		await expect(installClaudeCodeSkillCommand({})).rejects.toThrow("exit(1)")
+		await expect(installAgentSkillCommand({})).rejects.toThrow("exit(1)")
 		const allErrors = errorSpy.mock.calls
 			.map((c: unknown[]) => String(c[0]))
 			.join("\n")
@@ -100,8 +100,8 @@ describe("installClaudeCodeSkillCommand", () => {
 	})
 
 	test("overwrites when SKILL.md exists with --force", async () => {
-		await installClaudeCodeSkillCommand({})
-		await installClaudeCodeSkillCommand({ force: true })
+		await installAgentSkillCommand({})
+		await installAgentSkillCommand({ force: true })
 
 		const skillPath = path.join(
 			tmpDir,

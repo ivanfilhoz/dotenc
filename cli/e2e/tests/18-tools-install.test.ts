@@ -6,7 +6,7 @@ import { generateEd25519Key, runCli, runCliWithStdin } from "../helpers/cli"
 
 const TIMEOUT = 30_000
 
-describe("tools install-claude-code-skill", () => {
+describe("tools install-agent-skill", () => {
 	let home: string
 	let workspace: string
 
@@ -26,20 +26,20 @@ describe("tools install-claude-code-skill", () => {
 		const result = runCliWithStdin(
 			home,
 			workspace,
-			["tools", "install-claude-code-skill"],
+			["tools", "install-agent-skill"],
 			"\n",
 		)
 		expect(result.exitCode).toBe(0)
 		const skillPath = path.join(workspace, ".claude", "skills", "dotenc", "SKILL.md")
 		expect(existsSync(skillPath)).toBe(true)
-		expect(result.stdout).toContain("Claude Code skill installed")
+		expect(result.stdout).toContain("Agent skill installed")
 	}, TIMEOUT)
 
 	test("errors when SKILL.md already exists without --force", () => {
 		const result = runCliWithStdin(
 			home,
 			workspace,
-			["tools", "install-claude-code-skill"],
+			["tools", "install-agent-skill"],
 			"\n",
 		)
 		expect(result.exitCode).toBe(1)
@@ -51,11 +51,11 @@ describe("tools install-claude-code-skill", () => {
 		const result = runCliWithStdin(
 			home,
 			workspace,
-			["tools", "install-claude-code-skill", "--force"],
+			["tools", "install-agent-skill", "--force"],
 			"\n",
 		)
 		expect(result.exitCode).toBe(0)
-		expect(result.stdout).toContain("Claude Code skill installed")
+		expect(result.stdout).toContain("Agent skill installed")
 	}, TIMEOUT)
 })
 

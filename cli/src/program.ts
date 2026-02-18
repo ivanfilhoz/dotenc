@@ -17,7 +17,7 @@ import { keyListCommand } from "./commands/key/list"
 import { keyRemoveCommand } from "./commands/key/remove"
 import { runCommand } from "./commands/run"
 import { textconvCommand } from "./commands/textconv"
-import { installClaudeCodeSkillCommand } from "./commands/tools/install-claude-code-skill"
+import { installAgentSkillCommand } from "./commands/tools/install-agent-skill"
 import { installVscodeExtensionCommand } from "./commands/tools/install-vscode-extension"
 import { whoamiCommand } from "./commands/whoami"
 
@@ -156,10 +156,10 @@ const tools = program
 	.description("install editor integrations")
 
 tools
-	.command("install-claude-code-skill")
+	.command("install-agent-skill")
 	.addOption(new Option("--force", "overwrite existing installation"))
-	.description("install the Claude Code skill for this project")
-	.action(installClaudeCodeSkillCommand)
+	.description("install the agent skill for this project")
+	.action(installAgentSkillCommand)
 
 tools
 	.command("install-vscode-extension")

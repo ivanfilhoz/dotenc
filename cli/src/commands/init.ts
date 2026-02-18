@@ -139,7 +139,7 @@ export const initCommand = async (options: Options) => {
 	// Editor integration suggestions
 	if (existsSync(".claude") || existsSync("CLAUDE.md")) {
 		console.log(
-			`- Install the Claude Code skill:\t${chalk.gray("dotenc tools install-claude-code-skill")}`,
+			`- Install the agent skill:\t\t${chalk.gray("dotenc tools install-agent-skill")}`,
 		)
 	}
 	if (

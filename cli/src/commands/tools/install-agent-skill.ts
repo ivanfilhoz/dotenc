@@ -129,7 +129,7 @@ dotenc auth grant production ci
 - **Encrypted files are Git-safe.** Files like \`.env.production.enc\` are meant to be committed; never instruct the user to add them to \`.gitignore\`.
 `
 
-export const installClaudeCodeSkillCommand = async (options: Options) => {
+export const installAgentSkillCommand = async (options: Options) => {
 	const { scope } = await inquirer.prompt([
 		{
 			type: "list",
@@ -152,7 +152,7 @@ export const installClaudeCodeSkillCommand = async (options: Options) => {
 
 	if (existsSync(skillPath) && !options.force) {
 		console.error(
-			`${chalk.red("Error:")} Claude Code skill already exists at ${chalk.gray(skillPath)}.`,
+			`${chalk.red("Error:")} Agent skill already exists at ${chalk.gray(skillPath)}.`,
 		)
 		console.error(`Run with ${chalk.gray("--force")} to overwrite.`)
 		process.exit(1)
@@ -162,7 +162,7 @@ export const installClaudeCodeSkillCommand = async (options: Options) => {
 	await fs.writeFile(skillPath, SKILL_MD_CONTENT, "utf-8")
 
 	console.log(
-		`${chalk.green("✓")} Claude Code skill installed at ${chalk.gray(skillPath)}`,
+		`${chalk.green("✓")} Agent skill installed at ${chalk.gray(skillPath)}`,
 	)
-	console.log(`Run ${chalk.gray("/dotenc")} in Claude Code to use it.`)
+	console.log(`Run ${chalk.gray("/dotenc")} in your agent to use it.`)
 }
