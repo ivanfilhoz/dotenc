@@ -7,7 +7,6 @@ import chalk from "chalk"
 import inquirer from "inquirer"
 import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
-import { getProjectConfig } from "../../helpers/projectConfig"
 import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
@@ -20,13 +19,6 @@ type Options = {
 }
 
 export const keyAddCommand = async (nameArg?: string, options?: Options) => {
-	const { projectId } = await getProjectConfig()
-
-	if (!projectId) {
-		console.error('No project found. Run "dotenc init" to create one.')
-		process.exit(1)
-	}
-
 	let publicKey: KeyObject | undefined
 
 	if (options?.fromSsh) {
@@ -179,9 +171,15 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 				process.exit(1)
 			}
 		} else {
-			const selectedKey = await choosePrivateKeyPrompt(
-				"Which SSH key do you want to add?",
-			)
+			let selectedKey: Awaited<ReturnType<typeof choosePrivateKeyPrompt>>
+			try {
+				selectedKey = await choosePrivateKeyPrompt(
+					"Which SSH key do you want to add?",
+				)
+			} catch (error) {
+				console.error(error instanceof Error ? error.message : String(error))
+				process.exit(1)
+			}
 
 			publicKey = crypto.createPublicKey(selectedKey.privateKey)
 			// Use SSH key filename as default name if no nameArg

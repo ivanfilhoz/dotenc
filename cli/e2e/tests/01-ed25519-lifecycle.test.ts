@@ -23,7 +23,6 @@ describe("Ed25519 Lifecycle", () => {
 
 	test("init creates project files", () => {
 		runCli(home, workspace, ["init", "--name", "alice"])
-		expect(existsSync(path.join(workspace, "dotenc.json"))).toBe(true)
 		expect(existsSync(path.join(workspace, ".dotenc", "alice.pub"))).toBe(true)
 		expect(existsSync(path.join(workspace, ".env.alice.enc"))).toBe(true)
 	}, TIMEOUT)

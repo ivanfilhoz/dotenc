@@ -6,7 +6,6 @@ import { encryptDataKey } from "../../helpers/encryptDataKey"
 import { environmentExists } from "../../helpers/environmentExists"
 import { getEnvironmentNameSuggestion } from "../../helpers/getEnvironmentNameSuggestion"
 import { getPublicKeys } from "../../helpers/getPublicKeys"
-import { getProjectConfig } from "../../helpers/projectConfig"
 import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { createEnvironmentPrompt } from "../../prompts/createEnvironment"
@@ -39,13 +38,6 @@ export const createCommand = async (
 	publicKeyNameArg: string,
 	initialContent?: string,
 ) => {
-	const { projectId } = await getProjectConfig()
-
-	if (!projectId) {
-		console.error('No project found. Run "dotenc init" to create one.')
-		process.exit(1)
-	}
-
 	// Prompt for the environment name
 	let environmentName = environmentNameArg
 

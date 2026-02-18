@@ -112,8 +112,7 @@ After setup, your project will look like:
 │   └── ...
 ├── .env.alice.enc
 ├── .env.production.enc
-├── .env.development.enc
-└── dotenc.json
+└── .env.development.enc
 ```
 
 Encrypted files are committed to Git. Public keys are stored inside `.dotenc/`. Each developer gets a personal encrypted environment (e.g., `.env.alice.enc`).
@@ -158,8 +157,7 @@ This will interactively guide you through the setup process:
 2. Prompting for your username (defaults to your system username);
 3. Letting you choose which SSH key to use;
 4. Deriving the public key and storing it in `.dotenc/` (e.g., `.dotenc/alice.pub`);
-5. Creating a `dotenc.json` configuration file in the root of your project;
-6. Creating your personal encrypted environment (e.g., `.env.alice.enc`).
+5. Creating encrypted `development` and personal environments (e.g., `.env.development.enc`, `.env.alice.enc`).
 
 No keys to generate. If you already have an SSH key (and you probably do), you're ready to go.
 

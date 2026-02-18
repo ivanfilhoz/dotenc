@@ -56,7 +56,7 @@ describe("Git Diff Textconv", () => {
 	}, TIMEOUT)
 
 	test("commit encrypted file", () => {
-		git(workspace, ["add", ".env.staging.enc", ".gitattributes", "dotenc.json", ".dotenc/"])
+		git(workspace, ["add", ".env.staging.enc", ".gitattributes", ".dotenc/"])
 		const result = git(workspace, ["commit", "-m", "initial", "--quiet"])
 		expect(result.exitCode).toBe(0)
 	}, TIMEOUT)

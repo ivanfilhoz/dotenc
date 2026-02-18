@@ -5,7 +5,6 @@ import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
 import pkg from "../../package.json"
-import { createProject } from "../helpers/createProject"
 import { setupGitDiff } from "../helpers/setupGitDiff"
 import { choosePrivateKeyPrompt } from "../prompts/choosePrivateKey"
 import { inputNamePrompt } from "../prompts/inputName"
@@ -41,29 +40,15 @@ export const initCommand = async (options: Options) => {
 		process.exit(1)
 	}
 
-	// Bootstrap the project
-	if (!existsSync(path.join(process.cwd(), "dotenc.json"))) {
-		console.log("No project found. Let's create a new one.")
-
-		try {
-			const { projectId } = await createProject()
-			await fs.writeFile(
-				path.join(process.cwd(), "dotenc.json"),
-				JSON.stringify({ projectId }, null, 2),
-				"utf-8",
-			)
-		} catch (error) {
-			console.error(`${chalk.red("Error:")} failed to create the project.`)
-			console.error(
-				`${chalk.red("Details:")} ${error instanceof Error ? error.message : error}`,
-			)
-			process.exit(1)
-		}
+	let keyEntry: Awaited<ReturnType<typeof choosePrivateKeyPrompt>>
+	try {
+		keyEntry = await choosePrivateKeyPrompt(
+			"Which SSH key would you like to use?",
+		)
+	} catch (error) {
+		console.error(error instanceof Error ? error.message : String(error))
+		process.exit(1)
 	}
-
-	const keyEntry = await choosePrivateKeyPrompt(
-		"Which SSH key would you like to use?",
-	)
 
 	// Derive and add public key to the project
 	console.log(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)

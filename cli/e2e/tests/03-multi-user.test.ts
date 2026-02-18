@@ -27,7 +27,6 @@ describe("Multi-User", () => {
 
 	test("Alice inits project and creates production env", () => {
 		runCli(aliceHome, workspace, ["init", "--name", "alice"])
-		expect(existsSync(path.join(workspace, "dotenc.json"))).toBe(true)
 
 		runCli(aliceHome, workspace, ["env", "create", "production", "alice"])
 	}, TIMEOUT)

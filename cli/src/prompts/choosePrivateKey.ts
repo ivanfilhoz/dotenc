@@ -2,6 +2,7 @@ import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
 import { createEd25519SshKey } from "../helpers/createEd25519SshKey"
+import { passphraseProtectedKeyError } from "../helpers/errors"
 import {
 	getPrivateKeys,
 	type PrivateKeyEntry,
@@ -22,6 +23,7 @@ type ChoosePrivateKeyPromptDeps = {
 	createEd25519SshKey: typeof createEd25519SshKey
 	logInfo: (message: string) => void
 	logWarn: (message: string) => void
+	isInteractive: () => boolean
 }
 
 const defaultChoosePrivateKeyPromptDeps: ChoosePrivateKeyPromptDeps = {
@@ -30,6 +32,7 @@ const defaultChoosePrivateKeyPromptDeps: ChoosePrivateKeyPromptDeps = {
 	createEd25519SshKey,
 	logInfo: console.log,
 	logWarn: console.warn,
+	isInteractive: () => Boolean(process.stdin.isTTY && process.stdout.isTTY),
 }
 
 function toSupportedChoice(key: PrivateKeyEntry): PromptChoice {
@@ -95,8 +98,35 @@ export const _runChoosePrivateKeyPrompt = async (
 	deps: ChoosePrivateKeyPromptDeps = defaultChoosePrivateKeyPromptDeps,
 ): Promise<PrivateKeyEntry> => {
 	for (;;) {
-		const { keys, unsupportedKeys = [] } = await deps.getPrivateKeys()
+		const {
+			keys,
+			passphraseProtectedKeys,
+			unsupportedKeys = [],
+		} = await deps.getPrivateKeys()
 		const privateKeyMap = new Map(keys.map((key) => [key.name, key]))
+
+		if (!deps.isInteractive()) {
+			if (keys.length > 0) {
+				return keys[0]
+			}
+
+			if (passphraseProtectedKeys.length > 0) {
+				throw new Error(passphraseProtectedKeyError(passphraseProtectedKeys))
+			}
+
+			if (unsupportedKeys.length > 0) {
+				const unsupportedList = unsupportedKeys
+					.map((key) => `  - ${key.name}: ${key.reason}`)
+					.join("\n")
+				throw new Error(
+					`No supported SSH keys found.\n\nUnsupported keys:\n${unsupportedList}\n\nGenerate a new key with:\n  ssh-keygen -t ed25519 -N ""`,
+				)
+			}
+
+			throw new Error(
+				'No SSH keys found in ~/.ssh/. Generate one with: ssh-keygen -t ed25519 -N ""',
+			)
+		}
 
 		const result = await deps.prompt([
 			{

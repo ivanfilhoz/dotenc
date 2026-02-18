@@ -14,7 +14,7 @@ describe("getEnvironments", () => {
 		writeFileSync(path.join(tmpDir, ".env.production.enc"), "{}", "utf-8")
 		writeFileSync(path.join(tmpDir, ".env.alice.enc"), "{}", "utf-8")
 		// Not an env file — should be excluded
-		writeFileSync(path.join(tmpDir, "dotenc.json"), "{}", "utf-8")
+		writeFileSync(path.join(tmpDir, "README.md"), "", "utf-8")
 		writeFileSync(path.join(tmpDir, ".env"), "", "utf-8")
 		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
 	})

@@ -58,6 +58,7 @@ describe("choosePrivateKeyPrompt", () => {
 			createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
 			logInfo: mock((_message: string) => {}),
 			logWarn: mock((_message: string) => {}),
+			isInteractive: () => true,
 		})
 
 		expect(selected).toBe(selectedKey)
@@ -108,6 +109,7 @@ describe("choosePrivateKeyPrompt", () => {
 			createEd25519SshKey: createEd25519SshKey as never,
 			logInfo,
 			logWarn,
+			isInteractive: () => true,
 		})
 
 		expect(selected).toBe(createdKey)
@@ -116,5 +118,58 @@ describe("choosePrivateKeyPrompt", () => {
 		expect(getPrivateKeys).toHaveBeenCalledTimes(2)
 		expect(logInfo).toHaveBeenCalled()
 		expect(logWarn).not.toHaveBeenCalled()
+	})
+
+	test("uses the first available key in non-interactive mode", async () => {
+		const selectedKey = createPrivateKeyEntry("id_ed25519", "ed25519")
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [selectedKey],
+					passphraseProtectedKeys: [],
+					unsupportedKeys: [
+						{ name: "id_ecdsa", reason: "unsupported algorithm: ec" },
+					],
+				}) as never,
+		)
+		const prompt = mock(async (_questions: unknown) => ({
+			key: "id_ed25519",
+		}))
+
+		const selected = await _runChoosePrivateKeyPrompt("Pick key", {
+			getPrivateKeys: getPrivateKeys as never,
+			prompt: prompt as never,
+			createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+			logInfo: mock((_message: string) => {}),
+			logWarn: mock((_message: string) => {}),
+			isInteractive: () => false,
+		})
+
+		expect(selected).toBe(selectedKey)
+		expect(prompt).not.toHaveBeenCalled()
+	})
+
+	test("throws passphrase guidance in non-interactive mode when no usable keys exist", async () => {
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [],
+					passphraseProtectedKeys: ["id_locked"],
+					unsupportedKeys: [
+						{ name: "id_locked", reason: "passphrase-protected" },
+					],
+				}) as never,
+		)
+
+		await expect(
+			_runChoosePrivateKeyPrompt("Pick key", {
+				getPrivateKeys: getPrivateKeys as never,
+				prompt: mock(async (_questions: unknown) => ({ key: "" })) as never,
+				createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+				logInfo: mock((_message: string) => {}),
+				logWarn: mock((_message: string) => {}),
+				isInteractive: () => false,
+			}),
+		).rejects.toThrow("passphrase-protected")
 	})
 })
