@@ -1,116 +1,132 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
-import os from "node:os"
-import path from "node:path"
-import inquirer from "inquirer"
-import { installAgentSkillCommand } from "../commands/tools/install-agent-skill"
+import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { _runInstallAgentSkillCommand } from "../commands/tools/install-agent-skill"
 
 describe("installAgentSkillCommand", () => {
-	let tmpDir: string
-	let cwdSpy: ReturnType<typeof spyOn>
-	let homeSpy: ReturnType<typeof spyOn>
-	let promptSpy: ReturnType<typeof spyOn>
-	let logSpy: ReturnType<typeof spyOn>
-	let errorSpy: ReturnType<typeof spyOn>
-	let exitSpy: ReturnType<typeof spyOn>
+	let prompt: ReturnType<typeof mock>
+	let runNpx: ReturnType<typeof mock>
+	let log: ReturnType<typeof mock>
+	let logError: ReturnType<typeof mock>
 
 	beforeEach(() => {
-		tmpDir = mkdtempSync(path.join(os.tmpdir(), "test-skill-"))
-		cwdSpy = spyOn(process, "cwd").mockReturnValue(tmpDir)
-		homeSpy = spyOn(os, "homedir").mockReturnValue(tmpDir)
-		logSpy = spyOn(console, "log").mockImplementation(() => {})
-		errorSpy = spyOn(console, "error").mockImplementation(() => {})
-		exitSpy = spyOn(process, "exit").mockImplementation(((code: number) => {
-			throw new Error(`exit(${code})`)
-		}) as never)
-		promptSpy = spyOn(inquirer, "prompt").mockResolvedValue({
-			scope: "local",
-		} as never)
+		prompt = mock(async () => ({ scope: "local" }))
+		runNpx = mock(async () => 0)
+		log = mock((_message: string) => {})
+		logError = mock((_message: string) => {})
 	})
 
-	afterEach(() => {
-		cwdSpy.mockRestore()
-		homeSpy.mockRestore()
-		logSpy.mockRestore()
-		errorSpy.mockRestore()
-		exitSpy.mockRestore()
-		promptSpy.mockRestore()
-		rmSync(tmpDir, { recursive: true, force: true })
-	})
-
-	test("installs locally and writes SKILL.md under .claude/", async () => {
-		await installAgentSkillCommand({})
-
-		const skillPath = path.join(
-			tmpDir,
-			".claude",
-			"skills",
-			"dotenc",
-			"SKILL.md",
+	test("runs npx skills add for local installation", async () => {
+		await _runInstallAgentSkillCommand(
+			{},
+			{
+				prompt: prompt as never,
+				runNpx,
+				log,
+				logError,
+				exit: (code: number): never => {
+					throw new Error(`unexpected exit(${code})`)
+				},
+			},
 		)
-		expect(existsSync(skillPath)).toBe(true)
-		const content = readFileSync(skillPath, "utf-8")
-		expect(content).toContain("name: dotenc")
-	})
 
-	test("installs globally under ~/.claude/", async () => {
-		promptSpy.mockResolvedValue({ scope: "global" } as never)
-
-		await installAgentSkillCommand({})
-
-		// homedir is mocked to tmpDir, so global path is also under tmpDir
-		const skillPath = path.join(
-			tmpDir,
-			".claude",
+		expect(runNpx).toHaveBeenCalledWith([
 			"skills",
+			"add",
+			"ivanfilhoz/dotenc",
+			"--skill",
 			"dotenc",
-			"SKILL.md",
+		])
+		expect(
+			log.mock.calls.some((call) => String(call[0]).includes("/dotenc")),
+		).toBe(true)
+	})
+
+	test("adds -g for global installation", async () => {
+		prompt = mock(async () => ({ scope: "global" }))
+
+		await _runInstallAgentSkillCommand(
+			{},
+			{
+				prompt: prompt as never,
+				runNpx,
+				log,
+				logError,
+				exit: (code: number): never => {
+					throw new Error(`unexpected exit(${code})`)
+				},
+			},
 		)
-		expect(existsSync(skillPath)).toBe(true)
-	})
 
-	test("prints success message with installed path", async () => {
-		await installAgentSkillCommand({})
-
-		const allLogs = logSpy.mock.calls
-			.map((c: unknown[]) => String(c[0]))
-			.join("\n")
-		expect(allLogs).toContain("Agent skill installed")
-		expect(allLogs).toContain(".claude")
-	})
-
-	test("prints /dotenc usage hint after install", async () => {
-		await installAgentSkillCommand({})
-
-		const allLogs = logSpy.mock.calls
-			.map((c: unknown[]) => String(c[0]))
-			.join("\n")
-		expect(allLogs).toContain("/dotenc")
-	})
-
-	test("errors when SKILL.md already exists without --force", async () => {
-		await installAgentSkillCommand({})
-
-		await expect(installAgentSkillCommand({})).rejects.toThrow("exit(1)")
-		const allErrors = errorSpy.mock.calls
-			.map((c: unknown[]) => String(c[0]))
-			.join("\n")
-		expect(allErrors).toContain("already exists")
-		expect(allErrors).toContain("--force")
-	})
-
-	test("overwrites when SKILL.md exists with --force", async () => {
-		await installAgentSkillCommand({})
-		await installAgentSkillCommand({ force: true })
-
-		const skillPath = path.join(
-			tmpDir,
-			".claude",
+		expect(runNpx).toHaveBeenCalledWith([
 			"skills",
+			"add",
+			"ivanfilhoz/dotenc",
+			"--skill",
 			"dotenc",
-			"SKILL.md",
+			"-g",
+		])
+	})
+
+	test("adds -y when --force is used", async () => {
+		await _runInstallAgentSkillCommand(
+			{ force: true },
+			{
+				prompt: prompt as never,
+				runNpx,
+				log,
+				logError,
+				exit: (code: number): never => {
+					throw new Error(`unexpected exit(${code})`)
+				},
+			},
 		)
-		expect(existsSync(skillPath)).toBe(true)
-		expect(exitSpy).not.toHaveBeenCalled()
+
+		expect(runNpx).toHaveBeenCalledWith([
+			"skills",
+			"add",
+			"ivanfilhoz/dotenc",
+			"--skill",
+			"dotenc",
+			"-y",
+		])
+	})
+
+	test("exits with updater exit code when npx returns non-zero", async () => {
+		runNpx = mock(async () => 7)
+
+		await expect(
+			_runInstallAgentSkillCommand(
+				{},
+				{
+					prompt: prompt as never,
+					runNpx,
+					log,
+					logError,
+					exit: (code: number): never => {
+						throw new Error(`exit(${code})`)
+					},
+				},
+			),
+		).rejects.toThrow("exit(7)")
+	})
+
+	test("exits with code 1 when npx command cannot be started", async () => {
+		runNpx = mock(async () => {
+			throw new Error("spawn ENOENT")
+		})
+
+		await expect(
+			_runInstallAgentSkillCommand(
+				{},
+				{
+					prompt: prompt as never,
+					runNpx,
+					log,
+					logError,
+					exit: (code: number): never => {
+						throw new Error(`exit(${code})`)
+					},
+				},
+			),
+		).rejects.toThrow("exit(1)")
 	})
 })

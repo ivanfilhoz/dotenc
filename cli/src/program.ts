@@ -159,7 +159,9 @@ const tools = program
 
 tools
 	.command("install-agent-skill")
-	.addOption(new Option("--force", "overwrite existing installation"))
+	.addOption(
+		new Option("--force", "run npx skills in non-interactive mode (-y)"),
+	)
 	.description("install the agent skill for this project")
 	.action(installAgentSkillCommand)
 

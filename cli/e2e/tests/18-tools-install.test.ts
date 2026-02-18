@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { generateEd25519Key, runCli, runCliWithStdin } from "../helpers/cli"
@@ -9,53 +9,82 @@ const TIMEOUT = 30_000
 describe("tools install-agent-skill", () => {
 	let home: string
 	let workspace: string
+	let fakeBinDir: string
+	let fakeNpxLogPath: string
 
 	beforeAll(() => {
 		home = mkdtempSync(path.join(os.tmpdir(), "e2e-18-skill-home-"))
 		workspace = mkdtempSync(path.join(os.tmpdir(), "e2e-18-skill-ws-"))
+		fakeBinDir = mkdtempSync(path.join(os.tmpdir(), "e2e-18-fake-bin-"))
+		fakeNpxLogPath = path.join(fakeBinDir, "npx-invocations.log")
+		const fakeNpxPath = path.join(fakeBinDir, "npx")
+		writeFileSync(
+			fakeNpxPath,
+			`#!/bin/sh
+if [ -n "$DOTENC_FAKE_NPX_FAIL" ]; then
+  exit "$DOTENC_FAKE_NPX_FAIL"
+fi
+printf '%s\n' "$*" >> "${fakeNpxLogPath}"
+exit 0
+`,
+			"utf-8",
+		)
+		chmodSync(fakeNpxPath, 0o755)
 		generateEd25519Key(home)
 	})
 
 	afterAll(() => {
 		rmSync(home, { recursive: true, force: true })
 		rmSync(workspace, { recursive: true, force: true })
+		rmSync(fakeBinDir, { recursive: true, force: true })
 	})
 
-	test("installs SKILL.md locally when first option selected", () => {
+	test("runs npx skills add locally when first option selected", () => {
 		// Send newline to select first option ("Locally") in the list prompt
 		const result = runCliWithStdin(
 			home,
 			workspace,
 			["tools", "install-agent-skill"],
 			"\n",
+			{
+				PATH: `${fakeBinDir}:${process.env.PATH}`,
+			},
 		)
 		expect(result.exitCode).toBe(0)
-		const skillPath = path.join(workspace, ".claude", "skills", "dotenc", "SKILL.md")
-		expect(existsSync(skillPath)).toBe(true)
-		expect(result.stdout).toContain("Agent skill installed")
+		expect(result.stdout).toContain("Agent skill installation completed")
+		expect(existsSync(fakeNpxLogPath)).toBe(true)
+		const log = readFileSync(fakeNpxLogPath, "utf-8")
+		expect(log).toContain("skills add ivanfilhoz/dotenc --skill dotenc")
 	}, TIMEOUT)
 
-	test("errors when SKILL.md already exists without --force", () => {
-		const result = runCliWithStdin(
-			home,
-			workspace,
-			["tools", "install-agent-skill"],
-			"\n",
-		)
-		expect(result.exitCode).toBe(1)
-		expect(result.stderr).toContain("already exists")
-		expect(result.stderr).toContain("--force")
-	}, TIMEOUT)
-
-	test("overwrites existing SKILL.md with --force", () => {
+	test("passes -y when --force is provided", () => {
 		const result = runCliWithStdin(
 			home,
 			workspace,
 			["tools", "install-agent-skill", "--force"],
 			"\n",
+			{
+				PATH: `${fakeBinDir}:${process.env.PATH}`,
+			},
 		)
 		expect(result.exitCode).toBe(0)
-		expect(result.stdout).toContain("Agent skill installed")
+		const log = readFileSync(fakeNpxLogPath, "utf-8")
+		expect(log).toContain("skills add ivanfilhoz/dotenc --skill dotenc -y")
+	}, TIMEOUT)
+
+	test("exits with npx command exit code on failure", () => {
+		const result = runCliWithStdin(
+			home,
+			workspace,
+			["tools", "install-agent-skill"],
+			"\n",
+			{
+				PATH: `${fakeBinDir}:${process.env.PATH}`,
+				DOTENC_FAKE_NPX_FAIL: "9",
+			},
+		)
+		expect(result.exitCode).toBe(9)
+		expect(result.stderr).toContain("exited with code 9")
 	}, TIMEOUT)
 })
 
