@@ -104,23 +104,35 @@ describe("getPrivateKeys", () => {
 		delete process.env.DOTENC_PRIVATE_KEY
 	})
 
-	test("returns keys and passphraseProtectedKeys properties", async () => {
+	test("returns keys, passphraseProtectedKeys and unsupportedKeys properties", async () => {
 		delete process.env.DOTENC_PRIVATE_KEY
 		const result = await getPrivateKeys()
 		expect(result).toHaveProperty("keys")
 		expect(result).toHaveProperty("passphraseProtectedKeys")
+		expect(result).toHaveProperty("unsupportedKeys")
 		expect(Array.isArray(result.keys)).toBe(true)
 		expect(Array.isArray(result.passphraseProtectedKeys)).toBe(true)
+		expect(Array.isArray(result.unsupportedKeys)).toBe(true)
 	})
 
 	test("ignores unsupported key types in DOTENC_PRIVATE_KEY", async () => {
 		const errorSpy = spyOn(console, "error").mockImplementation(() => {})
 		process.env.DOTENC_PRIVATE_KEY = ecdsaPrivateKeyPem
 
-		const { keys } = await getPrivateKeys()
+		const { keys, unsupportedKeys } = await getPrivateKeys()
 		expect(
 			keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY"),
 		).toBeUndefined()
+		expect(
+			unsupportedKeys?.some((k) => k.name === "env.DOTENC_PRIVATE_KEY"),
+		).toBe(true)
+		expect(
+			unsupportedKeys?.some(
+				(k) =>
+					k.name === "env.DOTENC_PRIVATE_KEY" &&
+					k.reason.includes("unsupported algorithm"),
+			),
+		).toBe(true)
 
 		const messages = errorSpy.mock.calls.map((c) => String(c[0]))
 		expect(
@@ -166,6 +178,30 @@ describe("getPrivateKeys", () => {
 		delete process.env.DOTENC_PRIVATE_KEY
 		const result = await getPrivateKeys()
 		expect(result.passphraseProtectedKeys).toContain("id_protected")
+		expect(
+			result.unsupportedKeys?.some(
+				(k) => k.name === "id_protected" && k.reason === "passphrase-protected",
+			),
+		).toBe(true)
+	})
+
+	test("tracks unsupported private key algorithms found in ~/.ssh", async () => {
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_ecdsa"),
+			ecdsaPrivateKeyPem,
+			"utf-8",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		const result = await getPrivateKeys()
+		expect(
+			result.unsupportedKeys?.some(
+				(k) =>
+					k.name === "id_ecdsa" &&
+					k.reason.includes("unsupported algorithm") &&
+					k.reason.includes("ec"),
+			),
+		).toBe(true)
 	})
 
 	test("returns empty result when ~/.ssh does not exist", async () => {

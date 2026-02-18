@@ -5,11 +5,11 @@ import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
-import { getPrivateKeys } from "../../helpers/getPrivateKeys"
 import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
 import { getProjectConfig } from "../../helpers/projectConfig"
 import { validatePublicKey } from "../../helpers/validatePublicKey"
+import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
 import { inputNamePrompt } from "../../prompts/inputName"
 
@@ -146,28 +146,13 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 	// Interactive mode
 	if (!publicKey) {
-		const { keys: sshKeys, passphraseProtectedKeys } = await getPrivateKeys()
-
-		if (sshKeys.length === 0 && passphraseProtectedKeys.length > 0) {
-			console.warn(
-				`${chalk.yellow("Warning:")} SSH keys were found but are passphrase-protected (not supported by dotenc):\n${passphraseProtectedKeys.map((k) => `  - ${k}`).join("\n")}\n`,
-			)
-		}
-
-		const choices: { name: string; value: string }[] = sshKeys.map((key) => ({
-			name: `${key.name} (${key.algorithm})`,
-			value: key.name,
-		}))
-
 		const modePrompt = await inquirer.prompt({
 			type: "list",
 			name: "mode",
 			message:
 				"Would you like to add one of your SSH keys or paste a public key?",
 			choices: [
-				...(choices.length
-					? [{ name: "Choose from my SSH keys", value: "choose" }]
-					: []),
+				{ name: "Choose or create an SSH key", value: "choose" },
 				{ name: "Paste a public key (PEM format)", value: "paste" },
 			],
 		})
@@ -194,18 +179,9 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 				process.exit(1)
 			}
 		} else {
-			const keyPrompt = await inquirer.prompt({
-				type: "list",
-				name: "key",
-				message: "Which SSH key do you want to add?",
-				choices,
-			})
-
-			const selectedKey = sshKeys.find((k) => k.name === keyPrompt.key)
-			if (!selectedKey) {
-				console.error("SSH key not found.")
-				process.exit(1)
-			}
+			const selectedKey = await choosePrivateKeyPrompt(
+				"Which SSH key do you want to add?",
+			)
 
 			publicKey = crypto.createPublicKey(selectedKey.privateKey)
 			// Use SSH key filename as default name if no nameArg

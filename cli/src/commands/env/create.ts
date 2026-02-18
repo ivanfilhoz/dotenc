@@ -12,6 +12,28 @@ import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { createEnvironmentPrompt } from "../../prompts/createEnvironment"
 import type { Environment } from "../../schemas/environment"
 
+export const _getRunUsageHintForEnvironment = (environmentName: string) => {
+	if (environmentName === "development") {
+		return chalk.gray("dotenc dev <command> [args...]")
+	}
+
+	return `${chalk.gray(`dotenc run -e ${environmentName} <command> [args...]`)} or ${chalk.gray(
+		`DOTENC_ENV=${environmentName} dotenc run <command> [args...]`,
+	)}`
+}
+
+export const _normalizePublicKeyNamesForCreate = (
+	selection: string | string[] | undefined,
+): string[] => {
+	if (Array.isArray(selection)) {
+		return selection
+	}
+	if (typeof selection === "string" && selection.trim().length > 0) {
+		return [selection]
+	}
+	return []
+}
+
 export const createCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
@@ -62,12 +84,13 @@ export const createCommand = async (
 		process.exit(1)
 	}
 
-	const publicKeys = publicKeyNameArg
-		? [publicKeyNameArg]
+	const publicKeySelection = publicKeyNameArg
+		? publicKeyNameArg
 		: await choosePublicKeyPrompt(
 				"Which public key(s) do you want to grant access for this environment?",
 				true,
 			)
+	const publicKeys = _normalizePublicKeyNamesForCreate(publicKeySelection)
 	const dataKey = createDataKey()
 
 	const content = initialContent ?? `# ${environmentName} environment\n`
@@ -113,13 +136,7 @@ export const createCommand = async (
 	console.log("\nSome useful tips:")
 	const editCommand = chalk.gray(`dotenc env edit ${environmentName}`)
 	console.log(`\n- To securely edit your environment:\t${editCommand}`)
-	const runCommand = chalk.gray(
-		`dotenc run -e ${environmentName} <command> [args...]`,
-	)
-	const runCommandWithEnv = chalk.gray(
-		`DOTENC_ENV=${environmentName} dotenc run <command> [args...]`,
-	)
 	console.log(
-		`- To run your application:\t\t${runCommand} or ${runCommandWithEnv}`,
+		`- To run your application:\t\t${_getRunUsageHintForEnvironment(environmentName)}`,
 	)
 }

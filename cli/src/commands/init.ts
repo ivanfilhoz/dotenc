@@ -4,11 +4,10 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
-import inquirer from "inquirer"
+import pkg from "../../package.json"
 import { createProject } from "../helpers/createProject"
-import { passphraseProtectedKeyError } from "../helpers/errors"
-import { getPrivateKeys } from "../helpers/getPrivateKeys"
 import { setupGitDiff } from "../helpers/setupGitDiff"
+import { choosePrivateKeyPrompt } from "../prompts/choosePrivateKey"
 import { inputNamePrompt } from "../prompts/inputName"
 import { createCommand } from "./env/create"
 import { keyAddCommand } from "./key/add"
@@ -17,21 +16,21 @@ type Options = {
 	name?: string
 }
 
-export const initCommand = async (options: Options) => {
-	// Scan for SSH keys
-	const { keys: privateKeys, passphraseProtectedKeys } = await getPrivateKeys()
-
-	if (!privateKeys.length) {
-		if (passphraseProtectedKeys.length > 0) {
-			console.error(passphraseProtectedKeyError(passphraseProtectedKeys))
-		} else {
-			console.error(
-				`${chalk.red("Error:")} no SSH keys found in ~/.ssh/. Please generate one first using ${chalk.gray("ssh-keygen")}.`,
-			)
-		}
-		process.exit(1)
+export const _resolveDocsUrl = () => {
+	if (typeof pkg.homepage === "string" && pkg.homepage.trim().length > 0) {
+		return pkg.homepage
 	}
 
+	const repositoryUrl =
+		typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url
+	if (typeof repositoryUrl !== "string" || repositoryUrl.trim().length === 0) {
+		return undefined
+	}
+
+	return repositoryUrl.replace(/^git\+/, "").replace(/\.git$/, "")
+}
+
+export const initCommand = async (options: Options) => {
 	// Prompt for username
 	const username =
 		options.name ||
@@ -62,37 +61,11 @@ export const initCommand = async (options: Options) => {
 		}
 	}
 
-	// Single key selection
-	let keyToAdd: string
-
-	if (privateKeys.length === 1) {
-		keyToAdd = privateKeys[0].name
-	} else {
-		const result = await inquirer.prompt([
-			{
-				type: "list",
-				name: "key",
-				message: "Which SSH key would you like to use?",
-				choices: privateKeys.map((key) => ({
-					name: `${key.name} (${key.algorithm})`,
-					value: key.name,
-				})),
-			},
-		])
-		keyToAdd = result.key
-	}
-
-	if (!keyToAdd) {
-		console.error(
-			`${chalk.red("Error:")} no SSH key selected. Please select a key.`,
-		)
-		process.exit(1)
-	}
+	const keyEntry = await choosePrivateKeyPrompt(
+		"Which SSH key would you like to use?",
+	)
 
 	// Derive and add public key to the project
-	const keyEntry = privateKeys.find((k) => k.name === keyToAdd)
-	if (!keyEntry) process.exit(1)
-
 	console.log(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)
 
 	const publicKey = crypto.createPublicKey(keyEntry.privateKey)
@@ -113,7 +86,7 @@ export const initCommand = async (options: Options) => {
 		)
 	}
 
-	// Create personal encrypted environment
+	// Create development + personal encrypted environments
 	// If .env exists, use its contents as initial content, then delete it
 	let initialContent: string | undefined
 	const envPath = path.join(process.cwd(), ".env")
@@ -122,19 +95,36 @@ export const initCommand = async (options: Options) => {
 		initialContent = await fs.readFile(envPath, "utf-8")
 		await fs.unlink(envPath)
 		console.log(
-			`Migrated ${chalk.gray(".env")} contents to ${chalk.cyan(username)} environment.`,
+			`Migrated ${chalk.gray(".env")} contents to ${chalk.cyan("development")} environment.`,
 		)
 	}
 
-	await createCommand(username, username, initialContent)
+	await createCommand("development", username, initialContent)
+
+	if (username !== "development") {
+		await createCommand(username, username)
+	}
 
 	// Output success message
 	console.log(`\n${chalk.green("✔")} Initialization complete!`)
 	console.log("\nSome useful tips:")
-	const editCmd = chalk.gray(`dotenc env edit ${username}`)
-	console.log(`- To edit your personal environment:\t${editCmd}`)
+	const developmentEditCmd = chalk.gray("dotenc env edit development")
+	const personalEditCmd = chalk.gray(`dotenc env edit ${username}`)
+	console.log(`- Edit the development environment:\t${developmentEditCmd}`)
+	if (username !== "development") {
+		console.log(`- Edit your personal environment:\t${personalEditCmd}`)
+	}
+
+	const devEnvironmentChain =
+		username === "development" ? "development" : `development,${username}`
 	const devCmd = chalk.gray("dotenc dev <command>")
-	console.log(`- To run with your encrypted env:\t${devCmd}`)
+	console.log(
+		`- Run in development mode:\t\t${devCmd} ${chalk.gray(`(loads ${devEnvironmentChain})`)}`,
+	)
+	const docsUrl = _resolveDocsUrl()
+	if (docsUrl) {
+		console.log(`- Full docs:\t\t\t${chalk.gray(docsUrl)}`)
+	}
 
 	// Editor integration suggestions
 	if (existsSync(".claude") || existsSync("CLAUDE.md")) {
