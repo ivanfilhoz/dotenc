@@ -134,9 +134,9 @@ export async function _runInstallVscodeExtension(
 	getEditors = detectEditors,
 	_openUrl = openUrl,
 ) {
-	await addToExtensionsJson()
-
 	const editors = await getEditors()
+
+	await addToExtensionsJson()
 
 	if (editors.length === 0) {
 		console.log(
