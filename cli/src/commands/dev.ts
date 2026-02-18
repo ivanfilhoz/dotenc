@@ -8,7 +8,10 @@ type DevCommandDeps = {
 	runCommand: typeof runCommand
 	logError: (message: string) => void
 	exit: (code: number) => never
-	select: <T>(message: string, choices: { name: string; value: T }[]) => Promise<T>
+	select: <T>(
+		message: string,
+		choices: { name: string; value: T }[],
+	) => Promise<T>
 }
 
 const defaultSelect = async <T>(

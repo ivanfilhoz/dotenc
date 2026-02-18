@@ -30,7 +30,11 @@ describe("devCommand", () => {
 			runCommand,
 			logError,
 			exit,
-			select: selectMock as typeof selectMock & (<T>(message: string, choices: { name: string; value: T }[]) => Promise<T>),
+			select: selectMock as typeof selectMock &
+				(<T>(
+					message: string,
+					choices: { name: string; value: T }[],
+				) => Promise<T>),
 		})
 
 		expect(runCommandMock).toHaveBeenCalledTimes(1)
@@ -57,7 +61,11 @@ describe("devCommand", () => {
 				runCommand,
 				logError,
 				exit: exitMock,
-				select: selectMock as typeof selectMock & (<T>(message: string, choices: { name: string; value: T }[]) => Promise<T>),
+				select: selectMock as typeof selectMock &
+					(<T>(
+						message: string,
+						choices: { name: string; value: T }[],
+					) => Promise<T>),
 			}),
 		).rejects.toThrow("process.exit(1)")
 
@@ -88,7 +96,11 @@ describe("devCommand", () => {
 			runCommand,
 			logError,
 			exit,
-			select: selectForTest as typeof selectForTest & (<T>(message: string, choices: { name: string; value: T }[]) => Promise<T>),
+			select: selectForTest as typeof selectForTest &
+				(<T>(
+					message: string,
+					choices: { name: string; value: T }[],
+				) => Promise<T>),
 		})
 
 		expect(selectForTest).toHaveBeenCalledTimes(1)

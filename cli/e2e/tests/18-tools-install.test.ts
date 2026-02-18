@@ -62,16 +62,19 @@ describe("tools install-claude-code-skill", () => {
 describe("tools install-vscode-extension", () => {
 	let home: string
 	let workspace: string
+	let freshWorkspace: string
 
 	beforeAll(() => {
 		home = mkdtempSync(path.join(os.tmpdir(), "e2e-18-vscode-home-"))
 		workspace = mkdtempSync(path.join(os.tmpdir(), "e2e-18-vscode-ws-"))
+		freshWorkspace = mkdtempSync(path.join(os.tmpdir(), "e2e-18-vscode-fresh-"))
 		generateEd25519Key(home)
 	})
 
 	afterAll(() => {
 		rmSync(home, { recursive: true, force: true })
 		rmSync(workspace, { recursive: true, force: true })
+		rmSync(freshWorkspace, { recursive: true, force: true })
 	})
 
 	test("creates .vscode/extensions.json with dotenc recommendation", () => {
@@ -100,9 +103,9 @@ describe("tools install-vscode-extension", () => {
 	}, TIMEOUT)
 
 	test("prints fallback VS Code URL when no editor is detected", () => {
-		const result = runCli(home, workspace, ["tools", "install-vscode-extension"])
+		// Uses a fresh workspace with no .vscode/ dir so no editor is detected
+		const result = runCli(home, freshWorkspace, ["tools", "install-vscode-extension"])
 		expect(result.exitCode).toBe(0)
-		// Docker has no editors installed, so fallback URL is printed
 		expect(result.stdout).toContain("vscode:extension/dotenc.dotenc")
 	}, TIMEOUT)
 })

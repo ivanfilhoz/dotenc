@@ -142,7 +142,11 @@ export const initCommand = async (options: Options) => {
 			`- Install the Claude Code skill:\t${chalk.gray("dotenc tools install-claude-code-skill")}`,
 		)
 	}
-	if (existsSync(".vscode") || existsSync(".cursor") || existsSync(".windsurf")) {
+	if (
+		existsSync(".vscode") ||
+		existsSync(".cursor") ||
+		existsSync(".windsurf")
+	) {
 		console.log(
 			`- Add the editor extension:\t\t${chalk.gray("dotenc tools install-vscode-extension")}`,
 		)

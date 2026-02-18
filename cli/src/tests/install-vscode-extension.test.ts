@@ -63,10 +63,7 @@ describe("installVscodeExtensionCommand", () => {
 		await _runInstallVscodeExtension(async () => [])
 
 		const json = JSON.parse(
-			readFileSync(
-				path.join(tmpDir, ".vscode", "extensions.json"),
-				"utf-8",
-			),
+			readFileSync(path.join(tmpDir, ".vscode", "extensions.json"), "utf-8"),
 		)
 		expect(json.recommendations).toContain("dotenc.dotenc")
 		expect(json.recommendations).toContain("other.extension")
@@ -82,10 +79,7 @@ describe("installVscodeExtensionCommand", () => {
 		await _runInstallVscodeExtension(async () => [])
 
 		const json = JSON.parse(
-			readFileSync(
-				path.join(tmpDir, ".vscode", "extensions.json"),
-				"utf-8",
-			),
+			readFileSync(path.join(tmpDir, ".vscode", "extensions.json"), "utf-8"),
 		)
 		expect(
 			json.recommendations.filter((x: string) => x === "dotenc.dotenc"),
@@ -102,10 +96,7 @@ describe("installVscodeExtensionCommand", () => {
 		await _runInstallVscodeExtension(async () => [])
 
 		const json = JSON.parse(
-			readFileSync(
-				path.join(tmpDir, ".vscode", "extensions.json"),
-				"utf-8",
-			),
+			readFileSync(path.join(tmpDir, ".vscode", "extensions.json"), "utf-8"),
 		)
 		expect(json.recommendations).toContain("dotenc.dotenc")
 	})
@@ -120,10 +111,7 @@ describe("installVscodeExtensionCommand", () => {
 		await _runInstallVscodeExtension(async () => [])
 
 		const json = JSON.parse(
-			readFileSync(
-				path.join(tmpDir, ".vscode", "extensions.json"),
-				"utf-8",
-			),
+			readFileSync(path.join(tmpDir, ".vscode", "extensions.json"), "utf-8"),
 		)
 		expect(json.recommendations).toContain("dotenc.dotenc")
 	})
@@ -133,7 +121,9 @@ describe("installVscodeExtensionCommand", () => {
 	test("prints VS Code fallback URL when no editors detected", async () => {
 		await _runInstallVscodeExtension(async () => [])
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("vscode:extension/dotenc.dotenc")
 	})
 
@@ -141,9 +131,7 @@ describe("installVscodeExtensionCommand", () => {
 		await _runInstallVscodeExtension(async () => ["cursor"])
 
 		expect(promptSpy).toHaveBeenCalledWith(
-			expect.arrayContaining([
-				expect.objectContaining({ name: "open" }),
-			]),
+			expect.arrayContaining([expect.objectContaining({ name: "open" })]),
 		)
 	})
 
@@ -152,7 +140,9 @@ describe("installVscodeExtensionCommand", () => {
 
 		await _runInstallVscodeExtension(async () => ["cursor"])
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("cursor:extension/dotenc.dotenc")
 	})
 
@@ -173,7 +163,9 @@ describe("installVscodeExtensionCommand", () => {
 
 		await _runInstallVscodeExtension(async () => ["windsurf"], failingOpen)
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("windsurf:extension/dotenc.dotenc")
 		expect(allLogs).toContain("Open manually")
 	})
@@ -181,7 +173,9 @@ describe("installVscodeExtensionCommand", () => {
 	test("prints all editor URLs when multiple editors detected", async () => {
 		await _runInstallVscodeExtension(async () => ["vscode", "cursor"])
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("vscode:extension/dotenc.dotenc")
 		expect(allLogs).toContain("cursor:extension/dotenc.dotenc")
 		expect(promptSpy).not.toHaveBeenCalled()
@@ -191,7 +185,9 @@ describe("installVscodeExtensionCommand", () => {
 		// Pass an editor key that has no entry in EDITOR_NAMES
 		await _runInstallVscodeExtension(async () => ["vscode", "unknown-editor"])
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("unknown-editor")
 	})
 
@@ -204,7 +200,9 @@ describe("installVscodeExtensionCommand", () => {
 		// Run with real detectEditors — multiple editors found, no prompt
 		await _runInstallVscodeExtension()
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("cursor:extension/dotenc.dotenc")
 		expect(allLogs).toContain("vscode:extension/dotenc.dotenc")
 	})

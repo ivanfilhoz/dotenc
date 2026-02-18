@@ -151,7 +151,9 @@ key
 	.description("remove a public key from the project")
 	.action(keyRemoveCommand)
 
-const tools = program.command("tools").description("install editor integrations")
+const tools = program
+	.command("tools")
+	.description("install editor integrations")
 
 tools
 	.command("install-claude-code-skill")

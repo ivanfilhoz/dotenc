@@ -1,11 +1,4 @@
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	spyOn,
-	test,
-} from "bun:test"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -79,7 +72,9 @@ describe("installClaudeCodeSkillCommand", () => {
 	test("prints success message with installed path", async () => {
 		await installClaudeCodeSkillCommand({})
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("Claude Code skill installed")
 		expect(allLogs).toContain(".claude")
 	})
@@ -87,7 +82,9 @@ describe("installClaudeCodeSkillCommand", () => {
 	test("prints /dotenc usage hint after install", async () => {
 		await installClaudeCodeSkillCommand({})
 
-		const allLogs = logSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allLogs = logSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allLogs).toContain("/dotenc")
 	})
 
@@ -95,7 +92,9 @@ describe("installClaudeCodeSkillCommand", () => {
 		await installClaudeCodeSkillCommand({})
 
 		await expect(installClaudeCodeSkillCommand({})).rejects.toThrow("exit(1)")
-		const allErrors = errorSpy.mock.calls.map((c) => String(c[0])).join("\n")
+		const allErrors = errorSpy.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.join("\n")
 		expect(allErrors).toContain("already exists")
 		expect(allErrors).toContain("--force")
 	})

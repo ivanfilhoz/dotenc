@@ -1,4 +1,4 @@
-import { execFile, exec } from "node:child_process"
+import { exec, execFile } from "node:child_process"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
