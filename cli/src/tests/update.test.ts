@@ -1,5 +1,5 @@
-import { EventEmitter } from "node:events"
 import { describe, expect, mock, test } from "bun:test"
+import { EventEmitter } from "node:events"
 import {
 	_runPackageManagerCommand,
 	_runUpdateCommand,
@@ -254,7 +254,7 @@ describe("updateCommand", () => {
 				logError: mock((_message: string) => {}),
 				exit,
 			}),
-			).rejects.toThrow("exit(2)")
+		).rejects.toThrow("exit(2)")
 	})
 
 	test("exits with code 1 when updater command throws", async () => {

@@ -1,5 +1,5 @@
-import { EventEmitter } from "node:events"
 import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { EventEmitter } from "node:events"
 import {
 	_runInstallAgentSkillCommand,
 	_runNpx,

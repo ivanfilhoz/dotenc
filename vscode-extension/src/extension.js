@@ -9,28 +9,42 @@ const {
 	SHOW_LOGS_ACTION_LABEL,
 	UPDATE_ACTION_LABEL,
 } = require("./helpers/constants")
-const { ensureEnvironmentLanguage } = require("./helpers/ensureEnvironmentLanguage")
+const {
+	ensureEnvironmentLanguage,
+} = require("./helpers/ensureEnvironmentLanguage")
 const { fallbackFailure } = require("./helpers/fallbackFailure")
 const { fetchLatestCliVersion } = require("./helpers/fetchLatestCliVersion")
 const { formatDetectedVersion } = require("./helpers/formatDetectedVersion")
 const { getDotencExecutable } = require("./helpers/getDotencExecutable")
 const { getDotencTarget } = require("./helpers/getDotencTarget")
 const { getStartupCwd } = require("./helpers/getStartupCwd")
-const { getWorkspaceUriForStartup } = require("./helpers/getWorkspaceUriForStartup")
+const {
+	getWorkspaceUriForStartup,
+} = require("./helpers/getWorkspaceUriForStartup")
 const { isAutoOpenNativeEnabled } = require("./helpers/isAutoOpenNativeEnabled")
-const { isDotencEnvironmentFileUri } = require("./helpers/isDotencEnvironmentFileUri")
+const {
+	isDotencEnvironmentFileUri,
+} = require("./helpers/isDotencEnvironmentFileUri")
 const { isUpdateMethodFallback } = require("./helpers/isUpdateMethodFallback")
 const { isVersionNewer } = require("./helpers/isVersionNewer")
 const { isVersionSupported } = require("./helpers/isVersionSupported")
-const { mapFailureToFileSystemError } = require("./helpers/mapFailureToFileSystemError")
+const {
+	mapFailureToFileSystemError,
+} = require("./helpers/mapFailureToFileSystemError")
 const { MIN_DOTENC_VERSION } = require("./helpers/minDotencVersion")
 const { normalizeCommentValue } = require("./helpers/normalizeCommentValue")
 const { parseJsonPayload } = require("./helpers/parseJsonPayload")
-const { removeGrantedUsersHeader } = require("./helpers/removeGrantedUsersHeader")
+const {
+	removeGrantedUsersHeader,
+} = require("./helpers/removeGrantedUsersHeader")
 const { resolveSourceUri } = require("./helpers/resolveSourceUri")
 const { runProcess } = require("./helpers/runProcess")
-const { shouldShowOpenEncryptedSourceAction } = require("./helpers/shouldShowOpenEncryptedSourceAction")
-const { shouldSkipCliUpdateCheck } = require("./helpers/shouldSkipCliUpdateCheck")
+const {
+	shouldShowOpenEncryptedSourceAction,
+} = require("./helpers/shouldShowOpenEncryptedSourceAction")
+const {
+	shouldSkipCliUpdateCheck,
+} = require("./helpers/shouldSkipCliUpdateCheck")
 const { stripAnsi } = require("./helpers/stripAnsi")
 const { toDotencUri } = require("./helpers/toDotencUri")
 const { toErrorMessage } = require("./helpers/toErrorMessage")
@@ -177,7 +191,9 @@ async function decryptEnvironment(document) {
 			ok: false,
 			error: {
 				code: parsed.error.code || "UNKNOWN",
-				message: stripAnsi(parsed.error.message || "Failed to decrypt environment."),
+				message: stripAnsi(
+					parsed.error.message || "Failed to decrypt environment.",
+				),
 			},
 		}
 	}
@@ -203,7 +219,9 @@ async function encryptEnvironment(document, plaintext) {
 			ok: false,
 			error: {
 				code: parsed.error.code || "UNKNOWN",
-				message: stripAnsi(parsed.error.message || "Failed to encrypt environment."),
+				message: stripAnsi(
+					parsed.error.message || "Failed to encrypt environment.",
+				),
 			},
 		}
 	}

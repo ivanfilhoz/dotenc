@@ -1,4 +1,6 @@
-const { getGrantedUsersHeaderPattern } = require("./getGrantedUsersHeaderPattern")
+const {
+	getGrantedUsersHeaderPattern,
+} = require("./getGrantedUsersHeaderPattern")
 
 const grantedUsersHeaderPattern = getGrantedUsersHeaderPattern()
 

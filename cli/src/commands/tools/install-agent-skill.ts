@@ -19,10 +19,7 @@ type InstallAgentSkillDeps = {
 const SKILL_SOURCE = "ivanfilhoz/dotenc"
 const SKILL_NAME = "dotenc"
 
-const runNpx = (
-	args: string[],
-	spawnImpl: typeof spawn = spawn,
-) =>
+const runNpx = (args: string[], spawnImpl: typeof spawn = spawn) =>
 	new Promise<number>((resolve, reject) => {
 		const child = spawnImpl("npx", args, {
 			stdio: "inherit",
