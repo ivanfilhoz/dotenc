@@ -17,6 +17,7 @@ type CliErrorCode =
 type JsonSuccess = {
 	ok: true
 	content: string
+	grantedUsers: string[]
 }
 
 type JsonFailure = {
@@ -100,9 +101,16 @@ export const decryptCommand = async (
 	try {
 		const environment = await deps.getEnvironmentByName(environmentName)
 		const plaintext = await deps.decryptEnvironmentData(environment)
+		const grantedUsers = Array.from(
+			new Set(
+				environment.keys
+					.map((key) => key.name.trim())
+					.filter((name) => name.length > 0),
+			),
+		)
 
 		if (options.json) {
-			writeJson({ ok: true, content: plaintext }, deps)
+			writeJson({ ok: true, content: plaintext, grantedUsers }, deps)
 		} else {
 			deps.writeStdout(plaintext)
 		}

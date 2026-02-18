@@ -32,6 +32,50 @@ describe("env decrypt command", () => {
 		expect(exit).not.toHaveBeenCalled()
 	})
 
+	test("returns granted users in JSON success output", async () => {
+		const writeStdout = mock((_message: string) => {})
+		const deps: DecryptCommandDeps = {
+			validateEnvironmentName: () => ({ valid: true }),
+			getEnvironmentByName: async () =>
+				({
+					keys: [
+						{
+							name: "alice",
+							fingerprint: "fp-1",
+							encryptedDataKey: "ZW5jcnlwdGVk",
+							algorithm: "ed25519",
+						},
+						{
+							name: "bob",
+							fingerprint: "fp-2",
+							encryptedDataKey: "ZW5jcnlwdGVk",
+							algorithm: "ed25519",
+						},
+					],
+					encryptedContent: "",
+				}) as never,
+			decryptEnvironmentData: async () => "API_KEY=abc123",
+			writeStdout,
+			logError: (_message: string) => {},
+			exit: (_code: number): never => {
+				throw new Error("exit should not be called")
+			},
+		}
+
+		await decryptCommand("development", { json: true }, undefined, deps)
+
+		const [rawJson] = writeStdout.mock.calls[0]
+		const parsed = JSON.parse(rawJson as string) as {
+			ok: boolean
+			content: string
+			grantedUsers: string[]
+		}
+
+		expect(parsed.ok).toBe(true)
+		expect(parsed.content).toBe("API_KEY=abc123")
+		expect(parsed.grantedUsers).toEqual(["alice", "bob"])
+	})
+
 	test("returns JSON error for invalid environment names", async () => {
 		const writeStdout = mock((_message: string) => {})
 		const exit = mock((code: number): never => {
