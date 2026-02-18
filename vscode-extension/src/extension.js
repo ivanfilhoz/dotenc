@@ -4,6 +4,7 @@ const { appendProcessLogs } = require("./helpers/appendProcessLogs")
 const { closeFileTabs } = require("./helpers/closeFileTabs")
 const {
 	DOTENC_SCHEME,
+	INSTALL_ACTION_LABEL,
 	OPEN_ENCRYPTED_SOURCE_COMMAND,
 	OPEN_NATIVE_COMMAND,
 	SHOW_LOGS_ACTION_LABEL,
@@ -16,6 +17,7 @@ const { fallbackFailure } = require("./helpers/fallbackFailure")
 const { fetchLatestCliVersion } = require("./helpers/fetchLatestCliVersion")
 const { formatDetectedVersion } = require("./helpers/formatDetectedVersion")
 const { getDotencExecutable } = require("./helpers/getDotencExecutable")
+const { getDotencInstallCommand } = require("./helpers/getDotencInstallCommand")
 const { getDotencTarget } = require("./helpers/getDotencTarget")
 const { getStartupCwd } = require("./helpers/getStartupCwd")
 const {
@@ -282,6 +284,77 @@ async function runCliUpdate(
 	)
 }
 
+async function maybePromptCliInstall(
+	_workspaceUri,
+	outputChannel,
+	executable,
+	cwd,
+) {
+	if (executable !== "dotenc") {
+		return false
+	}
+
+	const action = await vscode.window.showInformationMessage(
+		"dotenc CLI was not found on PATH. Install it now using the official installer?",
+		INSTALL_ACTION_LABEL,
+	)
+	if (action !== INSTALL_ACTION_LABEL) {
+		return false
+	}
+
+	const installCommand = getDotencInstallCommand()
+	if (!installCommand) {
+		vscode.window.showWarningMessage(
+			'Automatic installation via curl is currently unavailable on this platform. Install dotenc manually or configure "dotenc.executablePath".',
+		)
+		return false
+	}
+
+	const installResult = await runProcess(
+		installCommand.executable,
+		cwd,
+		installCommand.args,
+	)
+	appendProcessLogs(
+		outputChannel,
+		`[dotenc] ${installCommand.executable} ${installCommand.args.join(" ")}`,
+		installResult,
+	)
+
+	if (installResult.error || installResult.code !== 0) {
+		const logsAction = await vscode.window.showErrorMessage(
+			"dotenc installation failed. Check logs for details.",
+			SHOW_LOGS_ACTION_LABEL,
+		)
+		if (logsAction === SHOW_LOGS_ACTION_LABEL) {
+			outputChannel.show(true)
+		}
+		return false
+	}
+
+	const postInstallVersion = await runProcess(executable, cwd, ["--version"])
+	appendProcessLogs(
+		outputChannel,
+		`[dotenc] ${executable} --version (after install)`,
+		postInstallVersion,
+	)
+
+	if (postInstallVersion.error || postInstallVersion.code !== 0) {
+		const logsAction = await vscode.window.showWarningMessage(
+			"dotenc was installed, but it is not yet available in this VS Code session. Restart VS Code or set dotenc.executablePath manually.",
+			SHOW_LOGS_ACTION_LABEL,
+		)
+		if (logsAction === SHOW_LOGS_ACTION_LABEL) {
+			outputChannel.show(true)
+		}
+		return false
+	}
+
+	versionCompatibilityCache.clear()
+	vscode.window.showInformationMessage("dotenc CLI installed successfully.")
+	return true
+}
+
 async function maybePromptCliUpdate(outputChannel) {
 	if (shouldSkipCliUpdateCheck()) {
 		return
@@ -290,7 +363,21 @@ async function maybePromptCliUpdate(outputChannel) {
 	const workspaceUri = getWorkspaceUriForStartup()
 	const executable = getDotencExecutable(workspaceUri)
 	const cwd = getStartupCwd(workspaceUri)
-	const versionResult = await runProcess(executable, cwd, ["--version"])
+	let versionResult = await runProcess(executable, cwd, ["--version"])
+
+	if (versionResult.error && versionResult.error.code === "ENOENT") {
+		const installed = await maybePromptCliInstall(
+			workspaceUri,
+			outputChannel,
+			executable,
+			cwd,
+		)
+		if (!installed) {
+			return
+		}
+
+		versionResult = await runProcess(executable, cwd, ["--version"])
+	}
 
 	if (versionResult.error || versionResult.code !== 0) {
 		return

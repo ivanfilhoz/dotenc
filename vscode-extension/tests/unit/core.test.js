@@ -2,6 +2,9 @@ const { describe, expect, test } = require("bun:test")
 const { formatDetectedVersion } = require("../../src/helpers/formatDetectedVersion")
 const { getFailureSteps } = require("../../src/helpers/getFailureSteps")
 const { getFailureUserMessage } = require("../../src/helpers/getFailureUserMessage")
+const {
+	getDotencInstallCommand,
+} = require("../../src/helpers/getDotencInstallCommand")
 const { isVersionSupported } = require("../../src/helpers/isVersionSupported")
 const { mapFailureCode } = require("../../src/helpers/mapFailureCode")
 const { MIN_DOTENC_VERSION } = require("../../src/helpers/minDotencVersion")
@@ -91,5 +94,17 @@ describe("core helpers", () => {
 			code: "CLI_VERSION_UNSUPPORTED",
 		})
 		expect(steps.join("\n")).toContain(MIN_DOTENC_VERSION)
+	})
+
+	test("provides curl installer command on unix-like platforms", () => {
+		const command = getDotencInstallCommand("darwin")
+		expect(command).toEqual({
+			executable: "sh",
+			args: ["-c", "curl -fsSL https://dotenc.org/install.sh | sh"],
+		})
+	})
+
+	test("does not provide curl installer command on windows", () => {
+		expect(getDotencInstallCommand("win32")).toBeUndefined()
 	})
 })
