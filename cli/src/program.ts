@@ -17,6 +17,8 @@ import { keyListCommand } from "./commands/key/list"
 import { keyRemoveCommand } from "./commands/key/remove"
 import { runCommand } from "./commands/run"
 import { textconvCommand } from "./commands/textconv"
+import { installClaudeCodeSkillCommand } from "./commands/tools/install-claude-code-skill"
+import { installVscodeExtensionCommand } from "./commands/tools/install-vscode-extension"
 import { whoamiCommand } from "./commands/whoami"
 
 const program = new Command()
@@ -148,6 +150,21 @@ key
 	.argument("[name]", "the name of the public key to remove")
 	.description("remove a public key from the project")
 	.action(keyRemoveCommand)
+
+const tools = program.command("tools").description("install editor integrations")
+
+tools
+	.command("install-claude-code-skill")
+	.addOption(new Option("--force", "overwrite existing installation"))
+	.description("install the Claude Code skill for this project")
+	.action(installClaudeCodeSkillCommand)
+
+tools
+	.command("install-vscode-extension")
+	.description(
+		"add dotenc to VS Code / Cursor / Windsurf extension recommendations",
+	)
+	.action(installVscodeExtensionCommand)
 
 program
 	.command("textconv", { hidden: true })

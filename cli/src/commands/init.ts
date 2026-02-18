@@ -135,4 +135,16 @@ export const initCommand = async (options: Options) => {
 	console.log(`- To edit your personal environment:\t${editCmd}`)
 	const devCmd = chalk.gray("dotenc dev <command>")
 	console.log(`- To run with your encrypted env:\t${devCmd}`)
+
+	// Editor integration suggestions
+	if (existsSync(".claude") || existsSync("CLAUDE.md")) {
+		console.log(
+			`- Install the Claude Code skill:\t${chalk.gray("dotenc tools install-claude-code-skill")}`,
+		)
+	}
+	if (existsSync(".vscode") || existsSync(".cursor") || existsSync(".windsurf")) {
+		console.log(
+			`- Add the editor extension:\t\t${chalk.gray("dotenc tools install-vscode-extension")}`,
+		)
+	}
 }
