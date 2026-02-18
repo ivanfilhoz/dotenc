@@ -125,6 +125,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.version-check.outputs.bumped == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             cd cli && npm publish --provenance --access public
