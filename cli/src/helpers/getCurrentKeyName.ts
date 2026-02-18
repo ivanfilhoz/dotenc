@@ -8,15 +8,15 @@ type GetCurrentKeyNameDeps = {
 
 export const getCurrentKeyName = async (
 	deps: GetCurrentKeyNameDeps = { getPrivateKeys, getPublicKeys },
-): Promise<string | undefined> => {
+): Promise<string[]> => {
 	const { keys: privateKeys } = await deps.getPrivateKeys()
 	const publicKeys = await deps.getPublicKeys()
 
 	const privateFingerprints = new Set(privateKeys.map((k) => k.fingerprint))
 
-	const match = publicKeys.find((pub) =>
+	const matches = publicKeys.filter((pub) =>
 		privateFingerprints.has(pub.fingerprint),
 	)
 
-	return match?.name
+	return matches.map((m) => m.name)
 }

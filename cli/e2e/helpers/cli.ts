@@ -54,6 +54,25 @@ export function runCli(
 	}
 }
 
+export function runCliWithStdin(
+	homeDir: string,
+	workspace: string,
+	args: string[],
+	stdin: string,
+	extraEnv?: Record<string, string>,
+): { stdout: string; stderr: string; exitCode: number } {
+	const result = Bun.spawnSync(["bun", CLI_PATH, ...args], {
+		cwd: workspace,
+		env: { ...process.env, HOME: homeDir, ...extraEnv },
+		stdin: Buffer.from(stdin),
+	})
+	return {
+		stdout: result.stdout.toString(),
+		stderr: result.stderr.toString(),
+		exitCode: result.exitCode,
+	}
+}
+
 export function createMockEditor(content: string): string {
 	const contentFile = path.join(tmpdir(), `mock-editor-content-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 	writeFileSync(contentFile, content + "\n")

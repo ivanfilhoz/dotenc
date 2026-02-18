@@ -46,10 +46,10 @@ describe("getCurrentKeyName", () => {
 			}),
 			getPublicKeys: async () => [makePublicEntry("alice", ed25519KeyPair)],
 		})
-		expect(result).toBe("alice")
+		expect(result).toEqual(["alice"])
 	})
 
-	test("returns undefined when no fingerprints match", async () => {
+	test("returns empty array when no fingerprints match", async () => {
 		const result = await getCurrentKeyName({
 			getPrivateKeys: async () => ({
 				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
@@ -57,10 +57,10 @@ describe("getCurrentKeyName", () => {
 			}),
 			getPublicKeys: async () => [makePublicEntry("bob", ed25519KeyPair2)],
 		})
-		expect(result).toBeUndefined()
+		expect(result).toEqual([])
 	})
 
-	test("returns undefined when no public keys exist", async () => {
+	test("returns empty array when no public keys exist", async () => {
 		const result = await getCurrentKeyName({
 			getPrivateKeys: async () => ({
 				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
@@ -68,10 +68,10 @@ describe("getCurrentKeyName", () => {
 			}),
 			getPublicKeys: async () => [],
 		})
-		expect(result).toBeUndefined()
+		expect(result).toEqual([])
 	})
 
-	test("returns undefined when no private keys exist", async () => {
+	test("returns empty array when no private keys exist", async () => {
 		const result = await getCurrentKeyName({
 			getPrivateKeys: async () => ({
 				keys: [],
@@ -79,10 +79,10 @@ describe("getCurrentKeyName", () => {
 			}),
 			getPublicKeys: async () => [makePublicEntry("alice", ed25519KeyPair)],
 		})
-		expect(result).toBeUndefined()
+		expect(result).toEqual([])
 	})
 
-	test("returns first matching key when multiple public keys exist", async () => {
+	test("returns all matching keys when multiple public keys match", async () => {
 		const result = await getCurrentKeyName({
 			getPrivateKeys: async () => ({
 				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
@@ -93,6 +93,20 @@ describe("getCurrentKeyName", () => {
 				makePublicEntry("alice", ed25519KeyPair),
 			],
 		})
-		expect(result).toBe("alice")
+		expect(result).toEqual(["alice"])
+	})
+
+	test("returns multiple names when multiple public keys match the same private key", async () => {
+		const result = await getCurrentKeyName({
+			getPrivateKeys: async () => ({
+				keys: [makePrivateEntry("id_ed25519", ed25519KeyPair)],
+				passphraseProtectedKeys: [],
+			}),
+			getPublicKeys: async () => [
+				makePublicEntry("alice", ed25519KeyPair),
+				makePublicEntry("alice-deploy", ed25519KeyPair),
+			],
+		})
+		expect(result).toEqual(["alice", "alice-deploy"])
 	})
 })

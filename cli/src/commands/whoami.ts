@@ -10,11 +10,11 @@ export const whoamiCommand = async () => {
 
 	const privateFingerprints = new Set(privateKeys.map((k) => k.fingerprint))
 
-	const matchingPublicKey = publicKeys.find((pub) =>
+	const matchingPublicKeys = publicKeys.filter((pub) =>
 		privateFingerprints.has(pub.fingerprint),
 	)
 
-	if (!matchingPublicKey) {
+	if (matchingPublicKeys.length === 0) {
 		if (privateKeys.length === 0 && passphraseProtectedKeys.length > 0) {
 			console.error(passphraseProtectedKeyError(passphraseProtectedKeys))
 		} else {
@@ -25,37 +25,46 @@ export const whoamiCommand = async () => {
 		process.exit(1)
 	}
 
-	const matchingPrivateKey = privateKeys.find(
-		(pk) => pk.fingerprint === matchingPublicKey.fingerprint,
-	)
-
-	console.log(`Name: ${matchingPublicKey.name}`)
-	console.log(`Active SSH key: ${matchingPrivateKey?.name ?? "unknown"}`)
-	console.log(`Fingerprint: ${matchingPublicKey.fingerprint}`)
-
 	const environments = await getEnvironments()
-	const authorizedEnvironments: string[] = []
 
-	for (const envName of environments) {
-		try {
-			const environment = await getEnvironmentByName(envName)
-			const hasAccess = environment.keys.some(
-				(key) => key.fingerprint === matchingPublicKey.fingerprint,
-			)
-			if (hasAccess) {
-				authorizedEnvironments.push(envName)
+	for (let i = 0; i < matchingPublicKeys.length; i++) {
+		const matchingPublicKey = matchingPublicKeys[i]
+
+		if (i > 0) {
+			console.log("")
+		}
+
+		const matchingPrivateKey = privateKeys.find(
+			(pk) => pk.fingerprint === matchingPublicKey.fingerprint,
+		)
+
+		console.log(`Name: ${matchingPublicKey.name}`)
+		console.log(`Active SSH key: ${matchingPrivateKey?.name ?? "unknown"}`)
+		console.log(`Fingerprint: ${matchingPublicKey.fingerprint}`)
+
+		const authorizedEnvironments: string[] = []
+
+		for (const envName of environments) {
+			try {
+				const environment = await getEnvironmentByName(envName)
+				const hasAccess = environment.keys.some(
+					(key) => key.fingerprint === matchingPublicKey.fingerprint,
+				)
+				if (hasAccess) {
+					authorizedEnvironments.push(envName)
+				}
+			} catch {
+				// Skip environments that can't be read
 			}
-		} catch {
-			// Skip environments that can't be read
 		}
-	}
 
-	if (authorizedEnvironments.length > 0) {
-		console.log("Authorized environments:")
-		for (const env of authorizedEnvironments) {
-			console.log(`  - ${env}`)
+		if (authorizedEnvironments.length > 0) {
+			console.log("Authorized environments:")
+			for (const env of authorizedEnvironments) {
+				console.log(`  - ${env}`)
+			}
+		} else {
+			console.log("Authorized environments: none")
 		}
-	} else {
-		console.log("Authorized environments: none")
 	}
 }

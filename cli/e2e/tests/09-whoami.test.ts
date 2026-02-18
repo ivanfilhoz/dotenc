@@ -42,4 +42,13 @@ describe("Whoami Command", () => {
 		const result = runCli(bobHome, workspace, ["whoami"])
 		expect(result.stderr).toContain("No matching key found")
 	}, TIMEOUT)
+
+	test("whoami shows multiple matching identities", () => {
+		// Add the same SSH key under a second name
+		runCli(aliceHome, workspace, ["key", "add", "alice-deploy", "--from-ssh", path.join(aliceHome, ".ssh", "id_ed25519")])
+
+		const result = runCli(aliceHome, workspace, ["whoami"])
+		expect(result.stdout).toContain("Name: alice")
+		expect(result.stdout).toContain("Name: alice-deploy")
+	}, TIMEOUT)
 })
