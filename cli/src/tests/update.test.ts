@@ -152,7 +152,7 @@ describe("update helpers", () => {
 })
 
 describe("updateCommand", () => {
-	test("runs brew upgrade when Homebrew install is detected", async () => {
+	test("runs brew update then brew upgrade when Homebrew install is detected", async () => {
 		const runPackageManagerCommand = mock(async () => 0)
 		const log = mock((_message: string) => {})
 
@@ -162,10 +162,33 @@ describe("updateCommand", () => {
 			log,
 		})
 
-		expect(runPackageManagerCommand).toHaveBeenCalledWith("brew", [
+		expect(runPackageManagerCommand).toHaveBeenNthCalledWith(1, "brew", [
+			"update",
+		])
+		expect(runPackageManagerCommand).toHaveBeenNthCalledWith(2, "brew", [
 			"upgrade",
 			"dotenc",
 		])
+	})
+
+	test("exits when brew update fails before running brew upgrade", async () => {
+		const runPackageManagerCommand = mock(async () => 1)
+		const exit = mock((code: number): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		await expect(
+			_runUpdateCommand({
+				detectInstallMethod: () => "homebrew",
+				runPackageManagerCommand,
+				log: mock((_message: string) => {}),
+				logError: mock((_message: string) => {}),
+				exit,
+			}),
+		).rejects.toThrow("exit(1)")
+
+		expect(runPackageManagerCommand).toHaveBeenCalledTimes(1)
+		expect(runPackageManagerCommand).toHaveBeenCalledWith("brew", ["update"])
 	})
 
 	test("runs scoop update when Scoop install is detected", async () => {
@@ -236,6 +259,11 @@ describe("updateCommand", () => {
 		expect(
 			log.mock.calls.some((call) =>
 				String(call[0]).includes("npm install -g @dotenc/cli"),
+			),
+		).toBe(true)
+		expect(
+			log.mock.calls.some((call) =>
+				String(call[0]).includes("brew update && brew upgrade dotenc"),
 			),
 		).toBe(true)
 	})

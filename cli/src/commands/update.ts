@@ -80,7 +80,7 @@ export const _runUpdateCommand = async (
 	if (method === "unknown") {
 		deps.log("Could not determine installation method automatically.")
 		deps.log(`Try one of these commands:`)
-		deps.log(`  ${chalk.gray("brew upgrade dotenc")}`)
+		deps.log(`  ${chalk.gray("brew update && brew upgrade dotenc")}`)
 		deps.log(`  ${chalk.gray("scoop update dotenc")}`)
 		deps.log(`  ${chalk.gray("npm install -g @dotenc/cli")}`)
 		deps.log(`Or download from ${chalk.cyan(GITHUB_RELEASES_URL)}.`)
@@ -89,6 +89,29 @@ export const _runUpdateCommand = async (
 
 	const updater = updateCommands[method]
 	deps.log(`Updating dotenc via ${updater.label}...`)
+
+	if (method === "homebrew") {
+		try {
+			const brewUpdateCode = await deps.runPackageManagerCommand("brew", [
+				"update",
+			])
+
+			if (brewUpdateCode !== 0) {
+				deps.logError(
+					`${chalk.red("Error:")} update command exited with code ${brewUpdateCode}.`,
+				)
+				deps.exit(brewUpdateCode)
+			}
+		} catch (error) {
+			deps.logError(
+				`${chalk.red("Error:")} failed to run ${chalk.gray("brew update")}.`,
+			)
+			deps.logError(
+				`${chalk.red("Details:")} ${error instanceof Error ? error.message : String(error)}`,
+			)
+			deps.exit(1)
+		}
+	}
 
 	let exitCode = 0
 	try {
