@@ -4,8 +4,15 @@ import os from "node:os"
 import path from "node:path"
 import { z } from "zod"
 
+const updateConfigSchema = z.object({
+	lastCheckedAt: z.string().nullish(),
+	latestVersion: z.string().nullish(),
+	notifiedVersion: z.string().nullish(),
+})
+
 const homeConfigSchema = z.object({
 	editor: z.string().nullish(),
+	update: updateConfigSchema.nullish(),
 })
 
 type HomeConfig = z.infer<typeof homeConfigSchema>
@@ -15,6 +22,7 @@ const getConfigPath = () => path.join(os.homedir(), ".dotenc", "config.json")
 export const setHomeConfig = async (config: HomeConfig) => {
 	const parsedConfig = homeConfigSchema.parse(config)
 	const configPath = getConfigPath()
+	await fs.mkdir(path.dirname(configPath), { recursive: true })
 	await fs.writeFile(configPath, JSON.stringify(parsedConfig, null, 2), "utf-8")
 }
 

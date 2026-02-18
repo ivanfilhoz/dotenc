@@ -45,7 +45,12 @@ export function runCli(
 ): { stdout: string; stderr: string; exitCode: number } {
 	const result = Bun.spawnSync(["bun", CLI_PATH, ...args], {
 		cwd: workspace,
-		env: { ...process.env, HOME: homeDir, ...extraEnv },
+		env: {
+			...process.env,
+			HOME: homeDir,
+			DOTENC_SKIP_UPDATE_CHECK: "1",
+			...extraEnv,
+		},
 	})
 	return {
 		stdout: result.stdout.toString(),
@@ -63,7 +68,12 @@ export function runCliWithStdin(
 ): { stdout: string; stderr: string; exitCode: number } {
 	const result = Bun.spawnSync(["bun", CLI_PATH, ...args], {
 		cwd: workspace,
-		env: { ...process.env, HOME: homeDir, ...extraEnv },
+		env: {
+			...process.env,
+			HOME: homeDir,
+			DOTENC_SKIP_UPDATE_CHECK: "1",
+			...extraEnv,
+		},
 		stdin: Buffer.from(stdin),
 	})
 	return {

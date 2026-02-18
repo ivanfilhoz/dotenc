@@ -19,7 +19,9 @@ import { runCommand } from "./commands/run"
 import { textconvCommand } from "./commands/textconv"
 import { installAgentSkillCommand } from "./commands/tools/install-agent-skill"
 import { installVscodeExtensionCommand } from "./commands/tools/install-vscode-extension"
+import { updateCommand } from "./commands/update"
 import { whoamiCommand } from "./commands/whoami"
+import { maybeNotifyAboutUpdate } from "./helpers/updateNotifier"
 
 const program = new Command()
 
@@ -175,6 +177,11 @@ program
 	.action(textconvCommand)
 
 program
+	.command("update")
+	.description("update dotenc based on your installation method")
+	.action(updateCommand)
+
+program
 	.command("whoami")
 	.description("show your identity in this project")
 	.action(whoamiCommand)
@@ -186,5 +193,7 @@ program
 	.addOption(new Option("-r, --remove", "remove a configuration key"))
 	.description("manage global configuration")
 	.action(configCommand)
+
+await maybeNotifyAboutUpdate()
 
 program.parse()
