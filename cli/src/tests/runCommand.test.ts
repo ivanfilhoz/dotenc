@@ -162,6 +162,47 @@ describe("runCommand", () => {
 		expect(spawn).toHaveBeenCalledTimes(1)
 	})
 
+	test("exits when strict mode is enabled and any environment fails", async () => {
+		const logError = mock((_message: string) => {})
+		const exit = mock((code: number): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		const decryptEnvironment = mock(async (name: string) => {
+			if (name === "development")
+				throw new Error("failed to decrypt development")
+			return "PERSONAL_SECRET=personal456"
+		})
+
+		const deps: RunCommandDeps = {
+			decryptEnvironment,
+			parseEnv: () => ({ PERSONAL_SECRET: "personal456" }),
+			validateEnvironmentName: () => ({ valid: true }),
+			spawn: (() => {
+				throw new Error("spawn should not be called")
+			}) as never,
+			logError,
+			exit,
+		}
+
+		await expect(
+			runCommand(
+				"sh",
+				["-c", "echo ok"],
+				{ env: "development,alice", strict: true },
+				undefined,
+				deps,
+			),
+		).rejects.toThrow("exit(1)")
+
+		const logMessages = logError.mock.calls.map((c) => String(c[0]))
+		expect(
+			logMessages.some((m) =>
+				m.includes("strict mode is enabled"),
+			),
+		).toBe(true)
+	})
+
 	test("exits when all environments fail and reports unknown errors", async () => {
 		const logError = mock((_message: string) => {})
 		const exit = mock((code: number): never => {

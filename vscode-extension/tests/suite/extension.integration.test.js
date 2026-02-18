@@ -156,14 +156,14 @@ suite("dotenc VS Code integration", () => {
 			.update(
 				"executablePath",
 				fakeCliPath,
-				vscode.ConfigurationTarget.Workspace,
+				vscode.ConfigurationTarget.Global,
 			)
 	})
 
 	suiteTeardown(async () => {
 		await vscode.workspace
 			.getConfiguration("dotenc")
-			.update("executablePath", undefined, vscode.ConfigurationTarget.Workspace)
+			.update("executablePath", undefined, vscode.ConfigurationTarget.Global)
 
 		await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 	})

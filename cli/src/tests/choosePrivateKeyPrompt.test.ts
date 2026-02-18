@@ -33,6 +33,18 @@ const createPrivateKeyEntry = (
 	}
 }
 
+const createWeakRsaPrivateKeyEntry = (name: string): PrivateKeyEntry => {
+	const { privateKey } = crypto.generateKeyPairSync("rsa", {
+		modulusLength: 1024,
+	})
+	return {
+		name,
+		privateKey,
+		fingerprint: `${name}-fingerprint`,
+		algorithm: "rsa",
+	}
+}
+
 describe("choosePrivateKeyPrompt", () => {
 	test("shows unsupported keys and create option while selecting supported key", async () => {
 		const selectedKey = createPrivateKeyEntry("id_ed25519", "ed25519")
@@ -147,6 +159,64 @@ describe("choosePrivateKeyPrompt", () => {
 
 		expect(selected).toBe(selectedKey)
 		expect(prompt).not.toHaveBeenCalled()
+	})
+
+	test("ignores weak RSA keys and picks a valid key in non-interactive mode", async () => {
+		const weakRsa = createWeakRsaPrivateKeyEntry("id_rsa")
+		const strongEd25519 = createPrivateKeyEntry("id_ed25519_alt", "ed25519")
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [weakRsa, strongEd25519],
+					passphraseProtectedKeys: [],
+					unsupportedKeys: [],
+				}) as never,
+		)
+
+		const selected = await _runChoosePrivateKeyPrompt("Pick key", {
+			getPrivateKeys: getPrivateKeys as never,
+			prompt: mock(async (_questions: unknown) => ({ key: "" })) as never,
+			createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+			logInfo: mock((_message: string) => {}),
+			logWarn: mock((_message: string) => {}),
+			isInteractive: () => false,
+		})
+
+		expect(selected).toBe(strongEd25519)
+	})
+
+	test("shows weak RSA keys as unsupported in interactive mode", async () => {
+		const weakRsa = createWeakRsaPrivateKeyEntry("id_rsa")
+		const strongEd25519 = createPrivateKeyEntry("id_ed25519_alt", "ed25519")
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [weakRsa, strongEd25519],
+					passphraseProtectedKeys: [],
+					unsupportedKeys: [],
+				}) as never,
+		)
+		const prompt = mock(async (_questions: unknown) => ({
+			key: "id_ed25519_alt",
+		}))
+
+		await _runChoosePrivateKeyPrompt("Pick key", {
+			getPrivateKeys: getPrivateKeys as never,
+			prompt: prompt as never,
+			createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+			logInfo: mock((_message: string) => {}),
+			logWarn: mock((_message: string) => {}),
+			isInteractive: () => true,
+		})
+
+		const [question] = prompt.mock.calls[0][0] as Array<{
+			choices: Array<{ name: string }>
+		}>
+		expect(
+			question.choices.some((choice) =>
+				choice.name.includes("RSA key is 1024 bits"),
+			),
+		).toBe(true)
 	})
 
 	test("throws passphrase guidance in non-interactive mode when no usable keys exist", async () => {

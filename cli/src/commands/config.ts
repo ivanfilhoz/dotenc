@@ -1,27 +1,66 @@
+import chalk from "chalk"
 import { getHomeConfig, setHomeConfig } from "../helpers/homeConfig"
 
 type Options = {
 	remove: boolean
 }
 
+type ConfigCommandDeps = {
+	getHomeConfig: typeof getHomeConfig
+	setHomeConfig: typeof setHomeConfig
+	log: (message: string) => void
+	logError: (message: string) => void
+	exit: (code: number) => never
+}
+
+const SUPPORTED_CONFIG_KEYS = ["editor"] as const
+type SupportedConfigKey = (typeof SUPPORTED_CONFIG_KEYS)[number]
+
+const defaultDeps: ConfigCommandDeps = {
+	getHomeConfig,
+	setHomeConfig,
+	log: (message) => console.log(message),
+	logError: (message) => console.error(message),
+	exit: (code) => process.exit(code),
+}
+
+const getSupportedConfigKey = (
+	key: string,
+): { valid: true; key: SupportedConfigKey } | { valid: false } => {
+	if (SUPPORTED_CONFIG_KEYS.includes(key as SupportedConfigKey)) {
+		return { valid: true, key: key as SupportedConfigKey }
+	}
+	return { valid: false }
+}
+
 export const configCommand = async (
 	key: string,
-	value: string,
+	value: string | undefined,
 	options: Options,
+	deps: ConfigCommandDeps = defaultDeps,
 ) => {
-	const config = await getHomeConfig()
+	const keyValidation = getSupportedConfigKey(key)
+	if (!keyValidation.valid) {
+		deps.logError(
+			`${chalk.red("Error:")} unsupported config key "${key}". Supported keys: ${SUPPORTED_CONFIG_KEYS.join(", ")}.`,
+		)
+		deps.exit(1)
+	}
+
+	const config = await deps.getHomeConfig()
+	const configKey = keyValidation.key
 
 	if (options.remove) {
-		delete config[key as keyof typeof config]
-		await setHomeConfig(config)
+		delete config[configKey]
+		await deps.setHomeConfig(config)
 		return
 	}
 
-	if (value) {
-		config[key as keyof typeof config] = value
-		await setHomeConfig(config)
+	if (value !== undefined) {
+		config[configKey] = value
+		await deps.setHomeConfig(config)
 		return
 	}
 
-	console.log(config[key as keyof typeof config])
+	deps.log(config[configKey] ?? "")
 }

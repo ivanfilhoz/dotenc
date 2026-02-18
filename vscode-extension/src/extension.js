@@ -310,14 +310,37 @@ async function maybePromptCliInstall(
 		return false
 	}
 
-	const installResult = await runProcess(
-		installCommand.executable,
+	const downloadResult = await runProcess(
+		installCommand.download.executable,
 		cwd,
-		installCommand.args,
+		installCommand.download.args,
 	)
 	appendProcessLogs(
 		outputChannel,
-		`[dotenc] ${installCommand.executable} ${installCommand.args.join(" ")}`,
+		`[dotenc] ${installCommand.download.executable} ${installCommand.download.args.join(" ")}`,
+		downloadResult,
+	)
+
+	if (downloadResult.error || downloadResult.code !== 0) {
+		const logsAction = await vscode.window.showErrorMessage(
+			"dotenc installation failed. Check logs for details.",
+			SHOW_LOGS_ACTION_LABEL,
+		)
+		if (logsAction === SHOW_LOGS_ACTION_LABEL) {
+			outputChannel.show(true)
+		}
+		return false
+	}
+
+	const installResult = await runProcess(
+		installCommand.install.executable,
+		cwd,
+		installCommand.install.args,
+		downloadResult.stdout,
+	)
+	appendProcessLogs(
+		outputChannel,
+		`[dotenc] ${installCommand.install.executable} ${installCommand.install.args.join(" ") || "(stdin installer)"}`,
 		installResult,
 	)
 

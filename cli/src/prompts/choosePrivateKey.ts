@@ -1,3 +1,4 @@
+import crypto from "node:crypto"
 import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
@@ -8,6 +9,7 @@ import {
 	type PrivateKeyEntry,
 	type UnsupportedPrivateKeyEntry,
 } from "../helpers/getPrivateKeys"
+import { validatePublicKey } from "../helpers/validatePublicKey"
 
 export const CREATE_NEW_PRIVATE_KEY_CHOICE = "__dotenc_create_new_private_key__"
 
@@ -93,6 +95,38 @@ const buildPromptChoices = (
 	return choices
 }
 
+function classifySupportedKeys(keys: PrivateKeyEntry[]): {
+	supportedKeys: PrivateKeyEntry[]
+	policyUnsupportedKeys: UnsupportedPrivateKeyEntry[]
+} {
+	const supportedKeys: PrivateKeyEntry[] = []
+	const policyUnsupportedKeys: UnsupportedPrivateKeyEntry[] = []
+
+	for (const key of keys) {
+		try {
+			const publicKey = crypto.createPublicKey(key.privateKey)
+			const validation = validatePublicKey(publicKey)
+			if (!validation.valid) {
+				policyUnsupportedKeys.push({
+					name: key.name,
+					reason: validation.reason,
+				})
+				continue
+			}
+		} catch {
+			policyUnsupportedKeys.push({
+				name: key.name,
+				reason: "invalid private key format",
+			})
+			continue
+		}
+
+		supportedKeys.push(key)
+	}
+
+	return { supportedKeys, policyUnsupportedKeys }
+}
+
 export const _runChoosePrivateKeyPrompt = async (
 	message: string,
 	deps: ChoosePrivateKeyPromptDeps = defaultChoosePrivateKeyPromptDeps,
@@ -103,19 +137,21 @@ export const _runChoosePrivateKeyPrompt = async (
 			passphraseProtectedKeys,
 			unsupportedKeys = [],
 		} = await deps.getPrivateKeys()
-		const privateKeyMap = new Map(keys.map((key) => [key.name, key]))
+		const { supportedKeys, policyUnsupportedKeys } = classifySupportedKeys(keys)
+		const allUnsupportedKeys = [...unsupportedKeys, ...policyUnsupportedKeys]
+		const privateKeyMap = new Map(supportedKeys.map((key) => [key.name, key]))
 
 		if (!deps.isInteractive()) {
-			if (keys.length > 0) {
-				return keys[0]
+			if (supportedKeys.length > 0) {
+				return supportedKeys[0]
 			}
 
 			if (passphraseProtectedKeys.length > 0) {
 				throw new Error(passphraseProtectedKeyError(passphraseProtectedKeys))
 			}
 
-			if (unsupportedKeys.length > 0) {
-				const unsupportedList = unsupportedKeys
+			if (allUnsupportedKeys.length > 0) {
+				const unsupportedList = allUnsupportedKeys
 					.map((key) => `  - ${key.name}: ${key.reason}`)
 					.join("\n")
 				throw new Error(
@@ -133,7 +169,7 @@ export const _runChoosePrivateKeyPrompt = async (
 				type: "list",
 				name: "key",
 				message,
-				choices: buildPromptChoices(keys, unsupportedKeys),
+				choices: buildPromptChoices(supportedKeys, allUnsupportedKeys),
 			},
 		])
 

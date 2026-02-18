@@ -65,7 +65,7 @@
 				"dotenc.executablePath": {
 					"type": "string",
 					"default": "dotenc",
-					"scope": "resource",
+					"scope": "machine-overridable",
 					"description": "Path to the dotenc CLI executable used by this extension."
 				}
 			}

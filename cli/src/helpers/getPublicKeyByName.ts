@@ -1,8 +1,14 @@
 import crypto from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { validateKeyName } from "./validateKeyName"
 
 export const getPublicKeyByName = async (name: string) => {
+	const keyNameValidation = validateKeyName(name)
+	if (!keyNameValidation.valid) {
+		throw new Error(keyNameValidation.reason)
+	}
+
 	const filePath = path.join(process.cwd(), ".dotenc", `${name}.pub`)
 	let publicKeyInput: string
 

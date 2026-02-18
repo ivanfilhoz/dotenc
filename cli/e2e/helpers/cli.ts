@@ -4,22 +4,64 @@ import path from "node:path"
 
 const CLI_PATH = "/app/cli/src/cli.ts"
 
-export function generateEd25519Key(homeDir: string): void {
+type Ed25519KeyOptions = {
+	fileName?: string
+	passphrase?: string
+}
+
+type RsaKeyOptions = {
+	fileName?: string
+	bits?: number
+	passphrase?: string
+}
+
+export function generateEd25519Key(
+	homeDir: string,
+	options: Ed25519KeyOptions = {},
+): void {
 	const sshDir = path.join(homeDir, ".ssh")
 	mkdirSync(sshDir, { recursive: true })
+	const fileName = options.fileName ?? "id_ed25519"
+	const passphrase = options.passphrase ?? ""
 	const result = Bun.spawnSync(
-		["ssh-keygen", "-t", "ed25519", "-f", path.join(sshDir, "id_ed25519"), "-N", "", "-q"],
+		[
+			"ssh-keygen",
+			"-t",
+			"ed25519",
+			"-f",
+			path.join(sshDir, fileName),
+			"-N",
+			passphrase,
+			"-q",
+		],
 	)
 	if (result.exitCode !== 0) {
 		throw new Error(`ssh-keygen ed25519 failed: ${result.stderr.toString()}`)
 	}
 }
 
-export function generateRsaKey(homeDir: string): void {
+export function generateRsaKey(
+	homeDir: string,
+	options: RsaKeyOptions = {},
+): void {
 	const sshDir = path.join(homeDir, ".ssh")
 	mkdirSync(sshDir, { recursive: true })
+	const fileName = options.fileName ?? "id_rsa"
+	const bits = options.bits ?? 2048
+	const passphrase = options.passphrase ?? ""
 	const result = Bun.spawnSync(
-		["ssh-keygen", "-t", "rsa", "-b", "2048", "-f", path.join(sshDir, "id_rsa"), "-N", "", "-q"],
+		[
+			"ssh-keygen",
+			"-t",
+			"rsa",
+			"-b",
+			String(bits),
+			"-f",
+			path.join(sshDir, fileName),
+			"-N",
+			passphrase,
+			"-q",
+		],
 	)
 	if (result.exitCode !== 0) {
 		throw new Error(`ssh-keygen rsa failed: ${result.stderr.toString()}`)
@@ -27,14 +69,7 @@ export function generateRsaKey(homeDir: string): void {
 }
 
 export function generatePassphraseEd25519Key(homeDir: string): void {
-	const sshDir = path.join(homeDir, ".ssh")
-	mkdirSync(sshDir, { recursive: true })
-	const result = Bun.spawnSync(
-		["ssh-keygen", "-t", "ed25519", "-f", path.join(sshDir, "id_ed25519"), "-N", "secret", "-q"],
-	)
-	if (result.exitCode !== 0) {
-		throw new Error(`ssh-keygen passphrase ed25519 failed: ${result.stderr.toString()}`)
-	}
+	generateEd25519Key(homeDir, { passphrase: "secret" })
 }
 
 export function runCli(

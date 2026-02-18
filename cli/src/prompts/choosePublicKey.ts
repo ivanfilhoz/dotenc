@@ -39,8 +39,19 @@ export async function _runChoosePublicKeyPrompt(
 			name: "key",
 			message,
 			choices: publicKeys.map((key) => key.name.replace(".pub", "")),
+			validate: (input: unknown) => {
+				if (!multiple) {
+					return true
+				}
+
+				if (Array.isArray(input) && input.length > 0) {
+					return true
+				}
+
+				return "Select at least one public key."
+			},
 		},
-	])) as { key: string | string[] }
+	] as any)) as { key: string | string[] }
 
 	if (multiple) {
 		return Array.isArray(result.key) ? result.key : [result.key]

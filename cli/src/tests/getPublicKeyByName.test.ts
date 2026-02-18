@@ -41,6 +41,12 @@ describe("getPublicKeyByName", () => {
 		)
 	})
 
+	test("throws when key name is invalid", async () => {
+		await expect(getPublicKeyByName("../alice")).rejects.toThrow(
+			/Invalid key name/,
+		)
+	})
+
 	test("throws when key file has invalid PEM", async () => {
 		await expect(getPublicKeyByName("bad")).rejects.toThrow(
 			/Invalid public key format for bad/,

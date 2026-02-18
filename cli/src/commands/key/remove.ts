@@ -6,6 +6,7 @@ import { decryptEnvironmentData } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
 import { getEnvironmentByName } from "../../helpers/getEnvironmentByName"
 import { getEnvironments } from "../../helpers/getEnvironments"
+import { validateKeyName } from "../../helpers/validateKeyName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { confirmPrompt } from "../../prompts/confirm"
 
@@ -16,6 +17,12 @@ export const keyRemoveCommand = async (nameArg: string) => {
 		name = await choosePublicKeyPrompt(
 			"Which public key do you want to remove?",
 		)
+	}
+
+	const keyNameValidation = validateKeyName(name)
+	if (!keyNameValidation.valid) {
+		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
+		process.exit(1)
 	}
 
 	const filePath = path.join(process.cwd(), ".dotenc", `${name}.pub`)

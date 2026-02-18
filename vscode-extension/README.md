@@ -30,7 +30,17 @@ curl -fsSL https://dotenc.org/install.sh | sh
 ## Settings
 
 - `dotenc.autoOpenNative`: automatically open `.env.<environment>.enc` files in the decrypted editor (default: `true`).
-- `dotenc.executablePath`: path to the `dotenc` executable (default: `dotenc`).
+- `dotenc.executablePath`: path to the `dotenc` executable (default: `dotenc`). Configure this in your user/remote settings (not workspace settings).
+
+## Update checks
+
+On startup, the extension checks whether a newer `dotenc` CLI version is available.
+
+To disable CLI update checks:
+
+```sh
+export DOTENC_SKIP_UPDATE_CHECK=1
+```
 
 ## Reference
 

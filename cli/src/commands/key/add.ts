@@ -7,6 +7,7 @@ import chalk from "chalk"
 import inquirer from "inquirer"
 import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
+import { validateKeyName } from "../../helpers/validateKeyName"
 import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
@@ -218,17 +219,25 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		name = await inputNamePrompt(
 			"What name do you want to give to the new public key?",
 		)
+	}
 
-		if (existsSync(path.join(process.cwd(), ".dotenc", `${name}.pub`))) {
-			console.error(
-				`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
-			)
-			process.exit(1)
-		}
+	const keyNameValidation = validateKeyName(name)
+	if (!keyNameValidation.valid) {
+		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
+		process.exit(1)
+	}
+
+	const keyOutputPath = path.join(process.cwd(), ".dotenc", `${name}.pub`)
+
+	if (existsSync(keyOutputPath)) {
+		console.error(
+			`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
+		)
+		process.exit(1)
 	}
 
 	await fs.writeFile(
-		path.join(process.cwd(), ".dotenc", `${name}.pub`),
+		keyOutputPath,
 		publicKeyOutput,
 		"utf-8",
 	)

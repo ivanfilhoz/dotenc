@@ -6,10 +6,23 @@ async function runProcess(executable, cwd, args, stdinInput) {
 		let stderr = ""
 		let settled = false
 
-		const child = spawn(executable, args, {
+		const normalizedExecutable =
+			typeof executable === "string" ? executable.trim() : ""
+		if (!normalizedExecutable) {
+			resolve({
+				code: 1,
+				stdout,
+				stderr,
+				error: new Error("dotenc executable path is empty."),
+			})
+			return
+		}
+
+		const child = spawn(normalizedExecutable, args, {
 			cwd,
 			env: process.env,
-			shell: process.platform === "win32",
+			shell: false,
+			windowsHide: true,
 		})
 
 		child.stdout.on("data", (chunk) => {

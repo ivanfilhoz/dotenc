@@ -99,8 +99,14 @@ describe("core helpers", () => {
 	test("provides curl installer command on unix-like platforms", () => {
 		const command = getDotencInstallCommand("darwin")
 		expect(command).toEqual({
-			executable: "sh",
-			args: ["-c", "curl -fsSL https://dotenc.org/install.sh | sh"],
+			download: {
+				executable: "curl",
+				args: ["-fsSL", "https://dotenc.org/install.sh"],
+			},
+			install: {
+				executable: "sh",
+				args: [],
+			},
 		})
 	})
 

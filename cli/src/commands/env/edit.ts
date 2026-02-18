@@ -9,6 +9,7 @@ import { decryptEnvironment } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
 import { getDefaultEditor } from "../../helpers/getDefaultEditor"
 import { getEnvironmentByName } from "../../helpers/getEnvironmentByName"
+import { splitCommand } from "../../helpers/splitCommand"
 import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import type { Environment } from "../../schemas/environment"
@@ -75,11 +76,18 @@ ${separator}${content}`
 	process.on("SIGINT", onSignal)
 	process.on("SIGTERM", onSignal)
 
-	const editor = await getDefaultEditor()
+	const editorCommand = await getDefaultEditor()
 
 	try {
+		const [editorExecutable, ...editorArgs] = splitCommand(editorCommand)
+		if (!editorExecutable) {
+			throw new Error("No editor command configured.")
+		}
+
 		// This will block until the editor process is closed
-		const result = spawnSync(editor, [tempFilePath], { stdio: "inherit" })
+		const result = spawnSync(editorExecutable, [...editorArgs, tempFilePath], {
+			stdio: "inherit",
+		})
 
 		if (result.error) {
 			throw result.error
@@ -112,7 +120,7 @@ ${separator}${content}`
 			)
 		}
 	} catch (error: unknown) {
-		console.error(`\nFailed to open editor: ${editor}`)
+		console.error(`\nFailed to open editor: ${editorCommand}`)
 		console.error(error instanceof Error ? error.message : error)
 	} finally {
 		process.removeListener("SIGINT", onSignal)

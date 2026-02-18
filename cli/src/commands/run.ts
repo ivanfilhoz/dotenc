@@ -6,6 +6,7 @@ import { validateEnvironmentName } from "../helpers/validateEnvironmentName"
 
 type Options = {
 	env?: string
+	strict?: boolean
 }
 
 type RunCommandDeps = {
@@ -38,7 +39,7 @@ export const runCommand = async (
 
 	if (!environmentName) {
 		deps.logError(
-			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo start a new environment, use "dotenc init [environment]".',
+			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo initialize dotenc, run "dotenc init --name <your-name>". To add environments later, use "dotenc env create <environment>".',
 		)
 		deps.exit(1)
 	}
@@ -79,6 +80,13 @@ export const runCommand = async (
 	}
 
 	if (failureCount > 0) {
+		if (options.strict) {
+			deps.logError(
+				`${chalk.red("Error:")} ${failureCount} of ${environments.length} environment(s) failed to load and strict mode is enabled.`,
+			)
+			deps.exit(1)
+		}
+
 		deps.logError(
 			`${chalk.yellow("Warning:")} ${failureCount} of ${environments.length} environment(s) failed to load.`,
 		)

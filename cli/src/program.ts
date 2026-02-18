@@ -112,6 +112,12 @@ program
 			"the environments to run the command in",
 		),
 	)
+	.addOption(
+		new Option(
+			"--strict",
+			"fail if any selected environment fails to load",
+		),
+	)
 	.description("run a command in an environment")
 	.action(runCommand)
 

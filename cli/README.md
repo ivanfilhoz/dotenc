@@ -47,6 +47,9 @@ Done.
   - [Editing an environment](#editing-an-environment)
   - [Run commands on an environment](#run-commands-on-an-environment)
   - [Checking your identity](#checking-your-identity)
+- [Tooling and Maintenance](#tooling-and-maintenance)
+  - [CLI updates](#cli-updates)
+  - [Editor integration helpers](#editor-integration-helpers)
 - [Team Collaboration](#team-collaboration)
   - [Granting access to a new team member](#granting-access-to-a-new-team-member)
   - [Revoking access from a team member](#revoking-access-from-a-team-member)
@@ -170,6 +173,7 @@ dotenc env create [environment]
 ```
 
 This command creates a new encrypted environment file under the specified name (e.g., `.env.development.enc`). Your personal environment is created automatically during `init`.
+Environment names may contain letters, numbers, dots (`.`), hyphens (`-`), and underscores (`_`).
 
 ### Listing environments
 
@@ -192,6 +196,9 @@ Example:
 ```bash
 dotenc config editor vim
 ```
+
+Currently supported `dotenc config` key: `editor`.
+You can include editor arguments, for example: `dotenc config editor "code --wait"`.
 
 ### Run commands on an environment
 
@@ -229,6 +236,12 @@ dotenc run -e base,production node app.js
 
 In the example above, `production` will override any variables also present in `base`.
 
+If you want `run` to fail when any selected environment cannot be loaded, use strict mode:
+
+```bash
+dotenc run --strict -e base,production node app.js
+```
+
 ### Checking your identity
 
 ```bash
@@ -236,6 +249,28 @@ dotenc whoami
 ```
 
 Shows your name, active SSH key, fingerprint, and the environments you have access to in this project.
+
+## Tooling and Maintenance
+
+### CLI updates
+
+```bash
+dotenc update
+```
+
+Runs the appropriate update flow for your installation method (Homebrew, Scoop, npm, or manual binary instructions).
+
+### Editor integration helpers
+
+```bash
+dotenc tools install-vscode-extension
+dotenc tools install-agent-skill
+dotenc tools install-agent-skill --force
+```
+
+- `install-vscode-extension` adds extension recommendations for supported editors and can open the extension page.
+- `install-agent-skill` installs the dotenc agent skill through `npx skills add`.
+- `--force` maps to non-interactive mode (`-y`) for automation.
 
 ## Team Collaboration
 
@@ -267,7 +302,7 @@ One of your team members, John, is leaving the company. You need to revoke his a
 dotenc key remove john
 ```
 
-This will delete his key from the repository and automatically reencrypt all the environments. Then, commit your changes:
+This will delete his key from the repository and attempt to revoke and re-encrypt every affected environment. If one environment cannot be decrypted on your machine, dotenc will warn you so you can revoke access manually or rotate that environment. Then, commit your changes:
 
 ```bash
 git checkout -b revoke-john-key
@@ -408,6 +443,7 @@ Adds a public key into the project (`.dotenc/<name>.pub`).
 - `-f, --from-file <file>` — Read a public (or private) key from a PEM file.
 - `-s, --from-string <pem_string>` — Use a PEM string directly.
 - No arguments — Interactive mode: choose from your SSH keys or paste a PEM public key.
+- Key names may contain letters, numbers, dots (`.`), hyphens (`-`), and underscores (`_`).
 
 ### Listing public keys
 
@@ -423,7 +459,7 @@ Lists all public keys in the project, showing each key's name and algorithm.
 dotenc key remove [name]
 ```
 
-Removes a public key from the project, automatically revoking it from every environment.
+Removes a public key from the project, attempting to revoke it from every environment.
 
 ## Tips
 
@@ -443,6 +479,16 @@ Alternatively, the `DOTENC_ENV` variable can be used to set the environment, so 
 ```bash
   export DOTENC_ENV="production"
   dotenc run node app.js
+```
+
+### Update checks
+
+The CLI checks for new versions in the background (at most once every 6 hours) and prints a notification when an update is available.
+
+To disable these checks:
+
+```bash
+export DOTENC_SKIP_UPDATE_CHECK=1
 ```
 
 

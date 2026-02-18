@@ -6,8 +6,14 @@ function getDotencInstallCommand(platform = process.platform) {
 	}
 
 	return {
-		executable: "sh",
-		args: ["-c", `curl -fsSL ${DOTENC_INSTALL_SCRIPT_URL} | sh`],
+		download: {
+			executable: "curl",
+			args: ["-fsSL", DOTENC_INSTALL_SCRIPT_URL],
+		},
+		install: {
+			executable: "sh",
+			args: [],
+		},
 	}
 }
 

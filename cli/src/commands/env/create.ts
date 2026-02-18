@@ -83,6 +83,12 @@ export const createCommand = async (
 				true,
 			)
 	const publicKeys = _normalizePublicKeyNamesForCreate(publicKeySelection)
+	if (publicKeys.length === 0) {
+		console.error(
+			`${chalk.red("Error:")} select at least one public key before creating an environment.`,
+		)
+		process.exit(1)
+	}
 	const dataKey = createDataKey()
 
 	const content = initialContent ?? `# ${environmentName} environment\n`
@@ -113,6 +119,13 @@ export const createCommand = async (
 			encryptedDataKey: encrypted.toString("base64"),
 			algorithm: publicKey.algorithm,
 		})
+	}
+
+	if (environmentJson.keys.length === 0) {
+		console.error(
+			`${chalk.red("Error:")} no valid public keys were selected. Environment creation aborted.`,
+		)
+		process.exit(1)
 	}
 
 	await fs.writeFile(
