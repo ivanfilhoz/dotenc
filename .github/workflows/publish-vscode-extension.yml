@@ -1,11 +1,14 @@
-name: Publish VS Code Extension (disabled)
+name: Publish VS Code Extension
 
 on:
+  push:
+    branches:
+      - main
+      - beta
   workflow_dispatch:
 
 jobs:
   publish:
-    if: ${{ false }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,16 +24,45 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Check if version has been bumped
+        id: version-check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger — skipping version check."
+            echo "bumped=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          VERSION=$(node -p "require('./vscode-extension/package.json').version")
+          PUBLISHED_VERSION=$(curl -s -X POST \
+            "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json;api-version=7.2-preview.1" \
+            -d '{"filters":[{"criteria":[{"filterType":7,"value":"dotenc.dotenc"}]}],"flags":914}' \
+            | jq -r '.results[0].extensions[0].versions[0].version // "0.0.0"')
+
+          if [ "$VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "Version has not been bumped."
+            echo "bumped=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version has been bumped to $VERSION."
+            echo "bumped=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install extension dependencies
+        if: steps.version-check.outputs.bumped == 'true'
         run: cd vscode-extension && bun install --frozen-lockfile
 
       - name: Typecheck extension
+        if: steps.version-check.outputs.bumped == 'true'
         run: cd vscode-extension && bun run typecheck
 
       - name: Run extension unit tests
+        if: steps.version-check.outputs.bumped == 'true'
         run: cd vscode-extension && bun run test
 
       - name: Publish to VS Code Marketplace
+        if: steps.version-check.outputs.bumped == 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
@@ -47,6 +79,7 @@ jobs:
           fi
 
       - name: Publish to OpenVSX
+        if: steps.version-check.outputs.bumped == 'true'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
