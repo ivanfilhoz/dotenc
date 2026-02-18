@@ -14,9 +14,13 @@ type UpdateCommandDeps = {
 	exit: (code: number) => never
 }
 
-const runPackageManagerCommand = (command: string, args: string[]) =>
+const runPackageManagerCommand = (
+	command: string,
+	args: string[],
+	spawnImpl: typeof spawn = spawn,
+) =>
 	new Promise<number>((resolve, reject) => {
-		const child = spawn(command, args, {
+		const child = spawnImpl(command, args, {
 			stdio: "inherit",
 			shell: process.platform === "win32",
 		})
@@ -24,6 +28,8 @@ const runPackageManagerCommand = (command: string, args: string[]) =>
 		child.on("error", reject)
 		child.on("exit", (code) => resolve(code ?? 1))
 	})
+
+export const _runPackageManagerCommand = runPackageManagerCommand
 
 const defaultDeps: UpdateCommandDeps = {
 	detectInstallMethod,

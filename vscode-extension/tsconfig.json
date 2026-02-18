@@ -9,5 +9,5 @@
 		"strict": false,
 		"types": ["node"]
 	},
-	"include": ["src/core.js", "src/extension.js", "src/vscode.d.ts"]
+	"include": ["src/**/*.js", "src/vscode.d.ts"]
 }

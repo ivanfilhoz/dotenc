@@ -1,17 +1,38 @@
 # dotenc VS Code Extension
 
-This extension provides seamless editing for encrypted dotenc files:
+Open encrypted dotenc environment files as regular dotenv documents in VS Code.
 
-- Opens `.env.<environment>.enc` files as decrypted plaintext for authorized users.
-- Saves plaintext changes back as encrypted content.
-- Shows a clear access message with team onboarding instructions when you do not have access.
+## What you get
 
-## Requirements
+- Open `.env.<environment>.enc` directly and edit decrypted content in the native editor.
+- Save normally; the extension re-encrypts content on write.
+- Native editor features for dotenv files, including syntax highlighting.
+- Inline visibility of who has access to the current environment while editing.
+- `Open Encrypted Source` status bar action for troubleshooting.
 
-- `dotenc` CLI available in your PATH, or set `dotenc.executablePath` in VS Code settings.
-- `dotenc` CLI version `0.4.6` or newer.
+## Prerequisites
+
+- `dotenc` CLI `0.5.2` or newer.
 - A dotenc project initialized in your workspace.
+
+Install the CLI with the official script:
+
+```sh
+curl -fsSL https://dotenc.org/install.sh | sh
+```
+
+## Usage
+
+- Open any `.env.<environment>.enc` file in VS Code.
+- Or run `dotenc: Open Decrypted Environment` from the Command Palette.
+- Use `dotenc: Open Encrypted Source` when you want to inspect the raw encrypted file.
 
 ## Settings
 
-- `dotenc.executablePath`: path to the dotenc executable (default: `dotenc`).
+- `dotenc.autoOpenNative`: automatically open `.env.<environment>.enc` files in the decrypted editor (default: `true`).
+- `dotenc.executablePath`: path to the `dotenc` executable (default: `dotenc`).
+
+## Reference
+
+- Repository: https://github.com/ivanfilhoz/dotenc
+- CLI and workflow docs: https://github.com/ivanfilhoz/dotenc#readme

@@ -1,15 +1,13 @@
 const { describe, expect, test } = require("bun:test")
-const {
-	MIN_DOTENC_VERSION,
-	formatDetectedVersion,
-	getFailureSteps,
-	getFailureUserMessage,
-	isVersionSupported,
-	mapFailureCode,
-	parseEnvironmentName,
-	parseJsonPayload,
-	stripAnsi,
-} = require("./core")
+const { formatDetectedVersion } = require("../../src/helpers/formatDetectedVersion")
+const { getFailureSteps } = require("../../src/helpers/getFailureSteps")
+const { getFailureUserMessage } = require("../../src/helpers/getFailureUserMessage")
+const { isVersionSupported } = require("../../src/helpers/isVersionSupported")
+const { mapFailureCode } = require("../../src/helpers/mapFailureCode")
+const { MIN_DOTENC_VERSION } = require("../../src/helpers/minDotencVersion")
+const { parseEnvironmentName } = require("../../src/helpers/parseEnvironmentName")
+const { parseJsonPayload } = require("../../src/helpers/parseJsonPayload")
+const { stripAnsi } = require("../../src/helpers/stripAnsi")
 
 describe("core helpers", () => {
 	test("parses .env.<name>.enc filenames", () => {
@@ -31,16 +29,16 @@ describe("core helpers", () => {
 	})
 
 	test("supports versions >= minimum", () => {
-		expect(isVersionSupported("0.4.6", MIN_DOTENC_VERSION)).toBe(true)
-		expect(isVersionSupported("0.4.9", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.5.2", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.5.9", MIN_DOTENC_VERSION)).toBe(true)
 		expect(isVersionSupported("1.0.0", MIN_DOTENC_VERSION)).toBe(true)
-		expect(isVersionSupported("0.4.5", MIN_DOTENC_VERSION)).toBe(false)
-		expect(isVersionSupported("v0.4.6", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.5.1", MIN_DOTENC_VERSION)).toBe(false)
+		expect(isVersionSupported("v0.5.2", MIN_DOTENC_VERSION)).toBe(true)
 		expect(isVersionSupported("invalid", MIN_DOTENC_VERSION)).toBe(false)
 	})
 
 	test("extracts normalized detected versions", () => {
-		expect(formatDetectedVersion("v0.4.6")).toBe("0.4.6")
+		expect(formatDetectedVersion("v0.5.2")).toBe("0.5.2")
 		expect(formatDetectedVersion("dotenc version 0.5.0")).toBe("0.5.0")
 		expect(formatDetectedVersion("unknown")).toBe("unknown")
 	})

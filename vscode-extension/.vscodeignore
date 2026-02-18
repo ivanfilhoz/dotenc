@@ -2,6 +2,6 @@
 .gitignore
 bun.lock
 tsconfig.json
-test/**
+tests/**
 src/**/*.test.js
 src/vscode.d.ts

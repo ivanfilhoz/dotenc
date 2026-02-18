@@ -21,36 +21,60 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCustomEditor:dotenc.envEditor"
+		"onCommand:dotenc.openNative",
+		"onCommand:dotenc.openEncryptedSource",
+		"onFileSystem:dotenc",
+		"onStartupFinished"
 	],
 	"main": "./src/extension.js",
 	"contributes": {
-		"customEditors": [
+		"commands": [
 			{
-				"viewType": "dotenc.envEditor",
-				"displayName": "dotenc Environment Editor",
-				"selector": [
-					{
-						"filenamePattern": "**/.env.*.enc"
-					}
-				],
-				"priority": "default"
+				"command": "dotenc.openNative",
+				"title": "dotenc: Open Decrypted Environment"
+			},
+			{
+				"command": "dotenc.openEncryptedSource",
+				"title": "dotenc: Open Encrypted Source"
 			}
 		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "dotenc.openNative",
+					"when": "resourceScheme == file && resourceFilename =~ /^\\.env\\..+\\.enc$/",
+					"group": "navigation@1"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "dotenc.openNative",
+					"when": "resourceScheme == file && resourceFilename =~ /^\\.env\\..+\\.enc$/",
+					"group": "navigation"
+				}
+			]
+		},
 		"configuration": {
 			"title": "dotenc",
 			"properties": {
+				"dotenc.autoOpenNative": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically replace opened .env.<environment>.enc files with the decrypted native dotenc editor."
+				},
 				"dotenc.executablePath": {
 					"type": "string",
 					"default": "dotenc",
+					"scope": "resource",
 					"description": "Path to the dotenc CLI executable used by this extension."
 				}
 			}
 		}
 	},
 	"scripts": {
-		"test": "bun test ./src/core.test.js",
-		"test:integration": "node ./test/run-integration.js",
+		"test": "bun test ./tests/unit/core.test.js",
+		"test:coverage": "bun test ./tests/unit/core.test.js --coverage --coverage-reporter lcov --coverage-dir coverage",
+		"test:integration": "node ./tests/run-integration.js",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"package": "vsce package",
 		"publish:vsce": "vsce publish --skip-duplicate",

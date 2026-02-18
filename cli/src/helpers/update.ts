@@ -111,7 +111,16 @@ export const isVersionNewer = (candidate: string, current: string): boolean =>
 	compareVersions(candidate, current) > 0
 
 type FetchLatestVersionOptions = {
-	fetchImpl?: typeof fetch
+	fetchImpl?: (
+		input: string,
+		init?: {
+			headers?: Record<string, string>
+			signal?: AbortSignal
+		},
+	) => Promise<{
+		ok: boolean
+		json: () => Promise<{ version?: unknown }>
+	}>
 	timeoutMs?: number
 }
 

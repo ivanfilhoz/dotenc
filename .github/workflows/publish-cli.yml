@@ -53,15 +53,23 @@ jobs:
         run: cd cli && bun test src/tests --coverage --coverage-reporter lcov --coverage-dir coverage
 
       - name: Run VS Code extension tests
-        run: cd vscode-extension && bun run test
+        run: cd vscode-extension && bun run test:coverage
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload CLI coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./cli/coverage/lcov.info
-          flags: unit
-          name: unit-tests
+          flags: cli
+          name: cli-unit-tests
+
+      - name: Upload VS Code extension coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./vscode-extension/coverage/lcov.info
+          flags: vscode-extension
+          name: vscode-extension-unit-tests
 
   e2e:
     runs-on: ubuntu-latest

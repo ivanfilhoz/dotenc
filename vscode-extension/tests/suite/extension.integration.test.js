@@ -3,9 +3,8 @@ const fs = require("node:fs")
 const path = require("node:path")
 const vscode = require("vscode")
 
-const GET_DOCUMENT_STATE_COMMAND = "dotenc.__test.getDocumentState"
-const SET_DOCUMENT_CONTENT_COMMAND = "dotenc.__test.setDocumentContent"
-const SAVE_DOCUMENT_COMMAND = "dotenc.__test.saveDocument"
+const OPEN_NATIVE_COMMAND = "dotenc.openNative"
+const OPEN_ENCRYPTED_SOURCE_COMMAND = "dotenc.openEncryptedSource"
 
 function readJsonLines(filePath) {
 	if (!fs.existsSync(filePath)) {
@@ -34,7 +33,7 @@ function appendLog(entry) {
 }
 
 if (args.length === 1 && args[0] === "--version") {
-	console.log("dotenc version 0.4.6")
+	console.log("dotenc version 0.5.2")
 	process.exit(0)
 }
 
@@ -55,8 +54,13 @@ if (args[0] === "env" && args[1] === "decrypt") {
 		process.exit(1)
 	}
 
+	const grantedUsers = environment === "allowed" ? ["alice", "bob"] : ["ops"]
 	console.log(
-		JSON.stringify({ ok: true, content: \`ALLOWED_\${environment.toUpperCase()}=1\` }),
+		JSON.stringify({
+			ok: true,
+			content: \`ALLOWED_\${environment.toUpperCase()}=1\`,
+			grantedUsers,
+		}),
 	)
 	process.exit(0)
 }
@@ -105,20 +109,30 @@ async function waitFor(predicate, timeoutMs = 8000, intervalMs = 100) {
 	throw new Error(`Timed out after ${timeoutMs}ms waiting for condition.`)
 }
 
-async function waitForDocumentState(uriString, predicate) {
-	return waitFor(async () => {
-		const state = await vscode.commands.executeCommand(
-			GET_DOCUMENT_STATE_COMMAND,
-			uriString,
-		)
-		if (!state) {
-			return undefined
+function getFullDocumentRange(document) {
+	return new vscode.Range(
+		document.positionAt(0),
+		document.positionAt(document.getText().length),
+	)
+}
+
+function hasOpenFileTab(uri) {
+	for (const group of vscode.window.tabGroups.all) {
+		for (const tab of group.tabs) {
+			const input = tab.input
+			if (!input || typeof input !== "object") {
+				continue
+			}
+			if (!(input.uri instanceof vscode.Uri)) {
+				continue
+			}
+			if (input.uri.toString() === uri.toString()) {
+				return true
+			}
 		}
-		if (predicate(state)) {
-			return state
-		}
-		return undefined
-	})
+	}
+
+	return false
 }
 
 suite("dotenc VS Code integration", () => {
@@ -164,23 +178,45 @@ suite("dotenc VS Code integration", () => {
 		}
 	})
 
-	test("opens and saves an authorized environment", async () => {
-		const uri = vscode.Uri.file(path.join(workspaceRoot, ".env.allowed.enc"))
+	test("auto-opens authorized environments in native decrypted editor", async () => {
+		const fileUri = vscode.Uri.file(path.join(workspaceRoot, ".env.allowed.enc"))
+		const dotencUri = fileUri.with({ scheme: "dotenc" })
 
-		await vscode.commands.executeCommand("vscode.openWith", uri, "dotenc.envEditor")
+		const fileDocument = await vscode.workspace.openTextDocument(fileUri)
+		await vscode.window.showTextDocument(fileDocument)
 
-		const state = await waitForDocumentState(
-			uri.toString(),
-			(current) => current.canEdit === true,
+		const document = await waitFor(async () =>
+			vscode.workspace.textDocuments.find(
+				(current) => current.uri.toString() === dotencUri.toString(),
+			),
 		)
-		assert.equal(state.content, "ALLOWED_ALLOWED=1")
 
-		await vscode.commands.executeCommand(
-			SET_DOCUMENT_CONTENT_COMMAND,
-			uri.toString(),
-			"API_KEY=rotated",
+		const initialText = document.getText()
+		assert.match(
+			initialText,
+			/^# dotenc-meta:start granted-users \(ignored on save\)\n/,
 		)
-		await vscode.commands.executeCommand(SAVE_DOCUMENT_COMMAND, uri.toString())
+		assert.match(initialText, /^# environment: allowed$/m)
+		assert.match(initialText, /^# - alice$/m)
+		assert.match(initialText, /^# - bob$/m)
+		assert.match(initialText, /\n\nALLOWED_ALLOWED=1$/)
+		assert.equal(document.languageId, "dotenv")
+		assert.equal(
+			vscode.window.activeTextEditor?.document.uri.toString(),
+			dotencUri.toString(),
+		)
+		assert.equal(hasOpenFileTab(fileUri), false)
+
+		const editor = await vscode.window.showTextDocument(document)
+		const nextText = initialText.replace("ALLOWED_ALLOWED=1", "API_KEY=rotated")
+		assert.notEqual(nextText, initialText)
+		const applied = await editor.edit((editBuilder) => {
+			editBuilder.replace(getFullDocumentRange(document), nextText)
+		})
+		assert.equal(applied, true)
+
+		const saved = await document.save()
+		assert.equal(saved, true)
 
 		assert.ok(
 			fs.existsSync(encryptOutputPath),
@@ -200,22 +236,24 @@ suite("dotenc VS Code integration", () => {
 				(entry) => entry.command === "encrypt" && entry.environment === "allowed",
 			),
 		)
+
+		await vscode.commands.executeCommand(OPEN_ENCRYPTED_SOURCE_COMMAND, dotencUri)
+		await waitFor(async () =>
+			vscode.window.activeTextEditor?.document.uri.toString() === fileUri.toString()
+				? true
+				: undefined,
+		)
+		assert.equal(
+			vscode.window.activeTextEditor?.document.uri.toString(),
+			fileUri.toString(),
+		)
 	})
 
-	test("blocks save for unauthorized environments", async () => {
-		const uri = vscode.Uri.file(path.join(workspaceRoot, ".env.locked.enc"))
-
-		await vscode.commands.executeCommand("vscode.openWith", uri, "dotenc.envEditor")
-
-		const state = await waitForDocumentState(
-			uri.toString(),
-			(current) => current.canEdit === false,
-		)
-		assert.equal(state.failure?.code, "ACCESS_DENIED")
+	test("blocks opening unauthorized environments", async () => {
+		const fileUri = vscode.Uri.file(path.join(workspaceRoot, ".env.locked.enc"))
 
 		await assert.rejects(
-			() =>
-				vscode.commands.executeCommand(SAVE_DOCUMENT_COMMAND, uri.toString()),
+			() => vscode.commands.executeCommand(OPEN_NATIVE_COMMAND, fileUri),
 			/You do not have access to "locked"/,
 		)
 

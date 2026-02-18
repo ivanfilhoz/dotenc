@@ -1,5 +1,9 @@
+import { EventEmitter } from "node:events"
 import { beforeEach, describe, expect, mock, test } from "bun:test"
-import { _runInstallAgentSkillCommand } from "../commands/tools/install-agent-skill"
+import {
+	_runInstallAgentSkillCommand,
+	_runNpx,
+} from "../commands/tools/install-agent-skill"
 
 describe("installAgentSkillCommand", () => {
 	let prompt: ReturnType<typeof mock>
@@ -128,5 +132,31 @@ describe("installAgentSkillCommand", () => {
 				},
 			),
 		).rejects.toThrow("exit(1)")
+	})
+})
+
+describe("_runNpx", () => {
+	test("resolves with exit code when npx exits successfully", async () => {
+		const child = new EventEmitter()
+		const spawnImpl = mock(() => {
+			queueMicrotask(() => child.emit("exit", 0))
+			return child as never
+		})
+
+		const result = await _runNpx(["--version"], spawnImpl as never)
+		expect(result).toBe(0)
+		expect(spawnImpl).toHaveBeenCalled()
+	})
+
+	test("rejects when npx process emits an error", async () => {
+		const child = new EventEmitter()
+		const spawnImpl = mock(() => {
+			queueMicrotask(() => child.emit("error", new Error("spawn ENOENT")))
+			return child as never
+		})
+
+		await expect(
+			_runNpx(["skills", "add"], spawnImpl as never),
+		).rejects.toThrow("spawn ENOENT")
 	})
 })
