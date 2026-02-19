@@ -8,6 +8,7 @@ import {
 } from "node:fs"
 import { join } from "node:path"
 import { $ } from "bun"
+import { inlineSvgPlaceholders } from "./helpers"
 
 const ROOT = join(import.meta.dir, "..")
 const SRC = join(ROOT, "src")
@@ -27,6 +28,7 @@ await $`bunx @tailwindcss/cli -i ${join(SRC, "styles/main.css")} -o ${join(DIST,
 // Copy index.html
 console.log("📄 Copying HTML...")
 let html = readFileSync(join(SRC, "index.html"), "utf-8")
+html = inlineSvgPlaceholders(html, PUBLIC)
 // Update CSS path for production (dev uses public/styles.css)
 html = html.replace("/styles.css", "./styles.css")
 html = html.replace("/scripts/main.js", "./scripts/main.js")

@@ -127,7 +127,7 @@ window.addEventListener(
 			if (!link.classList.contains("text-cyber-cyan")) {
 				link.classList.add("text-cyber-muted")
 			}
-			if (link.getAttribute("href") === `#${current}`) {
+			if (current && link.getAttribute("href") === `#${current}`) {
 				link.classList.remove("text-cyber-muted")
 				link.classList.add("text-cyber-cyan")
 			}

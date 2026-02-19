@@ -1,6 +1,7 @@
 import { watch } from "node:fs"
 import { join } from "node:path"
 import { $ } from "bun"
+import { inlineSvgPlaceholders } from "./helpers"
 
 const ROOT = join(import.meta.dir, "..")
 const SRC = join(ROOT, "src")
@@ -108,6 +109,7 @@ const server = Bun.serve({
 			const indexFile = Bun.file(indexPath)
 			if (await indexFile.exists()) {
 				let html = await indexFile.text()
+				html = inlineSvgPlaceholders(html, PUBLIC)
 				html = html.replace("</body>", `${LIVE_RELOAD_SCRIPT}</body>`)
 				return new Response(html, {
 					headers: { "Content-Type": "text/html" },
