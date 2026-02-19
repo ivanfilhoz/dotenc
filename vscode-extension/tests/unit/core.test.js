@@ -1,5 +1,9 @@
 const { describe, expect, test } = require("bun:test")
 const { formatDetectedVersion } = require("../../src/helpers/formatDetectedVersion")
+const {
+	getDotencExecutable,
+	normalizeExecutablePath,
+} = require("../../src/helpers/getDotencExecutable")
 const { getFailureSteps } = require("../../src/helpers/getFailureSteps")
 const { getFailureUserMessage } = require("../../src/helpers/getFailureUserMessage")
 const {
@@ -10,6 +14,7 @@ const { mapFailureCode } = require("../../src/helpers/mapFailureCode")
 const { MIN_DOTENC_VERSION } = require("../../src/helpers/minDotencVersion")
 const { parseEnvironmentName } = require("../../src/helpers/parseEnvironmentName")
 const { parseJsonPayload } = require("../../src/helpers/parseJsonPayload")
+const { runProcess } = require("../../src/helpers/runProcess")
 const { stripAnsi } = require("../../src/helpers/stripAnsi")
 
 describe("core helpers", () => {
@@ -62,6 +67,22 @@ describe("core helpers", () => {
 		expect(mapFailureCode("random failure")).toBe("UNKNOWN")
 	})
 
+	test("maps additional failure messages to explicit codes", () => {
+		expect(mapFailureCode("No private keys found in ~/.ssh")).toBe("NO_IDENTITY")
+		expect(mapFailureCode("No matching key found in keyring")).toBe(
+			"NO_IDENTITY",
+		)
+		expect(mapFailureCode("this key is passphrase-protected")).toBe(
+			"PASSPHRASE_PROTECTED_KEYS",
+		)
+		expect(mapFailureCode("No project found in current directory")).toBe(
+			"PROJECT_NOT_INITIALIZED",
+		)
+		expect(mapFailureCode("Invalid environment name: bad/name")).toBe(
+			"INVALID_ENVIRONMENT_NAME",
+		)
+	})
+
 	test("access denied user message is explicit and actionable", () => {
 		const message = getFailureUserMessage("staging", {
 			code: "ACCESS_DENIED",
@@ -71,6 +92,12 @@ describe("core helpers", () => {
 		expect(message).toContain('You do not have access to "staging".')
 		expect(message).toContain('Run "dotenc whoami"')
 		expect(message).toContain("grant you this environment")
+	})
+
+	test("returns generic message when no failure details exist", () => {
+		expect(getFailureUserMessage("staging", undefined)).toContain(
+			"cannot be edited right now",
+		)
 	})
 
 	test("access denied guidance includes key add and grant commands", () => {
@@ -96,6 +123,18 @@ describe("core helpers", () => {
 		expect(steps.join("\n")).toContain(MIN_DOTENC_VERSION)
 	})
 
+	test("returns setup guidance for project bootstrapping and unknown failures", () => {
+		const initSteps = getFailureSteps("development", {
+			code: "PROJECT_NOT_INITIALIZED",
+		})
+		expect(initSteps.join("\n")).toContain("dotenc init")
+
+		const genericSteps = getFailureSteps("development", {
+			code: "UNKNOWN",
+		})
+		expect(genericSteps.join("\n")).toContain("dotenc whoami")
+	})
+
 	test("provides curl installer command on unix-like platforms", () => {
 		const command = getDotencInstallCommand("darwin")
 		expect(command).toEqual({
@@ -112,5 +151,39 @@ describe("core helpers", () => {
 
 	test("does not provide curl installer command on windows", () => {
 		expect(getDotencInstallCommand("win32")).toBeUndefined()
+	})
+
+	test("normalizes configured executable path values", () => {
+		expect(normalizeExecutablePath("dotenc")).toBe("dotenc")
+		expect(normalizeExecutablePath("  /usr/local/bin/dotenc  ")).toBe(
+			"/usr/local/bin/dotenc",
+		)
+		expect(normalizeExecutablePath("   ")).toBe("dotenc")
+		expect(normalizeExecutablePath(undefined)).toBe("dotenc")
+	})
+
+	test("uses injected executable path resolver when provided", () => {
+		const resolved = getDotencExecutable(undefined, () => "  custom-dotenc  ")
+		expect(resolved).toBe("custom-dotenc")
+	})
+
+	test("runProcess returns error when executable is blank", async () => {
+		const result = await runProcess("   ", process.cwd(), ["--version"])
+		expect(result.code).toBe(1)
+		expect(result.error).toBeInstanceOf(Error)
+		expect(result.error?.message).toContain("empty")
+	})
+
+	test("runProcess executes command and forwards stdin input", async () => {
+		const result = await runProcess(
+			process.execPath,
+			process.cwd(),
+			["-e", "process.stdin.pipe(process.stdout)"],
+			"hello-dotenc",
+		)
+
+		expect(result.code).toBe(0)
+		expect(result.error).toBeUndefined()
+		expect(result.stdout).toBe("hello-dotenc")
 	})
 })

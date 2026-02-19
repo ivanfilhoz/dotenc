@@ -29,7 +29,12 @@ describe("validateKeyName", () => {
 	})
 
 	test("rejects path traversal and separators", () => {
-		for (const name of ["../alice", "..\\alice", "folder/alice", "folder\\alice"]) {
+		for (const name of [
+			"../alice",
+			"..\\alice",
+			"folder/alice",
+			"folder\\alice",
+		]) {
 			const result = validateKeyName(name)
 			expect(result.valid).toBe(false)
 		}

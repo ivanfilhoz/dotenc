@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createCommand } from "../commands/env/create"
@@ -23,7 +30,9 @@ describe("createCommand safety", () => {
 		logSpy = spyOn(console, "log").mockImplementation(() => {})
 
 		const { publicKey } = crypto.generateKeyPairSync("ed25519")
-		const pem = publicKey.export({ type: "spki", format: "pem" }).toString("utf-8")
+		const pem = publicKey
+			.export({ type: "spki", format: "pem" })
+			.toString("utf-8")
 		writeFileSync(path.join(tmpDir, ".dotenc", "alice.pub"), pem, "utf-8")
 	})
 

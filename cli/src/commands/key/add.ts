@@ -19,119 +19,172 @@ type Options = {
 	fromString?: string
 }
 
-export const keyAddCommand = async (nameArg?: string, options?: Options) => {
+type KeyAddCommandDeps = {
+	createPrivateKey: typeof crypto.createPrivateKey
+	createPublicKey: typeof crypto.createPublicKey
+	existsSync: typeof existsSync
+	readFile: typeof fs.readFile
+	mkdir: typeof fs.mkdir
+	writeFile: typeof fs.writeFile
+	homedir: typeof os.homedir
+	cwd: typeof process.cwd
+	prompt: typeof inquirer.prompt
+	isPassphraseProtected: typeof isPassphraseProtected
+	parseOpenSSHPrivateKey: typeof parseOpenSSHPrivateKey
+	validatePublicKey: typeof validatePublicKey
+	validateKeyName: typeof validateKeyName
+	choosePrivateKeyPrompt: typeof choosePrivateKeyPrompt
+	inputKeyPrompt: typeof inputKeyPrompt
+	inputNamePrompt: typeof inputNamePrompt
+	logError: (message: string) => void
+	logInfo: (message: string) => void
+	exit: (code: number) => never
+}
+
+const defaultDeps: KeyAddCommandDeps = {
+	createPrivateKey: crypto.createPrivateKey,
+	createPublicKey: crypto.createPublicKey,
+	existsSync,
+	readFile: fs.readFile,
+	mkdir: fs.mkdir,
+	writeFile: fs.writeFile,
+	homedir: os.homedir,
+	cwd: process.cwd,
+	prompt: inquirer.prompt,
+	isPassphraseProtected,
+	parseOpenSSHPrivateKey,
+	validatePublicKey,
+	validateKeyName,
+	choosePrivateKeyPrompt,
+	inputKeyPrompt,
+	inputNamePrompt,
+	logError: (message) => console.error(message),
+	logInfo: (message) => console.log(message),
+	exit: (code: number) => process.exit(code),
+}
+
+export const _runKeyAddCommand = async (
+	nameArg?: string,
+	options?: Options,
+	depsOverrides: Partial<KeyAddCommandDeps> = {},
+) => {
+	const deps: KeyAddCommandDeps = {
+		...defaultDeps,
+		...depsOverrides,
+	}
+
 	let publicKey: KeyObject | undefined
 
 	if (options?.fromSsh) {
 		// Parse SSH key file (private or public)
 		const sshPath = options.fromSsh.startsWith("~")
-			? path.join(os.homedir(), options.fromSsh.slice(1))
+			? path.join(deps.homedir(), options.fromSsh.slice(1))
 			: options.fromSsh
 
-		if (!existsSync(sshPath)) {
-			console.error(
+		if (!deps.existsSync(sshPath)) {
+			deps.logError(
 				`File ${chalk.cyan(sshPath)} does not exist. Please provide a valid SSH key path.`,
 			)
-			process.exit(1)
+			deps.exit(1)
 		}
 
-		const keyContent = await fs.readFile(sshPath, "utf-8")
+		const keyContent = await deps.readFile(sshPath, "utf-8")
 
-		if (isPassphraseProtected(keyContent)) {
-			console.error(
+		if (deps.isPassphraseProtected(keyContent)) {
+			deps.logError(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			process.exit(1)
+			deps.exit(1)
 		}
 
 		try {
 			// Try as private key first, derive public key
-			const privateKey = crypto.createPrivateKey(keyContent)
-			publicKey = crypto.createPublicKey(privateKey)
+			const privateKey = deps.createPrivateKey(keyContent)
+			publicKey = deps.createPublicKey(privateKey)
 		} catch {
 			// Fallback: try OpenSSH private key format
-			const parsed = parseOpenSSHPrivateKey(keyContent)
+			const parsed = deps.parseOpenSSHPrivateKey(keyContent)
 			if (parsed) {
-				publicKey = crypto.createPublicKey(parsed)
+				publicKey = deps.createPublicKey(parsed)
 			} else {
 				try {
 					// Try as public key
-					publicKey = crypto.createPublicKey(keyContent)
+					publicKey = deps.createPublicKey(keyContent)
 				} catch (error) {
-					console.error(
+					deps.logError(
 						"Invalid SSH key format. Please provide a valid SSH key file.",
 					)
-					console.error(
+					deps.logError(
 						`Details: ${error instanceof Error ? error.message : error}`,
 					)
-					process.exit(1)
+					deps.exit(1)
 				}
 			}
 		}
 	}
 
 	if (options?.fromFile) {
-		if (!existsSync(options.fromFile)) {
-			console.error(
+		if (!deps.existsSync(options.fromFile)) {
+			deps.logError(
 				`File ${chalk.cyan(options.fromFile)} does not exist. Please provide a valid file path.`,
 			)
-			process.exit(1)
+			deps.exit(1)
 		}
 
-		const keyContent = await fs.readFile(options.fromFile, "utf-8")
+		const keyContent = await deps.readFile(options.fromFile, "utf-8")
 
-		if (isPassphraseProtected(keyContent)) {
-			console.error(
+		if (deps.isPassphraseProtected(keyContent)) {
+			deps.logError(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			process.exit(1)
+			deps.exit(1)
 		}
 
 		try {
-			publicKey = crypto.createPublicKey(keyContent)
+			publicKey = deps.createPublicKey(keyContent)
 		} catch {
 			try {
-				const privateKey = crypto.createPrivateKey(keyContent)
-				publicKey = crypto.createPublicKey(privateKey)
+				const privateKey = deps.createPrivateKey(keyContent)
+				publicKey = deps.createPublicKey(privateKey)
 			} catch {
 				// Fallback: try OpenSSH private key format
-				const parsed = parseOpenSSHPrivateKey(keyContent)
+				const parsed = deps.parseOpenSSHPrivateKey(keyContent)
 				if (parsed) {
-					publicKey = crypto.createPublicKey(parsed)
+					publicKey = deps.createPublicKey(parsed)
 				} else {
-					console.error(
+					deps.logError(
 						"Invalid key format. Please provide a valid PEM formatted public or private key.",
 					)
-					process.exit(1)
+					deps.exit(1)
 				}
 			}
 		}
 	}
 
 	if (options?.fromString) {
-		if (isPassphraseProtected(options.fromString)) {
-			console.error(
+		if (deps.isPassphraseProtected(options.fromString)) {
+			deps.logError(
 				`${chalk.red("Error:")} the provided key is passphrase-protected, which is not currently supported by dotenc.`,
 			)
-			process.exit(1)
+			deps.exit(1)
 		}
 
 		try {
-			publicKey = crypto.createPublicKey(options.fromString)
+			publicKey = deps.createPublicKey(options.fromString)
 		} catch {
 			try {
-				const privateKey = crypto.createPrivateKey(options.fromString)
-				publicKey = crypto.createPublicKey(privateKey)
+				const privateKey = deps.createPrivateKey(options.fromString)
+				publicKey = deps.createPublicKey(privateKey)
 			} catch {
 				// Fallback: try OpenSSH private key format
-				const parsed = parseOpenSSHPrivateKey(options.fromString)
+				const parsed = deps.parseOpenSSHPrivateKey(options.fromString)
 				if (parsed) {
-					publicKey = crypto.createPublicKey(parsed)
+					publicKey = deps.createPublicKey(parsed)
 				} else {
-					console.error(
+					deps.logError(
 						"Invalid key format. Please provide a valid PEM formatted public or private key.",
 					)
-					process.exit(1)
+					deps.exit(1)
 				}
 			}
 		}
@@ -139,7 +192,7 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 	// Interactive mode
 	if (!publicKey) {
-		const modePrompt = await inquirer.prompt({
+		const modePrompt = await deps.prompt({
 			type: "list",
 			name: "mode",
 			message:
@@ -151,38 +204,38 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 		})
 
 		if (modePrompt.mode === "paste") {
-			const publicKeyInput = await inputKeyPrompt(
+			const publicKeyInput = await deps.inputKeyPrompt(
 				"Please paste your public key (PEM format):",
 			)
 
 			if (!publicKeyInput) {
-				console.error("No public key provided. Add operation cancelled.")
-				process.exit(1)
+				deps.logError("No public key provided. Add operation cancelled.")
+				deps.exit(1)
 			}
 
 			try {
-				publicKey = crypto.createPublicKey(publicKeyInput)
+				publicKey = deps.createPublicKey(publicKeyInput)
 			} catch (error: unknown) {
-				console.error(
+				deps.logError(
 					"Invalid public key format. Please provide a valid PEM formatted public key.",
 				)
-				console.error(
+				deps.logError(
 					`Details: ${error instanceof Error ? error.message : error}`,
 				)
-				process.exit(1)
+				deps.exit(1)
 			}
 		} else {
 			let selectedKey: Awaited<ReturnType<typeof choosePrivateKeyPrompt>>
 			try {
-				selectedKey = await choosePrivateKeyPrompt(
+				selectedKey = await deps.choosePrivateKeyPrompt(
 					"Which SSH key do you want to add?",
 				)
 			} catch (error) {
-				console.error(error instanceof Error ? error.message : String(error))
-				process.exit(1)
+				deps.logError(error instanceof Error ? error.message : String(error))
+				deps.exit(1)
 			}
 
-			publicKey = crypto.createPublicKey(selectedKey.privateKey)
+			publicKey = deps.createPublicKey(selectedKey.privateKey)
 			// Use SSH key filename as default name if no nameArg
 			if (!nameArg) {
 				nameArg = selectedKey.name
@@ -192,16 +245,16 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 
 	// unexpected path
 	if (!publicKey) {
-		console.error(
+		deps.logError(
 			"An unexpected error occurred. No public key was inferred from the provided input.",
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
-	const validation = validatePublicKey(publicKey)
+	const validation = deps.validatePublicKey(publicKey)
 	if (!validation.valid) {
-		console.error(validation.reason)
-		process.exit(1)
+		deps.logError(validation.reason)
+		deps.exit(1)
 	}
 
 	const publicKeyOutput = publicKey.export({
@@ -210,36 +263,36 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 	})
 
 	// Create folder if it doesn't exist
-	if (!existsSync(path.join(process.cwd(), ".dotenc"))) {
-		await fs.mkdir(path.join(process.cwd(), ".dotenc"))
+	if (!deps.existsSync(path.join(deps.cwd(), ".dotenc"))) {
+		await deps.mkdir(path.join(deps.cwd(), ".dotenc"))
 	}
 
 	let name = nameArg
 	if (!name) {
-		name = await inputNamePrompt(
+		name = await deps.inputNamePrompt(
 			"What name do you want to give to the new public key?",
 		)
 	}
 
-	const keyNameValidation = validateKeyName(name)
+	const keyNameValidation = deps.validateKeyName(name)
 	if (!keyNameValidation.valid) {
-		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
+		deps.exit(1)
 	}
 
-	const keyOutputPath = path.join(process.cwd(), ".dotenc", `${name}.pub`)
+	const keyOutputPath = path.join(deps.cwd(), ".dotenc", `${name}.pub`)
 
-	if (existsSync(keyOutputPath)) {
-		console.error(
+	if (deps.existsSync(keyOutputPath)) {
+		deps.logError(
 			`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
-	await fs.writeFile(
-		keyOutputPath,
-		publicKeyOutput,
-		"utf-8",
-	)
-	console.log(`\nPublic key ${chalk.cyan(name)} added successfully!`)
+	await deps.writeFile(keyOutputPath, publicKeyOutput, "utf-8")
+	deps.logInfo(`\nPublic key ${chalk.cyan(name)} added successfully!`)
+}
+
+export const keyAddCommand = async (nameArg?: string, options?: Options) => {
+	return _runKeyAddCommand(nameArg, options)
 }

@@ -1,18 +1,24 @@
-const vscode = require("vscode")
-
-function getDotencExecutable(uri) {
-	const configured = vscode.workspace
-		.getConfiguration("dotenc", uri ?? null)
-		.get("executablePath", "dotenc")
-
-	if (typeof configured !== "string") {
+function normalizeExecutablePath(value) {
+	if (typeof value !== "string") {
 		return "dotenc"
 	}
 
-	const normalized = configured.trim()
+	const normalized = value.trim()
 	return normalized.length > 0 ? normalized : "dotenc"
+}
+
+function getDotencExecutable(uri, getConfiguredPath) {
+	const configured =
+		typeof getConfiguredPath === "function"
+			? getConfiguredPath(uri)
+			: require("vscode")
+					.workspace.getConfiguration("dotenc", uri ?? null)
+					.get("executablePath", "dotenc")
+
+	return normalizeExecutablePath(configured)
 }
 
 module.exports = {
 	getDotencExecutable,
+	normalizeExecutablePath,
 }

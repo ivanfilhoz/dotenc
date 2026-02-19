@@ -29,44 +29,90 @@ export const _resolveDocsUrl = () => {
 	return repositoryUrl.replace(/^git\+/, "").replace(/\.git$/, "")
 }
 
-export const initCommand = async (options: Options) => {
+type InitCommandDeps = {
+	inputNamePrompt: typeof inputNamePrompt
+	userInfo: typeof os.userInfo
+	choosePrivateKeyPrompt: typeof choosePrivateKeyPrompt
+	createPublicKey: typeof crypto.createPublicKey
+	keyAddCommand: typeof keyAddCommand
+	setupGitDiff: typeof setupGitDiff
+	existsSync: typeof existsSync
+	readFile: typeof fs.readFile
+	unlink: typeof fs.unlink
+	cwd: typeof process.cwd
+	createCommand: typeof createCommand
+	logInfo: (message: string) => void
+	logWarn: (message: string) => void
+	logError: (message: string) => void
+	resolveDocsUrl: typeof _resolveDocsUrl
+	exit: (code: number) => never
+}
+
+const defaultDeps: InitCommandDeps = {
+	inputNamePrompt,
+	userInfo: os.userInfo,
+	choosePrivateKeyPrompt,
+	createPublicKey: crypto.createPublicKey,
+	keyAddCommand,
+	setupGitDiff,
+	existsSync,
+	readFile: fs.readFile,
+	unlink: fs.unlink,
+	cwd: process.cwd,
+	createCommand,
+	logInfo: (message) => console.log(message),
+	logWarn: (message) => console.warn(message),
+	logError: (message) => console.error(message),
+	resolveDocsUrl: _resolveDocsUrl,
+	exit: (code: number) => process.exit(code),
+}
+
+export const _runInitCommand = async (
+	options: Options,
+	depsOverrides: Partial<InitCommandDeps> = {},
+) => {
+	const deps: InitCommandDeps = {
+		...defaultDeps,
+		...depsOverrides,
+	}
+
 	// Prompt for username
 	const username =
 		options.name ||
-		(await inputNamePrompt("What's your name?", os.userInfo().username))
+		(await deps.inputNamePrompt("What's your name?", deps.userInfo().username))
 
 	if (!username) {
-		console.error(`${chalk.red("Error:")} no name provided.`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} no name provided.`)
+		deps.exit(1)
 	}
 
 	let keyEntry: Awaited<ReturnType<typeof choosePrivateKeyPrompt>>
 	try {
-		keyEntry = await choosePrivateKeyPrompt(
+		keyEntry = await deps.choosePrivateKeyPrompt(
 			"Which SSH key would you like to use?",
 		)
 	} catch (error) {
-		console.error(error instanceof Error ? error.message : String(error))
-		process.exit(1)
+		deps.logError(error instanceof Error ? error.message : String(error))
+		deps.exit(1)
 	}
 
 	// Derive and add public key to the project
-	console.log(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)
+	deps.logInfo(`Adding key: ${chalk.cyan(username)} (${keyEntry.algorithm})`)
 
-	const publicKey = crypto.createPublicKey(keyEntry.privateKey)
+	const publicKey = deps.createPublicKey(keyEntry.privateKey)
 	const publicKeyPem = publicKey
 		.export({ type: "spki", format: "pem" })
 		.toString()
 
-	await keyAddCommand(username, {
+	await deps.keyAddCommand(username, {
 		fromString: publicKeyPem,
 	})
 
 	// Set up git diff driver for encrypted files
 	try {
-		setupGitDiff()
+		deps.setupGitDiff()
 	} catch (_error) {
-		console.warn(
+		deps.logWarn(
 			`${chalk.yellow("Warning:")} could not set up git diff driver. You can run ${chalk.gray("dotenc init")} again inside a git repository.`,
 		)
 	}
@@ -74,56 +120,60 @@ export const initCommand = async (options: Options) => {
 	// Create development + personal encrypted environments
 	// If .env exists, use its contents as initial content, then delete it
 	let initialContent: string | undefined
-	const envPath = path.join(process.cwd(), ".env")
+	const envPath = path.join(deps.cwd(), ".env")
 
-	if (existsSync(envPath)) {
-		initialContent = await fs.readFile(envPath, "utf-8")
-		await fs.unlink(envPath)
-		console.log(
+	if (deps.existsSync(envPath)) {
+		initialContent = await deps.readFile(envPath, "utf-8")
+		await deps.unlink(envPath)
+		deps.logInfo(
 			`Migrated ${chalk.gray(".env")} contents to ${chalk.cyan("development")} environment.`,
 		)
 	}
 
-	await createCommand("development", username, initialContent)
+	await deps.createCommand("development", username, initialContent)
 
 	if (username !== "development") {
-		await createCommand(username, username)
+		await deps.createCommand(username, username)
 	}
 
 	// Output success message
-	console.log(`\n${chalk.green("✔")} Initialization complete!`)
-	console.log("\nSome useful tips:")
+	deps.logInfo(`\n${chalk.green("✔")} Initialization complete!`)
+	deps.logInfo("\nSome useful tips:")
 	const developmentEditCmd = chalk.gray("dotenc env edit development")
 	const personalEditCmd = chalk.gray(`dotenc env edit ${username}`)
-	console.log(`- Edit the development environment:\t${developmentEditCmd}`)
+	deps.logInfo(`- Edit the development environment:\t${developmentEditCmd}`)
 	if (username !== "development") {
-		console.log(`- Edit your personal environment:\t${personalEditCmd}`)
+		deps.logInfo(`- Edit your personal environment:\t${personalEditCmd}`)
 	}
 
 	const devEnvironmentChain =
 		username === "development" ? "development" : `development,${username}`
 	const devCmd = chalk.gray("dotenc dev <command>")
-	console.log(
+	deps.logInfo(
 		`- Run in development mode:\t\t${devCmd} ${chalk.gray(`(loads ${devEnvironmentChain})`)}`,
 	)
-	const docsUrl = _resolveDocsUrl()
+	const docsUrl = deps.resolveDocsUrl()
 	if (docsUrl) {
-		console.log(`- Full docs:\t\t\t${chalk.gray(docsUrl)}`)
+		deps.logInfo(`- Full docs:\t\t\t${chalk.gray(docsUrl)}`)
 	}
 
 	// Editor integration suggestions
-	if (existsSync(".claude") || existsSync("CLAUDE.md")) {
-		console.log(
+	if (deps.existsSync(".claude") || deps.existsSync("CLAUDE.md")) {
+		deps.logInfo(
 			`- Install the agent skill:\t\t${chalk.gray("dotenc tools install-agent-skill")}`,
 		)
 	}
 	if (
-		existsSync(".vscode") ||
-		existsSync(".cursor") ||
-		existsSync(".windsurf")
+		deps.existsSync(".vscode") ||
+		deps.existsSync(".cursor") ||
+		deps.existsSync(".windsurf")
 	) {
-		console.log(
+		deps.logInfo(
 			`- Add the editor extension:\t\t${chalk.gray("dotenc tools install-vscode-extension")}`,
 		)
 	}
+}
+
+export const initCommand = async (options: Options) => {
+	return _runInitCommand(options)
 }

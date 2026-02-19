@@ -242,4 +242,50 @@ describe("choosePrivateKeyPrompt", () => {
 			}),
 		).rejects.toThrow("passphrase-protected")
 	})
+
+	test("throws unsupported summary in non-interactive mode when all keys are unsupported", async () => {
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [],
+					passphraseProtectedKeys: [],
+					unsupportedKeys: [
+						{ name: "id_ecdsa", reason: "unsupported algorithm" },
+					],
+				}) as never,
+		)
+
+		await expect(
+			_runChoosePrivateKeyPrompt("Pick key", {
+				getPrivateKeys: getPrivateKeys as never,
+				prompt: mock(async (_questions: unknown) => ({ key: "" })) as never,
+				createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+				logInfo: mock((_message: string) => {}),
+				logWarn: mock((_message: string) => {}),
+				isInteractive: () => false,
+			}),
+		).rejects.toThrow("No supported SSH keys found")
+	})
+
+	test("throws no-keys guidance in non-interactive mode when no keys exist", async () => {
+		const getPrivateKeys = mock(
+			async () =>
+				({
+					keys: [],
+					passphraseProtectedKeys: [],
+					unsupportedKeys: [],
+				}) as never,
+		)
+
+		await expect(
+			_runChoosePrivateKeyPrompt("Pick key", {
+				getPrivateKeys: getPrivateKeys as never,
+				prompt: mock(async (_questions: unknown) => ({ key: "" })) as never,
+				createEd25519SshKey: mock(async () => "/tmp/new-key") as never,
+				logInfo: mock((_message: string) => {}),
+				logWarn: mock((_message: string) => {}),
+				isInteractive: () => false,
+			}),
+		).rejects.toThrow("No SSH keys found in ~/.ssh/")
+	})
 })

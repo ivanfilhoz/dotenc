@@ -33,7 +33,11 @@ export async function _runChoosePublicKeyPrompt(
 
 	const publicKeys = await deps.getPublicKeys()
 
-	const result = (await deps.prompt([
+	const prompt = deps.prompt as unknown as (
+		questions: unknown,
+	) => Promise<unknown>
+
+	const result = (await prompt([
 		{
 			type: multiple ? "checkbox" : "list",
 			name: "key",
@@ -51,7 +55,9 @@ export async function _runChoosePublicKeyPrompt(
 				return "Select at least one public key."
 			},
 		},
-	] as any)) as { key: string | string[] }
+	])) as {
+		key: string | string[]
+	}
 
 	if (multiple) {
 		return Array.isArray(result.key) ? result.key : [result.key]

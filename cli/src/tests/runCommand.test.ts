@@ -196,11 +196,9 @@ describe("runCommand", () => {
 		).rejects.toThrow("exit(1)")
 
 		const logMessages = logError.mock.calls.map((c) => String(c[0]))
-		expect(
-			logMessages.some((m) =>
-				m.includes("strict mode is enabled"),
-			),
-		).toBe(true)
+		expect(logMessages.some((m) => m.includes("strict mode is enabled"))).toBe(
+			true,
+		)
 	})
 
 	test("exits when all environments fail and reports unknown errors", async () => {

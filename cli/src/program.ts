@@ -113,10 +113,7 @@ program
 		),
 	)
 	.addOption(
-		new Option(
-			"--strict",
-			"fail if any selected environment fails to load",
-		),
+		new Option("--strict", "fail if any selected environment fails to load"),
 	)
 	.description("run a command in an environment")
 	.action(runCommand)
