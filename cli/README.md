@@ -1,7 +1,7 @@
 # ![dotenc](/assets/logo.jpg "dotenc logo")
 
 [![NPM Version][npm-image]][npm-url]
-[![Github License][license-image]](https://github.com/ivanfilhoz/dotenc/blob/main/LICENSE)
+[![Github License][license-image]](/LICENSE)
 [![NPM Downloads][downloads-image]][npm-url]
 [![Codecov][codecov-image]][codecov-url]
 

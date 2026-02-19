@@ -1,5 +1,8 @@
 # dotenc VS Code Extension
 
+![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/dotenc.dotenc-vscode-extension)
+![Open VSX Version](https://img.shields.io/open-vsx/v/dotenc/dotenc-vscode-extension)
+
 Open encrypted dotenc environment files as regular dotenv documents in VS Code.
 
 ## What you get
