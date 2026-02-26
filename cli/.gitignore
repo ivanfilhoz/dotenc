@@ -4,3 +4,4 @@ dist/
 dotenc.json
 e2e.txt
 coverage/
+*.bun-build
