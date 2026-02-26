@@ -27,6 +27,7 @@ import { maybeNotifyAboutUpdate } from "./helpers/updateNotifier"
 const program = new Command()
 
 program.name("dotenc").description(pkg.description).version(pkg.version)
+program.enablePositionalOptions()
 
 program
 	.command("init")
@@ -116,6 +117,7 @@ program
 	.addOption(
 		new Option("--strict", "fail if any selected environment fails to load"),
 	)
+	.passThroughOptions()
 	.description("run a command in an environment")
 	.action(runCommand)
 
@@ -123,6 +125,7 @@ program
 	.command("dev")
 	.argument("<command>", "the command to run")
 	.argument("[args...]", "the arguments to pass to the command")
+	.passThroughOptions()
 	.description("shortcut for 'run -e development,<yourname> <command>'")
 	.action((command, args) => devCommand(command, args))
 
