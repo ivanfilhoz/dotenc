@@ -1,4 +1,6 @@
 const vscode = require("vscode")
+const { EnvironmentsProvider } = require("./EnvironmentsProvider")
+const { KeysProvider } = require("./KeysProvider")
 const { appendProcessLogs } = require("./helpers/appendProcessLogs")
 const { closeFileTabs } = require("./helpers/closeFileTabs")
 const {
@@ -445,6 +447,8 @@ function activate(context) {
 	const outputChannel = vscode.window.createOutputChannel("dotenc")
 	const redirectInProgress = new Set()
 	const suppressAutoRedirectOnce = new Set()
+	const environmentsProvider = new EnvironmentsProvider()
+	const keysProvider = new KeysProvider()
 
 	const autoOpenCurrentEditorIfNeeded = async (editor) => {
 		if (!editor || !editor.document) {
@@ -494,6 +498,16 @@ function activate(context) {
 			void autoOpenCurrentEditorIfNeeded(editor)
 		}),
 		outputChannel,
+		environmentsProvider,
+		keysProvider,
+		vscode.window.createTreeView("dotenc.environments", {
+			treeDataProvider: environmentsProvider,
+			showCollapseAll: false,
+		}),
+		vscode.window.createTreeView("dotenc.keys", {
+			treeDataProvider: keysProvider,
+			showCollapseAll: false,
+		}),
 	)
 
 	void autoOpenCurrentEditorIfNeeded(vscode.window.activeTextEditor)

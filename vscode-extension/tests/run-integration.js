@@ -6,7 +6,7 @@ const { runTests } = require("@vscode/test-electron")
 async function main() {
 	const extensionDevelopmentPath = path.resolve(__dirname, "..")
 	const extensionTestsPath = path.resolve(__dirname, "suite", "index.js")
-	const fixtureWorkspacePath = path.resolve(__dirname, "fixtures", "workspace")
+	const fixtureWorkspacePath = path.resolve(__dirname, "fixtures", "workspace-integration")
 
 	const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dotenc-vscode-it-"))
 	const workspacePath = path.join(tmpRoot, "workspace")

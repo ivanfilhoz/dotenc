@@ -28,6 +28,27 @@
 	],
 	"main": "./src/extension.js",
 	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "dotenc",
+					"title": "dotenc",
+					"icon": "assets/logo-flat-mini.svg"
+				}
+			]
+		},
+		"views": {
+			"dotenc": [
+				{
+					"id": "dotenc.environments",
+					"name": "Environments"
+				},
+				{
+					"id": "dotenc.keys",
+					"name": "Keys"
+				}
+			]
+		},
 		"commands": [
 			{
 				"command": "dotenc.viewDecrypted",
