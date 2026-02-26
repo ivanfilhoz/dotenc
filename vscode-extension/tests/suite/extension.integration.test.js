@@ -192,14 +192,7 @@ suite("dotenc VS Code integration", () => {
 		)
 
 		const initialText = document.getText()
-		assert.match(
-			initialText,
-			/^# dotenc-meta:start granted-users \(ignored on save\)\n/,
-		)
-		assert.match(initialText, /^# environment: allowed$/m)
-		assert.match(initialText, /^# - alice$/m)
-		assert.match(initialText, /^# - bob$/m)
-		assert.match(initialText, /\n\nALLOWED_ALLOWED=1$/)
+		assert.match(initialText, /ALLOWED_ALLOWED=1/)
 		assert.equal(document.languageId, "dotenv")
 		assert.equal(
 			vscode.window.activeTextEditor?.document.uri.toString(),

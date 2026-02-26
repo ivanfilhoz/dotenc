@@ -1,5 +1,4 @@
 const vscode = require("vscode")
-const { addGrantedUsersHeader } = require("./helpers/addGrantedUsersHeader")
 const { appendProcessLogs } = require("./helpers/appendProcessLogs")
 const { closeFileTabs } = require("./helpers/closeFileTabs")
 const {
@@ -34,11 +33,7 @@ const {
 	mapFailureToFileSystemError,
 } = require("./helpers/mapFailureToFileSystemError")
 const { MIN_DOTENC_VERSION } = require("./helpers/minDotencVersion")
-const { normalizeCommentValue } = require("./helpers/normalizeCommentValue")
 const { parseJsonPayload } = require("./helpers/parseJsonPayload")
-const {
-	removeGrantedUsersHeader,
-} = require("./helpers/removeGrantedUsersHeader")
 const { resolveSourceUri } = require("./helpers/resolveSourceUri")
 const { runProcess } = require("./helpers/runProcess")
 const {
@@ -83,19 +78,12 @@ class DotencFileSystemProvider {
 			throw mapFailureToFileSystemError(target.environmentName, result.error)
 		}
 
-		const content = addGrantedUsersHeader(
-			result.content,
-			target.environmentName,
-			result.grantedUsers,
-		)
-		return Buffer.from(content, "utf-8")
+		return Buffer.from(result.content, "utf-8")
 	}
 
 	async writeFile(uri, content) {
 		const target = getDotencTarget(uri)
-		const plaintext = removeGrantedUsersHeader(
-			Buffer.from(content).toString("utf-8"),
-		)
+		const plaintext = Buffer.from(content).toString("utf-8")
 		const result = await encryptEnvironment(target, plaintext)
 		if (!result.ok) {
 			throw mapFailureToFileSystemError(target.environmentName, result.error)
@@ -178,14 +166,7 @@ async function decryptEnvironment(document) {
 
 	const parsed = parseJsonPayload(result.stdout)
 	if (parsed && parsed.ok === true && typeof parsed.content === "string") {
-		const grantedUsers = Array.isArray(parsed.grantedUsers)
-			? parsed.grantedUsers
-					.filter((value) => typeof value === "string")
-					.map((value) => normalizeCommentValue(value))
-					.filter((value) => value.length > 0)
-			: []
-
-		return { ok: true, content: parsed.content, grantedUsers }
+		return { ok: true, content: parsed.content }
 	}
 
 	if (parsed && parsed.ok === false && parsed.error) {
