@@ -15,6 +15,7 @@ import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
 import { keyListCommand } from "./commands/key/list"
 import { keyRemoveCommand } from "./commands/key/remove"
+import { mockUpdateCommand } from "./commands/mockupdate"
 import { runCommand } from "./commands/run"
 import { textconvCommand } from "./commands/textconv"
 import { installAgentSkillCommand } from "./commands/tools/install-agent-skill"
@@ -185,6 +186,13 @@ program
 	.command("update")
 	.description("update dotenc based on your installation method")
 	.action(updateCommand)
+
+program
+	.command("mockupdate", { hidden: true })
+	.argument("[currentVersion]", "mock current version for preview")
+	.argument("[latestVersion]", "mock latest version for preview")
+	.description("print a mock update notification (hidden)")
+	.action(mockUpdateCommand)
 
 program
 	.command("whoami")

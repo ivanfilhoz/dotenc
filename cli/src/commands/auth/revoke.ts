@@ -6,62 +6,104 @@ import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 
+export type RevokeCommandDeps = {
+	decryptEnvironment: typeof decryptEnvironment
+	encryptEnvironment: typeof encryptEnvironment
+	getPublicKeyByName: typeof getPublicKeyByName
+	validateEnvironmentName: typeof validateEnvironmentName
+	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
+	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
+	logError: (message: string) => void
+	exit: (code: number) => never
+}
+
+const defaultRevokeCommandDeps: RevokeCommandDeps = {
+	decryptEnvironment,
+	encryptEnvironment,
+	getPublicKeyByName,
+	validateEnvironmentName,
+	chooseEnvironmentPrompt,
+	choosePublicKeyPrompt,
+	logError: (message) => console.error(message),
+	exit: (code) => process.exit(code),
+}
+
+const isRevokeCommandDeps = (value: unknown): value is RevokeCommandDeps => {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"decryptEnvironment" in value &&
+		"encryptEnvironment" in value &&
+		"getPublicKeyByName" in value &&
+		"validateEnvironmentName" in value &&
+		"chooseEnvironmentPrompt" in value &&
+		"choosePublicKeyPrompt" in value &&
+		"logError" in value &&
+		"exit" in value
+	)
+}
+
 export const revokeCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
+	commandOrDeps?: unknown,
 ) => {
+	const deps = isRevokeCommandDeps(commandOrDeps)
+		? commandOrDeps
+		: defaultRevokeCommandDeps
+
 	const environmentName =
 		environmentNameArg ||
-		(await chooseEnvironmentPrompt(
+		(await deps.chooseEnvironmentPrompt(
 			"What environment do you want to revoke access from?",
 		))
 
-	const validation = validateEnvironmentName(environmentName)
+	const validation = deps.validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		console.error(`${chalk.red("Error:")} ${validation.reason}`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
+		deps.exit(1)
 	}
 
-	let currentContent: string
+	let currentContent!: string
 	try {
-		currentContent = await decryptEnvironment(environmentName)
+		currentContent = await deps.decryptEnvironment(environmentName)
 	} catch (error) {
-		console.error(
+		deps.logError(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
 	let publicKeyName = publicKeyNameArg
 	if (!publicKeyName) {
-		publicKeyName = await choosePublicKeyPrompt(
+		publicKeyName = await deps.choosePublicKeyPrompt(
 			"Which public key do you want to revoke access to this environment?",
 		)
 	}
 
 	try {
-		await getPublicKeyByName(publicKeyName)
+		await deps.getPublicKeyByName(publicKeyName)
 	} catch (error) {
-		console.error(
+		deps.logError(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while retrieving the public key.",
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
 	try {
-		await encryptEnvironment(environmentName, currentContent, {
+		await deps.encryptEnvironment(environmentName, currentContent, {
 			revokePublicKeys: [publicKeyName],
 		})
 	} catch (error) {
-		console.error(
+		deps.logError(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while encrypting the environment.",
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 }

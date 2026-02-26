@@ -49,11 +49,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run unit tests
-        run: cd cli && bun test src/tests --coverage --coverage-reporter lcov --coverage-dir coverage
-
-      - name: Run VS Code extension tests
-        run: cd vscode-extension && bun run test:coverage
+      - name: Run coverage tests
+        run: bun run test:coverage
 
       - name: Upload CLI coverage reports to Codecov
         uses: codecov/codecov-action@v5

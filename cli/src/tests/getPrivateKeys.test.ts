@@ -1,9 +1,36 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import fsPromises from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { getPrivateKeys } from "../helpers/getPrivateKeys"
+
+const encodeLengthPrefixed = (bytes: Buffer): Buffer => {
+	const length = Buffer.alloc(4)
+	length.writeUInt32BE(bytes.length)
+	return Buffer.concat([length, bytes])
+}
+
+const buildFakeUnsupportedOpenSshPrivateKey = (algorithm: string): string => {
+	const magic = Buffer.from("openssh-key-v1\0", "ascii")
+	const publicBlob = encodeLengthPrefixed(Buffer.from(algorithm, "ascii"))
+	const payload = Buffer.concat([
+		magic,
+		encodeLengthPrefixed(Buffer.from("none", "ascii")),
+		encodeLengthPrefixed(Buffer.from("none", "ascii")),
+		encodeLengthPrefixed(Buffer.alloc(0)),
+		Buffer.from([0, 0, 0, 1]),
+		encodeLengthPrefixed(publicBlob),
+	])
+	const base64 = payload.toString("base64")
+
+	return [
+		"-----BEGIN OPENSSH PRIVATE KEY-----",
+		base64,
+		"-----END OPENSSH PRIVATE KEY-----",
+	].join("\n")
+}
 
 describe("getPrivateKeys", () => {
 	let tmpDir: string
@@ -202,6 +229,77 @@ describe("getPrivateKeys", () => {
 					k.reason.includes("ec"),
 			),
 		).toBe(true)
+	})
+
+	test("classifies unsupported OpenSSH private key algorithms in ~/.ssh", async () => {
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_ed448"),
+			buildFakeUnsupportedOpenSshPrivateKey("ssh-ed448"),
+			"utf-8",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		const result = await getPrivateKeys()
+		expect(
+			result.unsupportedKeys?.some(
+				(entry) =>
+					entry.name === "id_ed448" &&
+					entry.reason.includes("unsupported algorithm") &&
+					entry.reason.includes("ssh-ed448"),
+			),
+		).toBe(true)
+		expect(result.passphraseProtectedKeys).not.toContain("id_ed448")
+	})
+
+	test("skips ssh entries when stat or readFile fails during scan", async () => {
+		const statFailPath = path.join(tmpDir, ".ssh", "id_stat_fail")
+		const readFailPath = path.join(tmpDir, ".ssh", "id_read_fail")
+		writeFileSync(statFailPath, "ignored", "utf-8")
+		writeFileSync(readFailPath, "-----BEGIN PRIVATE KEY-----\nabc\n", "utf-8")
+
+		const originalStat = fsPromises.stat
+		const originalReadFile = fsPromises.readFile
+
+		const statSpy = spyOn(fsPromises, "stat").mockImplementation((async (
+			...args: unknown[]
+		) => {
+			const [filePath] = args
+			if (String(filePath) === statFailPath) {
+				throw new Error("stat failed")
+			}
+			return Reflect.apply(originalStat, fsPromises, args)
+		}) as unknown as typeof fsPromises.stat)
+		const readFileSpy = spyOn(fsPromises, "readFile").mockImplementation(
+			(async (...args: unknown[]) => {
+				const [filePath] = args
+				if (String(filePath) === readFailPath) {
+					throw new Error("read failed")
+				}
+				return Reflect.apply(originalReadFile, fsPromises, args)
+			}) as unknown as typeof fsPromises.readFile,
+		)
+
+		try {
+			delete process.env.DOTENC_PRIVATE_KEY
+			const result = await getPrivateKeys()
+
+			expect(statSpy).toHaveBeenCalled()
+			expect(readFileSpy).toHaveBeenCalled()
+			expect(
+				result.keys.some(
+					(key) => key.name === "id_stat_fail" || key.name === "id_read_fail",
+				),
+			).toBe(false)
+			expect(
+				result.unsupportedKeys?.some(
+					(entry) =>
+						entry.name === "id_stat_fail" || entry.name === "id_read_fail",
+				),
+			).toBe(false)
+		} finally {
+			statSpy.mockRestore()
+			readFileSpy.mockRestore()
+		}
 	})
 
 	test("returns empty result when ~/.ssh does not exist", async () => {

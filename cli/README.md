@@ -483,13 +483,7 @@ Alternatively, the `DOTENC_ENV` variable can be used to set the environment, so 
 
 ### Update checks
 
-The CLI checks for new versions in the background (at most once every 6 hours) and prints a notification when an update is available.
-
-To disable these checks:
-
-```bash
-export DOTENC_SKIP_UPDATE_CHECK=1
-```
+The CLI checks for new versions when you run `dotenc dev` and prints a notification when an update is available.
 
 
 ## How dotenc compares

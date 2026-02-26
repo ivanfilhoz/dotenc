@@ -10,34 +10,98 @@ import { validateKeyName } from "../../helpers/validateKeyName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { confirmPrompt } from "../../prompts/confirm"
 
-export const keyRemoveCommand = async (nameArg: string) => {
+export type KeyRemoveCommandDeps = {
+	decryptEnvironmentData: typeof decryptEnvironmentData
+	encryptEnvironment: typeof encryptEnvironment
+	getEnvironmentByName: typeof getEnvironmentByName
+	getEnvironments: typeof getEnvironments
+	validateKeyName: typeof validateKeyName
+	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
+	confirmPrompt: typeof confirmPrompt
+	existsSync: typeof existsSync
+	unlink: typeof fs.unlink
+	cwd: () => string
+	log: (message: string) => void
+	logError: (message: string) => void
+	warn: (message: string) => void
+	exit: (code: number) => never
+}
+
+const defaultKeyRemoveCommandDeps: KeyRemoveCommandDeps = {
+	decryptEnvironmentData,
+	encryptEnvironment,
+	getEnvironmentByName,
+	getEnvironments,
+	validateKeyName,
+	choosePublicKeyPrompt,
+	confirmPrompt,
+	existsSync,
+	unlink: fs.unlink,
+	cwd: () => process.cwd(),
+	log: (message) => console.log(message),
+	logError: (message) => console.error(message),
+	warn: (message) => console.warn(message),
+	exit: (code) => process.exit(code),
+}
+
+const isKeyRemoveCommandDeps = (
+	value: unknown,
+): value is KeyRemoveCommandDeps => {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"decryptEnvironmentData" in value &&
+		"encryptEnvironment" in value &&
+		"getEnvironmentByName" in value &&
+		"getEnvironments" in value &&
+		"validateKeyName" in value &&
+		"choosePublicKeyPrompt" in value &&
+		"confirmPrompt" in value &&
+		"existsSync" in value &&
+		"unlink" in value &&
+		"cwd" in value &&
+		"log" in value &&
+		"logError" in value &&
+		"warn" in value &&
+		"exit" in value
+	)
+}
+
+export const keyRemoveCommand = async (
+	nameArg: string,
+	commandOrDeps?: unknown,
+) => {
+	const deps = isKeyRemoveCommandDeps(commandOrDeps)
+		? commandOrDeps
+		: defaultKeyRemoveCommandDeps
+
 	let name = nameArg
 
 	if (!name) {
-		name = await choosePublicKeyPrompt(
+		name = await deps.choosePublicKeyPrompt(
 			"Which public key do you want to remove?",
 		)
 	}
 
-	const keyNameValidation = validateKeyName(name)
+	const keyNameValidation = deps.validateKeyName(name)
 	if (!keyNameValidation.valid) {
-		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
+		deps.exit(1)
 	}
 
-	const filePath = path.join(process.cwd(), ".dotenc", `${name}.pub`)
-	if (!existsSync(filePath)) {
-		console.error(`Public key ${chalk.cyan(name)} not found.`)
-		process.exit(1)
+	const filePath = path.join(deps.cwd(), ".dotenc", `${name}.pub`)
+	if (!deps.existsSync(filePath)) {
+		deps.logError(`Public key ${chalk.cyan(name)} not found.`)
+		deps.exit(1)
 	}
 
 	// Find environments this key has access to
-	const allEnvironments = await getEnvironments()
+	const allEnvironments = await deps.getEnvironments()
 	const affectedEnvironments: string[] = []
 
 	for (const envName of allEnvironments) {
 		try {
-			const env = await getEnvironmentByName(envName)
+			const env = await deps.getEnvironmentByName(envName)
 			if (env.keys.some((key) => key.name === name)) {
 				affectedEnvironments.push(envName)
 			}
@@ -47,40 +111,38 @@ export const keyRemoveCommand = async (nameArg: string) => {
 	}
 
 	if (affectedEnvironments.length > 0) {
-		console.log(
+		deps.log(
 			`Key ${chalk.cyan(name)} has access to the following environments:`,
 		)
 		for (const env of affectedEnvironments) {
-			console.log(`  - ${env}`)
+			deps.log(`  - ${env}`)
 		}
-		console.log(
-			"\nAccess will be revoked from these environments automatically.",
-		)
+		deps.log("\nAccess will be revoked from these environments automatically.")
 	}
 
-	const confirmed = await confirmPrompt(
+	const confirmed = await deps.confirmPrompt(
 		`Are you sure you want to remove key ${name}?`,
 	)
 	if (!confirmed) {
-		console.log("Operation cancelled.")
+		deps.log("Operation cancelled.")
 		return
 	}
 
 	// Delete the .pub file
-	await fs.unlink(filePath)
-	console.log(`Public key ${chalk.cyan(name)} removed successfully.`)
+	await deps.unlink(filePath)
+	deps.log(`Public key ${chalk.cyan(name)} removed successfully.`)
 
 	// Auto-revoke access from affected environments
 	for (const envName of affectedEnvironments) {
 		try {
-			const envJson = await getEnvironmentByName(envName)
-			const content = await decryptEnvironmentData(envJson)
-			await encryptEnvironment(envName, content, {
+			const envJson = await deps.getEnvironmentByName(envName)
+			const content = await deps.decryptEnvironmentData(envJson)
+			await deps.encryptEnvironment(envName, content, {
 				revokePublicKeys: [name],
 			})
-			console.log(`Revoked access from ${chalk.cyan(envName)} environment.`)
+			deps.log(`Revoked access from ${chalk.cyan(envName)} environment.`)
 		} catch {
-			console.warn(
+			deps.warn(
 				`${chalk.yellow("Warning:")} could not revoke access from ${chalk.cyan(envName)}. You may need to run ${chalk.gray(`dotenc auth revoke ${envName} ${name}`)} manually or rotate the environment.`,
 			)
 		}

@@ -2,7 +2,16 @@ import { mkdirSync, writeFileSync, chmodSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-const CLI_PATH = "/app/cli/src/cli.ts"
+const DEFAULT_BUN_CLI_PATH = "/app/cli/src/cli.ts"
+const DEFAULT_NODE_CLI_PATH = "/app/cli/dist/cli.js"
+
+const getCliInvocation = (): string[] => {
+	if (process.env.DOTENC_E2E_CLI_RUNTIME === "node") {
+		return ["node", process.env.DOTENC_E2E_CLI_PATH ?? DEFAULT_NODE_CLI_PATH]
+	}
+
+	return ["bun", process.env.DOTENC_E2E_CLI_PATH ?? DEFAULT_BUN_CLI_PATH]
+}
 
 type Ed25519KeyOptions = {
 	fileName?: string
@@ -78,7 +87,7 @@ export function runCli(
 	args: string[],
 	extraEnv?: Record<string, string>,
 ): { stdout: string; stderr: string; exitCode: number } {
-	const result = Bun.spawnSync(["bun", CLI_PATH, ...args], {
+	const result = Bun.spawnSync([...getCliInvocation(), ...args], {
 		cwd: workspace,
 		env: {
 			...process.env,
@@ -101,7 +110,7 @@ export function runCliWithStdin(
 	stdin: string,
 	extraEnv?: Record<string, string>,
 ): { stdout: string; stderr: string; exitCode: number } {
-	const result = Bun.spawnSync(["bun", CLI_PATH, ...args], {
+	const result = Bun.spawnSync([...getCliInvocation(), ...args], {
 		cwd: workspace,
 		env: {
 			...process.env,
