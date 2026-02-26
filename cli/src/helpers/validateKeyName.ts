@@ -9,6 +9,13 @@ export const validateKeyName = (name: string): ValidationResult => {
 		return { valid: false, reason: `Invalid key name "${name}".` }
 	}
 
+	if (/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(name)) {
+		return {
+			valid: false,
+			reason: `"${name}" is a reserved name and cannot be used as a key name.`,
+		}
+	}
+
 	if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
 		return {
 			valid: false,

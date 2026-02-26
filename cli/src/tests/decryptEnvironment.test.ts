@@ -8,7 +8,7 @@ import type { PrivateKeyEntry } from "../helpers/getPrivateKeys"
 import type { Environment } from "../schemas/environment"
 
 type DecryptEnvironmentDataDeps = NonNullable<
-	Parameters<typeof decryptEnvironmentData>[1]
+	Parameters<typeof decryptEnvironmentData>[2]
 >
 type DecryptEnvironmentDeps = NonNullable<
 	Parameters<typeof decryptEnvironment>[1]
@@ -53,7 +53,7 @@ describe("decryptEnvironmentData", () => {
 		}
 
 		await expect(
-			decryptEnvironmentData(makeEnvironment("fp-1"), deps),
+			decryptEnvironmentData("test-env", makeEnvironment("fp-1"), deps),
 		).rejects.toThrow("passphrase-protected")
 	})
 
@@ -68,7 +68,7 @@ describe("decryptEnvironmentData", () => {
 		}
 
 		await expect(
-			decryptEnvironmentData(makeEnvironment("fp-1"), deps),
+			decryptEnvironmentData("test-env", makeEnvironment("fp-1"), deps),
 		).rejects.toThrow("No private keys found")
 	})
 
@@ -83,7 +83,11 @@ describe("decryptEnvironmentData", () => {
 		}
 
 		await expect(
-			decryptEnvironmentData(makeEnvironment("fp-environment"), deps),
+			decryptEnvironmentData(
+				"test-env",
+				makeEnvironment("fp-environment"),
+				deps,
+			),
 		).rejects.toThrow("Access denied to the environment.")
 	})
 
@@ -100,7 +104,7 @@ describe("decryptEnvironmentData", () => {
 		}
 
 		await expect(
-			decryptEnvironmentData(makeEnvironment("fp-match"), deps),
+			decryptEnvironmentData("test-env", makeEnvironment("fp-match"), deps),
 		).rejects.toThrow("Failed to decrypt the data key.")
 	})
 
@@ -121,7 +125,7 @@ describe("decryptEnvironmentData", () => {
 		}
 
 		const env = makeEnvironment("fp-match")
-		const result = await decryptEnvironmentData(env, deps)
+		const result = await decryptEnvironmentData("test-env", env, deps)
 
 		expect(result).toBe("API_KEY=abc123")
 		expect(decryptDataKey).toHaveBeenCalledTimes(1)

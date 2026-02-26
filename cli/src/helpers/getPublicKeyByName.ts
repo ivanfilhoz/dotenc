@@ -13,7 +13,6 @@ export const getPublicKeyByName = async (name: string) => {
 	let publicKeyInput: string
 
 	try {
-		await fs.access(filePath)
 		publicKeyInput = await fs.readFile(filePath, "utf-8")
 	} catch (error) {
 		throw new Error(`No public key found with name ${name}.`, {

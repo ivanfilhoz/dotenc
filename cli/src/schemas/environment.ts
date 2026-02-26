@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 export const environmentSchema = z.object({
+	version: z.number().optional(), // 2 = AAD-bound ciphertext; absent/1 = legacy
 	keys: z.array(
 		z.object({
 			name: z.string(),

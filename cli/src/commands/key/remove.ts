@@ -136,7 +136,7 @@ export const keyRemoveCommand = async (
 	for (const envName of affectedEnvironments) {
 		try {
 			const envJson = await deps.getEnvironmentByName(envName)
-			const content = await deps.decryptEnvironmentData(envJson)
+			const content = await deps.decryptEnvironmentData(envName, envJson)
 			await deps.encryptEnvironment(envName, content, {
 				revokePublicKeys: [name],
 			})

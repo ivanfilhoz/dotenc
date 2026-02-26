@@ -158,6 +158,7 @@ describe("encryptEnvironment", () => {
 			readFileSync(path.join(tmpDir, ".env.production.enc"), "utf-8"),
 		) as Environment
 
+		expect(parsed.version).toBe(2)
 		expect(parsed.keys).toHaveLength(3)
 		expect(
 			parsed.keys.find((key) => key.fingerprint === bob.fingerprint),
@@ -182,6 +183,7 @@ describe("encryptEnvironment", () => {
 		const decryptedContent = await decryptData(
 			dataKey,
 			Buffer.from(parsed.encryptedContent, "base64"),
+			Buffer.from("production", "utf-8"),
 		)
 		expect(decryptedContent).toBe("API_KEY=new-value")
 

@@ -1,7 +1,5 @@
 import crypto from "node:crypto"
-import { decrypt, ECIES_CONFIG } from "eciesjs"
-
-ECIES_CONFIG.ellipticCurve = "ed25519"
+import { eciesDecrypt } from "./ecies"
 
 type PrivateKeyInfo = {
 	algorithm: "rsa" | "ed25519"
@@ -38,7 +36,7 @@ export const decryptDataKey = (
 	}) as Buffer
 	const rawSeed = Buffer.from(privDer.subarray(privDer.length - 32))
 	try {
-		return Buffer.from(decrypt(rawSeed, encryptedDataKey))
+		return eciesDecrypt(rawSeed, encryptedDataKey)
 	} finally {
 		rawSeed.fill(0)
 		privDer.fill(0)

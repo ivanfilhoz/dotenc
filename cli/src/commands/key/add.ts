@@ -282,14 +282,23 @@ export const _runKeyAddCommand = async (
 
 	const keyOutputPath = path.join(deps.cwd(), ".dotenc", `${name}.pub`)
 
-	if (deps.existsSync(keyOutputPath)) {
-		deps.logError(
-			`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
-		)
-		deps.exit(1)
+	try {
+		await deps.writeFile(keyOutputPath, publicKeyOutput, {
+			encoding: "utf-8",
+			flag: "wx",
+		})
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			(error as NodeJS.ErrnoException).code === "EEXIST"
+		) {
+			deps.logError(
+				`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
+			)
+			deps.exit(1)
+		}
+		throw error
 	}
-
-	await deps.writeFile(keyOutputPath, publicKeyOutput, "utf-8")
 	deps.logInfo(`\nPublic key ${chalk.cyan(name)} added successfully!`)
 }
 

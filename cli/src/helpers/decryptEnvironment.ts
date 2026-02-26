@@ -19,6 +19,7 @@ const defaultDecryptEnvironmentDataDeps: DecryptEnvironmentDataDeps = {
 }
 
 export const decryptEnvironmentData = async (
+	environmentName: string,
 	environment: Environment,
 	deps: DecryptEnvironmentDataDeps = defaultDecryptEnvironmentDataDeps,
 ): Promise<string> => {
@@ -62,9 +63,15 @@ export const decryptEnvironmentData = async (
 		throw new Error("Failed to decrypt the data key.", { cause: error })
 	}
 
+	const aad =
+		(environment.version ?? 1) >= 2
+			? Buffer.from(environmentName, "utf-8")
+			: undefined
+
 	const decryptedContent = await deps.decryptData(
 		dataKey,
 		Buffer.from(environment.encryptedContent, "base64"),
+		aad,
 	)
 
 	return decryptedContent
@@ -89,7 +96,7 @@ export const decryptEnvironment = async (
 	const environmentJson = await deps.getEnvironmentByName(name)
 
 	try {
-		return await decryptEnvironmentData(environmentJson, deps)
+		return await decryptEnvironmentData(name, environmentJson, deps)
 	} catch (error) {
 		if (
 			error instanceof Error &&

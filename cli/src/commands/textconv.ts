@@ -10,7 +10,11 @@ export const textconvCommand = async (filePath: string) => {
 
 	try {
 		const environment = await getEnvironmentByPath(absolutePath)
-		const plaintext = await decryptEnvironmentData(environment)
+		const nameMatch = absolutePath.match(/\.env\.(.+)\.enc$/)
+		const environmentName = nameMatch
+			? nameMatch[1]
+			: path.basename(absolutePath)
+		const plaintext = await decryptEnvironmentData(environmentName, environment)
 		process.stdout.write(plaintext)
 	} catch {
 		const raw = await fs.readFile(absolutePath, "utf-8")

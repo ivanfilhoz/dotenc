@@ -432,14 +432,11 @@ describe("keyAddCommand", () => {
 
 	test("rejects duplicate key names", async () => {
 		const duplicatePath = path.join("/workspace", ".dotenc", "alice.pub")
+		const eexistError = Object.assign(new Error("EEXIST"), { code: "EEXIST" })
 		const { deps } = makeDeps({
-			existsSync: (filePath) => {
-				const normalized = String(filePath)
-				return (
-					normalized === path.join("/workspace", ".dotenc") ||
-					normalized === duplicatePath
-				)
-			},
+			writeFile: (async (filePath: unknown) => {
+				if (String(filePath) === duplicatePath) throw eexistError
+			}) as never,
 		})
 
 		await expect(

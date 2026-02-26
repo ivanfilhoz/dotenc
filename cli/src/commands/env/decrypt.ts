@@ -100,7 +100,10 @@ export const decryptCommand = async (
 
 	try {
 		const environment = await deps.getEnvironmentByName(environmentName)
-		const plaintext = await deps.decryptEnvironmentData(environment)
+		const plaintext = await deps.decryptEnvironmentData(
+			environmentName,
+			environment,
+		)
 		const grantedUsers = Array.from(
 			new Set(
 				environment.keys

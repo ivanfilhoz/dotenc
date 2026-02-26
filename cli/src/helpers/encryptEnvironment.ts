@@ -130,8 +130,10 @@ export const encryptEnvironment = async (
 		)
 	}
 
-	const encryptedContent = await encryptData(dataKey, newContent)
+	const aad = Buffer.from(name, "utf-8")
+	const encryptedContent = await encryptData(dataKey, newContent, aad)
 	const newEnvironmentJson: Environment = {
+		version: 2,
 		keys,
 		encryptedContent: encryptedContent.toString("base64"),
 	}

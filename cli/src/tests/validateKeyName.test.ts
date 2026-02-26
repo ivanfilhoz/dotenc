@@ -46,4 +46,25 @@ describe("validateKeyName", () => {
 			expect(result.valid).toBe(false)
 		}
 	})
+
+	test("rejects Windows reserved names on all platforms", () => {
+		for (const name of [
+			"CON",
+			"PRN",
+			"AUX",
+			"NUL",
+			"COM1",
+			"COM9",
+			"LPT1",
+			"LPT9",
+			"con",
+			"nul",
+		]) {
+			const result = validateKeyName(name)
+			expect(result.valid).toBe(false)
+			if (!result.valid) {
+				expect(result.reason).toContain("reserved name")
+			}
+		}
+	})
 })

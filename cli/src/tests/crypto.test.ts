@@ -42,6 +42,30 @@ describe("crypto helpers", () => {
 		)
 	})
 
+	test("encrypt and decrypt with AAD returns original message", async () => {
+		const aad = Buffer.from("production", "utf-8")
+		const encrypted = await encryptData(key, message, aad)
+		const decrypted = await decryptData(key, encrypted, aad)
+		expect(decrypted).toBe(message)
+	})
+
+	test("decrypt with wrong AAD fails authentication", async () => {
+		const aad = Buffer.from("production", "utf-8")
+		const wrongAad = Buffer.from("staging", "utf-8")
+		const encrypted = await encryptData(key, message, aad)
+		await expect(decryptData(key, encrypted, wrongAad)).rejects.toThrow(
+			/Failed to decrypt file/,
+		)
+	})
+
+	test("decrypt without AAD fails when encrypted with AAD", async () => {
+		const aad = Buffer.from("production", "utf-8")
+		const encrypted = await encryptData(key, message, aad)
+		await expect(decryptData(key, encrypted)).rejects.toThrow(
+			/Failed to decrypt file/,
+		)
+	})
+
 	test("key must be 32 bytes", async () => {
 		const shortKey = crypto.randomBytes(16)
 		await expect(encryptData(shortKey, message)).rejects.toThrow(

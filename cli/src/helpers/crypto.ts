@@ -14,8 +14,9 @@ const AUTH_TAG_LENGTH = 16 // 128 bits, standard for GCM
  * Encrypts a file using AES-256-GCM.
  * @param {Buffer} key - The encryption key (must be 32 bytes for AES-256).
  * @param {string} input - The input string to encrypt.
+ * @param {Buffer} [aad] - Optional Additional Authenticated Data bound to the ciphertext.
  */
-export async function encryptData(key: Buffer, input: string) {
+export async function encryptData(key: Buffer, input: string, aad?: Buffer) {
 	if (key.length !== 32) {
 		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
@@ -25,6 +26,9 @@ export async function encryptData(key: Buffer, input: string) {
 
 	// Create the cipher
 	const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+	if (aad) {
+		cipher.setAAD(aad)
+	}
 
 	// Encrypt the data
 	const encrypted = Buffer.concat([cipher.update(input), cipher.final()])
@@ -39,9 +43,10 @@ export async function encryptData(key: Buffer, input: string) {
 /**
  * Decrypts a file using AES-256-GCM.
  * @param {Buffer} key - The decryption key (must be 32 bytes for AES-256).
- * @param {string} input - The encrypted content to decrypt.
+ * @param {Buffer} input - The encrypted content to decrypt.
+ * @param {Buffer} [aad] - Optional Additional Authenticated Data that must match what was used during encryption.
  */
-export async function decryptData(key: Buffer, input: Buffer) {
+export async function decryptData(key: Buffer, input: Buffer, aad?: Buffer) {
 	if (key.length !== 32) {
 		throw new Error("Key must be 32 bytes (256 bits) for AES-256-GCM.")
 	}
@@ -65,6 +70,9 @@ export async function decryptData(key: Buffer, input: Buffer) {
 		// Create the decipher
 		const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
 		decipher.setAuthTag(authTag)
+		if (aad) {
+			decipher.setAAD(aad)
+		}
 
 		// Decrypt the ciphertext
 		const decrypted = Buffer.concat([
