@@ -236,25 +236,30 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 		// Quick check: must look like a private key file
 		if (!keyContent.includes("PRIVATE KEY")) continue
 
+		// Check passphrase protection before attempting to parse. On Bun, calling
+		// crypto.createPrivateKey() on a legacy encrypted RSA PEM (Proc-Type: 4,ENCRYPTED)
+		// leaves the OpenSSL error queue dirty, which then breaks all subsequent
+		// PKCS#8 DER imports (e.g. Ed25519) for the rest of the process lifetime.
+		if (isPassphraseProtected(keyContent)) {
+			passphraseProtectedKeys.push(fileName)
+			unsupportedKeys.push({
+				name: fileName,
+				reason: "passphrase-protected",
+			})
+			continue
+		}
+
 		const privateKey = tryParsePrivateKey(keyContent)
 
 		if (!privateKey) {
-			if (isPassphraseProtected(keyContent)) {
-				passphraseProtectedKeys.push(fileName)
-				unsupportedKeys.push({
-					name: fileName,
-					reason: "passphrase-protected",
-				})
-			} else {
-				const unsupportedOpenSSHType =
-					detectUnsupportedOpenSSHAlgorithm(keyContent)
-				unsupportedKeys.push({
-					name: fileName,
-					reason: unsupportedOpenSSHType
-						? describeUnsupportedAlgorithm(unsupportedOpenSSHType)
-						: "invalid private key format",
-				})
-			}
+			const unsupportedOpenSSHType =
+				detectUnsupportedOpenSSHAlgorithm(keyContent)
+			unsupportedKeys.push({
+				name: fileName,
+				reason: unsupportedOpenSSHType
+					? describeUnsupportedAlgorithm(unsupportedOpenSSHType)
+					: "invalid private key format",
+			})
 			continue
 		}
 
