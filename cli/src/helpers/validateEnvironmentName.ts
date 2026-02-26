@@ -5,6 +5,10 @@ export const validateEnvironmentName = (name: string): ValidationResult => {
 		return { valid: false, reason: "Environment name must not be empty." }
 	}
 
+	if (name === "." || name === "..") {
+		return { valid: false, reason: `Invalid environment name "${name}".` }
+	}
+
 	if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
 		return {
 			valid: false,

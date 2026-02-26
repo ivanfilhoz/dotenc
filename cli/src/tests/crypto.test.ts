@@ -81,11 +81,6 @@ describe("RSA data key encryption", () => {
 
 describe("Ed25519 data key encryption", () => {
 	const ed25519KeyPair = crypto.generateKeyPairSync("ed25519")
-	const privDer = ed25519KeyPair.privateKey.export({
-		type: "pkcs8",
-		format: "der",
-	})
-	const rawSeed = Buffer.from(privDer.subarray(privDer.length - 32))
 	const pubDer = ed25519KeyPair.publicKey.export({
 		type: "spki",
 		format: "der",
@@ -106,7 +101,6 @@ describe("Ed25519 data key encryption", () => {
 			{
 				algorithm: "ed25519",
 				privateKey: ed25519KeyPair.privateKey,
-				rawSeed,
 			},
 			encrypted,
 		)
@@ -124,26 +118,5 @@ describe("Ed25519 data key encryption", () => {
 				dataKey,
 			),
 		).toThrow(/Raw public key bytes are required/)
-	})
-
-	test("throws without raw seed for ed25519 decryption", () => {
-		const dataKey = crypto.randomBytes(32)
-		const encrypted = encryptDataKey(
-			{
-				algorithm: "ed25519",
-				publicKey: ed25519KeyPair.publicKey,
-				rawPublicKey,
-			},
-			dataKey,
-		)
-		expect(() =>
-			decryptDataKey(
-				{
-					algorithm: "ed25519",
-					privateKey: ed25519KeyPair.privateKey,
-				},
-				encrypted,
-			),
-		).toThrow(/Raw seed bytes are required/)
 	})
 })

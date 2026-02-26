@@ -201,6 +201,52 @@ describe("runCommand", () => {
 		)
 	})
 
+	test("does not pass DOTENC_PRIVATE_KEY to child process", async () => {
+		const originalKey = process.env.DOTENC_PRIVATE_KEY
+		try {
+			process.env.DOTENC_PRIVATE_KEY = "super-secret-key"
+
+			let capturedEnv: NodeJS.ProcessEnv | undefined
+			const spawn = mock(
+				(
+					_command: string,
+					_args: string[],
+					options: { env: NodeJS.ProcessEnv },
+				) => {
+					capturedEnv = options.env
+					const child = {
+						on: (_event: string, _cb: (code: number | null) => void) => child,
+					}
+					return child as never
+				},
+			)
+
+			const deps: RunCommandDeps = {
+				decryptEnvironment: async () => "KEY=value",
+				parseEnv: () => ({ KEY: "value" }),
+				validateEnvironmentName: () => ({ valid: true }),
+				spawn: spawn as never,
+				logError: mock(() => {}),
+				exit: mock((_code: number): never => undefined as never),
+			}
+
+			await runCommand(
+				"node",
+				["app.js"],
+				{ env: "production" },
+				undefined,
+				deps,
+			)
+
+			expect(capturedEnv).toBeDefined()
+			expect(capturedEnv?.DOTENC_PRIVATE_KEY).toBeUndefined()
+			expect(capturedEnv?.KEY).toBe("value")
+		} finally {
+			if (originalKey === undefined) delete process.env.DOTENC_PRIVATE_KEY
+			else process.env.DOTENC_PRIVATE_KEY = originalKey
+		}
+	})
+
 	test("exits when all environments fail and reports unknown errors", async () => {
 		const logError = mock((_message: string) => {})
 		const exit = mock((code: number): never => {

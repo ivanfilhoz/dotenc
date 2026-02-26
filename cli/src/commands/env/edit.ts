@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, rmSync, statSync, writeFileSync } from "node:fs"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -63,14 +63,31 @@ ${separator}${content}`
 	await fs.writeFile(tempFilePath, content, { encoding: "utf-8", mode: 0o600 })
 	const initialHash = createHash(content)
 
+	// Overwrite plaintext content with zeros before removing the temp file.
+	const secureErase = async () => {
+		try {
+			const stat = await fs.stat(tempFilePath)
+			await fs.writeFile(tempFilePath, Buffer.alloc(stat.size, 0))
+		} catch {
+			// File may not exist; best effort.
+		}
+	}
+
 	const cleanup = async () => {
+		await secureErase()
 		await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {})
 	}
 
+	// Synchronous variant used in signal handlers to guarantee completion before exit.
 	const onSignal = () => {
-		fs.rm(tempDir, { recursive: true, force: true })
-			.catch(() => {})
-			.finally(() => process.exit(130))
+		try {
+			const stat = statSync(tempFilePath)
+			writeFileSync(tempFilePath, Buffer.alloc(stat.size, 0))
+		} catch {
+			// File may not exist; best effort.
+		}
+		rmSync(tempDir, { recursive: true, force: true })
+		process.exit(130)
 	}
 
 	process.on("SIGINT", onSignal)

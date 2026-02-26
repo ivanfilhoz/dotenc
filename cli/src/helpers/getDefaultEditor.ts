@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { getHomeConfig } from "./homeConfig"
 
 type GetDefaultEditorDeps = {
@@ -7,13 +7,14 @@ type GetDefaultEditorDeps = {
 	platform: NodeJS.Platform
 }
 
+const SHELL_METACHARACTERS = /[$`();|<>&!\n\r]/
+
+const isSafeEditorCommand = (value: string): boolean =>
+	!SHELL_METACHARACTERS.test(value)
+
 export const commandExists = (command: string) => {
-	try {
-		execSync(`command -v ${command}`, { stdio: "ignore" })
-		return true
-	} catch {
-		return false
-	}
+	const result = spawnSync("which", [command], { stdio: "ignore" })
+	return result.status === 0
 }
 
 const defaultGetDefaultEditorDeps: GetDefaultEditorDeps = {
@@ -33,16 +34,21 @@ export const getDefaultEditor = async (
 
 	// Check the editor field in the config file
 	if (config.editor) {
+		if (!isSafeEditorCommand(config.editor)) {
+			throw new Error(
+				'The configured editor command contains unsafe characters. Please update it using "dotenc config editor <command>".',
+			)
+		}
 		return config.editor
 	}
 
-	// Check the EDITOR environment variable
-	if (process.env.EDITOR) {
+	// Check the EDITOR environment variable (skip if it contains shell metacharacters)
+	if (process.env.EDITOR && isSafeEditorCommand(process.env.EDITOR)) {
 		return process.env.EDITOR
 	}
 
-	// Check the VISUAL environment variable
-	if (process.env.VISUAL) {
+	// Check the VISUAL environment variable (skip if it contains shell metacharacters)
+	if (process.env.VISUAL && isSafeEditorCommand(process.env.VISUAL)) {
 		return process.env.VISUAL
 	}
 	// Platform-specific defaults

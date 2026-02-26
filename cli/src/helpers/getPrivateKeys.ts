@@ -12,7 +12,6 @@ export type PrivateKeyEntry = {
 	privateKey: crypto.KeyObject
 	fingerprint: string
 	algorithm: "rsa" | "ed25519"
-	rawSeed?: Buffer
 	rawPublicKey?: Buffer
 }
 
@@ -24,17 +23,13 @@ export type UnsupportedPrivateKeyEntry = {
 const SSH_KEY_FILES = ["id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"]
 
 function extractEd25519RawKeys(privateKey: crypto.KeyObject): {
-	rawSeed: Buffer
 	rawPublicKey: Buffer
 } {
-	const privDer = privateKey.export({ type: "pkcs8", format: "der" })
-	const rawSeed = Buffer.from(privDer.subarray(privDer.length - 32))
-
 	const publicKey = crypto.createPublicKey(privateKey)
 	const pubDer = publicKey.export({ type: "spki", format: "der" })
 	const rawPublicKey = Buffer.from(pubDer.subarray(pubDer.length - 32))
 
-	return { rawSeed, rawPublicKey }
+	return { rawPublicKey }
 }
 
 function detectAlgorithm(
@@ -169,8 +164,7 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 				}
 
 				if (algorithm === "ed25519") {
-					const { rawSeed, rawPublicKey } = extractEd25519RawKeys(privateKey)
-					entry.rawSeed = rawSeed
+					const { rawPublicKey } = extractEd25519RawKeys(privateKey)
 					entry.rawPublicKey = rawPublicKey
 				}
 
@@ -281,8 +275,7 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 		}
 
 		if (algorithm === "ed25519") {
-			const { rawSeed, rawPublicKey } = extractEd25519RawKeys(privateKey)
-			entry.rawSeed = rawSeed
+			const { rawPublicKey } = extractEd25519RawKeys(privateKey)
 			entry.rawPublicKey = rawPublicKey
 		}
 

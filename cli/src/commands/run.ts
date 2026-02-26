@@ -96,8 +96,10 @@ export const runCommand = async (
 		return { ...acc, ...env }
 	}, {})
 
-	// Merge the environment variables and run the command
-	const mergedEnv = { ...process.env, ...decryptedEnv }
+	// Merge the environment variables and run the command.
+	// Strip DOTENC_PRIVATE_KEY so it is never exposed to child processes.
+	const { DOTENC_PRIVATE_KEY: _privateKey, ...baseEnv } = process.env
+	const mergedEnv = { ...baseEnv, ...decryptedEnv }
 
 	const child = deps.spawn(command, args, {
 		env: mergedEnv,

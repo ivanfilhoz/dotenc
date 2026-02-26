@@ -70,7 +70,6 @@ const makeDeps = (
 			privateKey,
 			fingerprint: "fingerprint",
 			algorithm: "ed25519",
-			rawSeed: Buffer.alloc(32),
 			rawPublicKey: Buffer.alloc(32),
 		})) as never,
 		inputKeyPrompt: mock(async () => publicPem) as never,

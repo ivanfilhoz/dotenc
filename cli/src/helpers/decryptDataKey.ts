@@ -6,13 +6,13 @@ ECIES_CONFIG.ellipticCurve = "ed25519"
 type PrivateKeyInfo = {
 	algorithm: "rsa" | "ed25519"
 	privateKey: crypto.KeyObject
-	rawSeed?: Buffer
 }
 
 /**
  * Decrypts a data key using the appropriate algorithm for the given private key.
  * RSA: uses crypto.privateDecrypt with PKCS1 padding.
- * Ed25519: uses ECIES (eciesjs) with raw 32-byte seed.
+ * Ed25519: uses ECIES (eciesjs) with raw 32-byte seed extracted at call time and
+ *          zeroed immediately after use to minimise key material lifetime in memory.
  */
 export const decryptDataKey = (
 	keyInfo: PrivateKeyInfo,
@@ -29,9 +29,18 @@ export const decryptDataKey = (
 		)
 	}
 
-	if (!keyInfo.rawSeed) {
-		throw new Error("Raw seed bytes are required for Ed25519 decryption.")
+	// Extract the raw 32-byte seed from the PKCS#8 DER encoding at the moment of
+	// decryption, then zero both the seed and the full DER buffer immediately after
+	// use to minimise sensitive key material lifetime in process memory.
+	const privDer = keyInfo.privateKey.export({
+		type: "pkcs8",
+		format: "der",
+	}) as Buffer
+	const rawSeed = Buffer.from(privDer.subarray(privDer.length - 32))
+	try {
+		return Buffer.from(decrypt(rawSeed, encryptedDataKey))
+	} finally {
+		rawSeed.fill(0)
+		privDer.fill(0)
 	}
-
-	return Buffer.from(decrypt(keyInfo.rawSeed, encryptedDataKey))
 }

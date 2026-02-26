@@ -28,7 +28,6 @@ const createPrivateKeyEntry = (
 		privateKey,
 		fingerprint: `${name}-fingerprint`,
 		algorithm,
-		rawSeed: Buffer.alloc(32),
 		rawPublicKey: Buffer.alloc(32),
 	}
 }

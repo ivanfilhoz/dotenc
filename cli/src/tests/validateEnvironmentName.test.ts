@@ -27,6 +27,16 @@ describe("validateEnvironmentName", () => {
 		}
 	})
 
+	test('rejects "." and ".." as standalone names', () => {
+		for (const name of [".", ".."]) {
+			const result = validateEnvironmentName(name)
+			expect(result.valid).toBe(false)
+			if (!result.valid) {
+				expect(result.reason).toContain("Invalid environment name")
+			}
+		}
+	})
+
 	test("rejects names with spaces", () => {
 		const result = validateEnvironmentName("foo bar")
 		expect(result.valid).toBe(false)
