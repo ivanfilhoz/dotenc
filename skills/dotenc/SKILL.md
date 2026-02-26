@@ -1,6 +1,6 @@
 ---
 name: dotenc
-description: Operate dotenc encrypted environments and access control in repositories that use dotenc. Use when users need to initialize dotenc, create/edit/list environments, run commands with injected secrets, manage public keys, grant/revoke access, offboard teammates, guide explicit opt-in installation/update choices, install dotenc agent/editor integrations, or troubleshoot dotenc CLI workflows.
+description: Operate dotenc encrypted environments and access control in repositories that use dotenc (application repos using dotenc, not the dotenc source code repository itself). Use when users need to initialize dotenc, create/edit/list environments, run commands with injected secrets, manage public keys, grant/revoke access, offboard teammates, guide explicit opt-in installation/update choices, install dotenc agent/editor integrations, or troubleshoot dotenc CLI workflows.
 allowed-tools: Bash, Read, Glob, Grep
 argument-hint: [command]
 ---
@@ -8,6 +8,8 @@ argument-hint: [command]
 # Dotenc Skill
 
 Use this skill for dotenc CLI `0.6.x`.
+This skill is for operating dotenc in repositories that consume dotenc.
+Do not use this skill to develop dotenc itself (CLI/source/tests/website/extension). For dotenc development work, inspect and modify the source code directly instead of following operational CLI workflows from this skill.
 
 ## Security posture (read first)
 
@@ -138,9 +140,33 @@ dotenc init --name <username>
 
 ```bash
 dotenc env create <environment> <publicKey>
-dotenc env edit <environment>
 dotenc env list
 ```
+
+`dotenc env edit <environment>` is optimized for human interactive terminals (it opens the configured editor and waits for it to close). Do not use it as the default edit path for agents.
+
+#### Agent default: machine-friendly environment edits
+
+For agents, prefer the hidden machine-use commands:
+
+```bash
+dotenc env decrypt <environment> --json
+dotenc env encrypt <environment> --stdin --json
+```
+
+Recommended agent workflow:
+
+1. Run `dotenc env decrypt <environment> --json` and parse the JSON response.
+2. If `ok: true`, modify only the `content` field in memory or a local temp file.
+3. Pipe the updated plaintext content to `dotenc env encrypt <environment> --stdin --json`.
+4. Check for `{"ok":true}` and report success without printing secret values.
+5. If the command returns `ok: false`, use `error.code` and `error.message` for troubleshooting.
+
+Notes:
+
+- `dotenc env decrypt --json` returns machine-readable JSON with `ok`, `content`, and `grantedUsers`.
+- `dotenc env encrypt` requires `--stdin` when used by agents.
+- Do not echo decrypted `content` into chat output.
 
 ### Run commands with secrets
 
@@ -226,10 +252,10 @@ dotenc update
 |---------|-------------|
 | `dotenc env list` | List encrypted environments |
 | `dotenc env create [environment] [publicKey]` | Create a new encrypted environment |
-| `dotenc env edit [environment]` | Edit and re-encrypt an environment |
+| `dotenc env edit [environment]` | Interactive editor workflow (human terminals; not the default for agents) |
 | `dotenc env rotate [environment]` | Re-encrypt environment with a fresh data key |
-| `dotenc env decrypt <environment> [--json]` | Hidden: decrypt to stdout (machine use) |
-| `dotenc env encrypt <environment> [--stdin] [--json]` | Hidden: encrypt plaintext input (machine use) |
+| `dotenc env decrypt <environment> [--json]` | Hidden: decrypt to stdout / JSON (preferred for agent machine workflows) |
+| `dotenc env encrypt <environment> [--stdin] [--json]` | Hidden: encrypt plaintext from stdin / JSON (preferred for agent machine workflows) |
 
 ### Access control
 
@@ -266,7 +292,8 @@ dotenc update
 
 ## Safety rules
 
-- Prefer `dotenc env edit`, `dotenc dev`, and `dotenc run` over raw decrypt output.
+- Prefer `dotenc env edit` for human interactive edits, but prefer `dotenc env decrypt --json` + `dotenc env encrypt --stdin --json` for agent-driven environment edits.
+- Prefer `dotenc dev` and `dotenc run` over ad hoc decrypt/exec patterns when the goal is command execution, not environment editing.
 - Pass explicit command arguments to avoid interactive prompts when automating.
 - Ask for explicit approval before any command that installs software, updates software, opens URLs/apps, or may download external code (`dotenc update`, `dotenc tools install-agent-skill`, editor integration helpers).
 - For install troubleshooting, ask permission before running environment-detection checks and report the exact checks you plan to run.
@@ -279,6 +306,7 @@ dotenc update
 
 - If commands fail with project-not-initialized errors, run `dotenc init --name <username>`.
 - If `dotenc run` reports no environment, pass `-e <environment>` or set `DOTENC_ENV`.
+- If agent-driven env editing is failing, use `dotenc env decrypt <environment> --json` / `dotenc env encrypt <environment> --stdin --json` and inspect `error.code` / `error.message` instead of using `dotenc env edit`.
 - If update notifications should be disabled in CI/noisy environments, set `DOTENC_SKIP_UPDATE_CHECK=1`.
 - If identity cannot be resolved for `dotenc dev`, run `dotenc whoami` and ensure your key exists in `.dotenc/`.
 - If key import fails due to passphrase protection, use an unencrypted key or add a compatible public key file.
