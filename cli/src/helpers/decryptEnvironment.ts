@@ -5,8 +5,8 @@ import { decryptDataKey } from "./decryptDataKey"
 import { passphraseProtectedKeyError } from "./errors"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import {
-	getPrivateKeys,
 	type GetPrivateKeysResult,
+	getPrivateKeys,
 	type PrivateKeyEntry,
 } from "./getPrivateKeys"
 
