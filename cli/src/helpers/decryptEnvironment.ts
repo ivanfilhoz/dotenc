@@ -4,7 +4,11 @@ import { decryptData } from "./crypto"
 import { decryptDataKey } from "./decryptDataKey"
 import { passphraseProtectedKeyError } from "./errors"
 import { getEnvironmentByName } from "./getEnvironmentByName"
-import { getPrivateKeys, type PrivateKeyEntry } from "./getPrivateKeys"
+import {
+	getPrivateKeys,
+	type GetPrivateKeysResult,
+	type PrivateKeyEntry,
+} from "./getPrivateKeys"
 
 type DecryptEnvironmentDataDeps = {
 	getPrivateKeys: typeof getPrivateKeys
@@ -92,16 +96,29 @@ export const decryptEnvironment = async (
 	name: string,
 	deps: DecryptEnvironmentDeps = defaultDecryptEnvironmentDeps,
 ) => {
-	const { keys: availablePrivateKeys } = await deps.getPrivateKeys()
+	// Memoize getPrivateKeys so it runs only once per command invocation.
+	// On Bun, a second call to getPrivateKeys() in the same process can fail
+	// to re-parse the same OpenSSH ed25519 keys, returning an empty key list.
+	let cachedResult: GetPrivateKeysResult | undefined
+	const cachedGetPrivateKeys: typeof getPrivateKeys = async () => {
+		if (!cachedResult) cachedResult = await deps.getPrivateKeys()
+		return cachedResult
+	}
+	const memoizedDeps: DecryptEnvironmentDeps = {
+		...deps,
+		getPrivateKeys: cachedGetPrivateKeys,
+	}
+
 	const environmentJson = await deps.getEnvironmentByName(name)
 
 	try {
-		return await decryptEnvironmentData(name, environmentJson, deps)
+		return await decryptEnvironmentData(name, environmentJson, memoizedDeps)
 	} catch (error) {
 		if (
 			error instanceof Error &&
 			error.message === "Access denied to the environment."
 		) {
+			const { keys: availablePrivateKeys } = await cachedGetPrivateKeys()
 			deps.logError(
 				`You do not have access to this environment.\n
       These are your available private keys:\n
