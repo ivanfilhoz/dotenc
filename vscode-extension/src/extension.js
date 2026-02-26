@@ -4,8 +4,8 @@ const { closeFileTabs } = require("./helpers/closeFileTabs")
 const {
 	DOTENC_SCHEME,
 	INSTALL_ACTION_LABEL,
-	OPEN_ENCRYPTED_SOURCE_COMMAND,
-	OPEN_NATIVE_COMMAND,
+	VIEW_DECRYPTED_COMMAND,
+	VIEW_ENCRYPTED_COMMAND,
 	SHOW_LOGS_ACTION_LABEL,
 	UPDATE_ACTION_LABEL,
 } = require("./helpers/constants")
@@ -22,7 +22,7 @@ const { getStartupCwd } = require("./helpers/getStartupCwd")
 const {
 	getWorkspaceUriForStartup,
 } = require("./helpers/getWorkspaceUriForStartup")
-const { isAutoOpenNativeEnabled } = require("./helpers/isAutoOpenNativeEnabled")
+const { isAutoViewDecryptedEnabled } = require("./helpers/isAutoViewDecryptedEnabled")
 const {
 	isDotencEnvironmentFileUri,
 } = require("./helpers/isDotencEnvironmentFileUri")
@@ -36,9 +36,6 @@ const { MIN_DOTENC_VERSION } = require("./helpers/minDotencVersion")
 const { parseJsonPayload } = require("./helpers/parseJsonPayload")
 const { resolveSourceUri } = require("./helpers/resolveSourceUri")
 const { runProcess } = require("./helpers/runProcess")
-const {
-	shouldShowOpenEncryptedSourceAction,
-} = require("./helpers/shouldShowOpenEncryptedSourceAction")
 const {
 	shouldSkipCliUpdateCheck,
 } = require("./helpers/shouldSkipCliUpdateCheck")
@@ -411,7 +408,7 @@ async function maybePromptCliUpdate(outputChannel) {
 	await runCliUpdate(workspaceUri, outputChannel, currentVersion, latestVersion)
 }
 
-async function openNativeEnvironment(resource) {
+async function viewDecrypted(resource) {
 	const fileUri = resolveSourceUri(resource)
 	const dotencUri = toDotencUri(fileUri)
 
@@ -427,7 +424,7 @@ async function openNativeEnvironment(resource) {
 	}
 }
 
-async function openEncryptedSource(resource, suppressAutoRedirectOnce) {
+async function viewEncrypted(resource, suppressAutoRedirectOnce) {
 	const fileUri = resolveSourceUri(resource)
 	const key = fileUri.toString()
 	suppressAutoRedirectOnce.add(key)
@@ -448,15 +445,6 @@ function activate(context) {
 	const outputChannel = vscode.window.createOutputChannel("dotenc")
 	const redirectInProgress = new Set()
 	const suppressAutoRedirectOnce = new Set()
-	const openEncryptedSourceStatus = vscode.window.createStatusBarItem(
-		vscode.StatusBarAlignment.Right,
-		90,
-	)
-	openEncryptedSourceStatus.name = "dotenc open encrypted source"
-	openEncryptedSourceStatus.text = "$(file-code) Open Encrypted Source"
-	openEncryptedSourceStatus.tooltip =
-		"Open the raw .env.<environment>.enc file for troubleshooting."
-	openEncryptedSourceStatus.command = OPEN_ENCRYPTED_SOURCE_COMMAND
 
 	const autoOpenCurrentEditorIfNeeded = async (editor) => {
 		if (!editor || !editor.document) {
@@ -467,7 +455,7 @@ function activate(context) {
 		if (!isDotencEnvironmentFileUri(uri)) {
 			return
 		}
-		if (!isAutoOpenNativeEnabled()) {
+		if (!isAutoViewDecryptedEnabled()) {
 			return
 		}
 
@@ -482,20 +470,12 @@ function activate(context) {
 		redirectInProgress.add(key)
 
 		try {
-			await openNativeEnvironment(uri)
+			await viewDecrypted(uri)
 		} catch {
-			// Error already surfaced via showErrorMessage in openNativeEnvironment.
+			// Error already surfaced via showErrorMessage in viewDecrypted.
 		} finally {
 			redirectInProgress.delete(key)
 		}
-	}
-
-	const updateOpenEncryptedSourceStatus = (editor) => {
-		if (!shouldShowOpenEncryptedSourceAction(editor)) {
-			openEncryptedSourceStatus.hide()
-			return
-		}
-		openEncryptedSourceStatus.show()
 	}
 
 	context.subscriptions.push(
@@ -506,16 +486,14 @@ function activate(context) {
 				isCaseSensitive: process.platform !== "win32",
 			},
 		),
-		vscode.commands.registerCommand(OPEN_NATIVE_COMMAND, openNativeEnvironment),
-		vscode.commands.registerCommand(OPEN_ENCRYPTED_SOURCE_COMMAND, (resource) =>
-			openEncryptedSource(resource, suppressAutoRedirectOnce),
+		vscode.commands.registerCommand(VIEW_DECRYPTED_COMMAND, viewDecrypted),
+		vscode.commands.registerCommand(VIEW_ENCRYPTED_COMMAND, (resource) =>
+			viewEncrypted(resource, suppressAutoRedirectOnce),
 		),
 		vscode.window.onDidChangeActiveTextEditor((editor) => {
 			void autoOpenCurrentEditorIfNeeded(editor)
-			updateOpenEncryptedSourceStatus(editor)
 		}),
 		outputChannel,
-		openEncryptedSourceStatus,
 	)
 
 	void autoOpenCurrentEditorIfNeeded(vscode.window.activeTextEditor)
@@ -524,7 +502,6 @@ function activate(context) {
 			`Failed to check for CLI updates: ${error instanceof Error ? error.message : String(error)}`,
 		)
 	})
-	updateOpenEncryptedSourceStatus(vscode.window.activeTextEditor)
 }
 
 function deactivate() {}

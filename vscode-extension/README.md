@@ -32,7 +32,7 @@ curl -fsSL https://dotenc.org/install.sh | sh
 
 ## Settings
 
-- `dotenc.autoOpenNative`: automatically open `.env.<environment>.enc` files in the decrypted editor (default: `true`).
+- `dotenc.autoViewDecrypted`: automatically open `.env.<environment>.enc` files in the decrypted editor (default: `true`).
 - `dotenc.executablePath`: path to the `dotenc` executable (default: `dotenc`). Configure this in your user/remote settings (not workspace settings).
 
 ## Update checks

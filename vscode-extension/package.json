@@ -21,8 +21,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:dotenc.openNative",
-		"onCommand:dotenc.openEncryptedSource",
+		"onCommand:dotenc.viewDecrypted",
+		"onCommand:dotenc.viewEncrypted",
 		"onFileSystem:dotenc",
 		"onStartupFinished"
 	],
@@ -30,26 +30,35 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "dotenc.openNative",
-				"title": "dotenc: Open Decrypted Environment"
+				"command": "dotenc.viewDecrypted",
+				"category": "dotenc",
+				"title": "View decrypted",
+				"icon": "$(lock)"
 			},
 			{
-				"command": "dotenc.openEncryptedSource",
-				"title": "dotenc: Open Encrypted Source"
+				"command": "dotenc.viewEncrypted",
+				"category": "dotenc",
+				"title": "View encrypted",
+				"icon": "$(unlock)"
 			}
 		],
 		"menus": {
 			"explorer/context": [
 				{
-					"command": "dotenc.openNative",
+					"command": "dotenc.viewDecrypted",
 					"when": "resourceScheme == file && resourceFilename =~ /^\\.env\\..+\\.enc$/",
 					"group": "navigation@1"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "dotenc.openNative",
+					"command": "dotenc.viewDecrypted",
 					"when": "resourceScheme == file && resourceFilename =~ /^\\.env\\..+\\.enc$/",
+					"group": "navigation"
+				},
+				{
+					"command": "dotenc.viewEncrypted",
+					"when": "resourceScheme == dotenc && resourceFilename =~ /^\\.env\\..+\\.enc$/",
 					"group": "navigation"
 				}
 			]
@@ -57,7 +66,7 @@
 		"configuration": {
 			"title": "dotenc",
 			"properties": {
-				"dotenc.autoOpenNative": {
+				"dotenc.autoViewDecrypted": {
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically replace opened .env.<environment>.enc files with the decrypted native dotenc editor."
@@ -72,6 +81,7 @@
 		}
 	},
 	"scripts": {
+		"dev": "node ./tests/run-manual.js",
 		"test": "bun test ./tests/unit/core.test.js",
 		"test:coverage": "bun test ./tests/unit/core.test.js --coverage --coverage-reporter lcov --coverage-dir coverage",
 		"test:integration": "node ./tests/run-integration.js",

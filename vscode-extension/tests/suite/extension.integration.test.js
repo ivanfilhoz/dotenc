@@ -3,8 +3,8 @@ const fs = require("node:fs")
 const path = require("node:path")
 const vscode = require("vscode")
 
-const OPEN_NATIVE_COMMAND = "dotenc.openNative"
-const OPEN_ENCRYPTED_SOURCE_COMMAND = "dotenc.openEncryptedSource"
+const VIEW_DECRYPTED_COMMAND = "dotenc.viewDecrypted"
+const VIEW_ENCRYPTED_COMMAND = "dotenc.viewEncrypted"
 
 function readJsonLines(filePath) {
 	if (!fs.existsSync(filePath)) {
@@ -185,11 +185,15 @@ suite("dotenc VS Code integration", () => {
 		const fileDocument = await vscode.workspace.openTextDocument(fileUri)
 		await vscode.window.showTextDocument(fileDocument)
 
-		const document = await waitFor(async () =>
-			vscode.workspace.textDocuments.find(
+		const document = await waitFor(async () => {
+			const doc = vscode.workspace.textDocuments.find(
 				(current) => current.uri.toString() === dotencUri.toString(),
-			),
-		)
+			)
+			const isActive =
+				vscode.window.activeTextEditor?.document.uri.toString() ===
+				dotencUri.toString()
+			return doc && isActive ? doc : undefined
+		})
 
 		const initialText = document.getText()
 		assert.match(initialText, /ALLOWED_ALLOWED=1/)
@@ -230,7 +234,7 @@ suite("dotenc VS Code integration", () => {
 			),
 		)
 
-		await vscode.commands.executeCommand(OPEN_ENCRYPTED_SOURCE_COMMAND, dotencUri)
+		await vscode.commands.executeCommand(VIEW_ENCRYPTED_COMMAND, dotencUri)
 		await waitFor(async () =>
 			vscode.window.activeTextEditor?.document.uri.toString() === fileUri.toString()
 				? true
@@ -246,7 +250,7 @@ suite("dotenc VS Code integration", () => {
 		const fileUri = vscode.Uri.file(path.join(workspaceRoot, ".env.locked.enc"))
 
 		await assert.rejects(
-			() => vscode.commands.executeCommand(OPEN_NATIVE_COMMAND, fileUri),
+			() => vscode.commands.executeCommand(VIEW_DECRYPTED_COMMAND, fileUri),
 			/You do not have access to "locked"/,
 		)
 
