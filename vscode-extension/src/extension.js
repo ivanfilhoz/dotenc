@@ -24,7 +24,9 @@ const { getStartupCwd } = require("./helpers/getStartupCwd")
 const {
 	getWorkspaceUriForStartup,
 } = require("./helpers/getWorkspaceUriForStartup")
-const { isAutoViewDecryptedEnabled } = require("./helpers/isAutoViewDecryptedEnabled")
+const {
+	isAutoViewDecryptedEnabled,
+} = require("./helpers/isAutoViewDecryptedEnabled")
 const {
 	isDotencEnvironmentFileUri,
 } = require("./helpers/isDotencEnvironmentFileUri")

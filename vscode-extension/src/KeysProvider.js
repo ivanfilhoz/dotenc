@@ -1,7 +1,9 @@
 const vscode = require("vscode")
 const { getDotencExecutable } = require("./helpers/getDotencExecutable")
 const { getStartupCwd } = require("./helpers/getStartupCwd")
-const { getWorkspaceUriForStartup } = require("./helpers/getWorkspaceUriForStartup")
+const {
+	getWorkspaceUriForStartup,
+} = require("./helpers/getWorkspaceUriForStartup")
 const { runProcess } = require("./helpers/runProcess")
 const { stripAnsi } = require("./helpers/stripAnsi")
 
@@ -53,7 +55,10 @@ class KeysProvider {
 			const name = match ? match[1] : line
 			const algorithm = match ? match[2] : undefined
 
-			const item = new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.None)
+			const item = new vscode.TreeItem(
+				name,
+				vscode.TreeItemCollapsibleState.None,
+			)
 			item.iconPath = new vscode.ThemeIcon("key")
 			if (algorithm) {
 				item.description = algorithm

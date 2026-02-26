@@ -2,7 +2,9 @@ const vscode = require("vscode")
 const { VIEW_DECRYPTED_COMMAND } = require("./helpers/constants")
 const { getDotencExecutable } = require("./helpers/getDotencExecutable")
 const { getStartupCwd } = require("./helpers/getStartupCwd")
-const { getWorkspaceUriForStartup } = require("./helpers/getWorkspaceUriForStartup")
+const {
+	getWorkspaceUriForStartup,
+} = require("./helpers/getWorkspaceUriForStartup")
 const { runProcess } = require("./helpers/runProcess")
 const { stripAnsi } = require("./helpers/stripAnsi")
 
@@ -49,7 +51,10 @@ class EnvironmentsProvider {
 
 		return names.map((name) => {
 			const fileUri = vscode.Uri.joinPath(workspaceUri, `.env.${name}.enc`)
-			const item = new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.None)
+			const item = new vscode.TreeItem(
+				name,
+				vscode.TreeItemCollapsibleState.None,
+			)
 			item.iconPath = new vscode.ThemeIcon("file")
 			item.command = {
 				command: VIEW_DECRYPTED_COMMAND,
