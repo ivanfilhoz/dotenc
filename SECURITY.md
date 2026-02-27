@@ -1,0 +1,217 @@
+# Security
+
+This document describes the security model, cryptographic design, and operational security practices of dotenc.
+
+## Table of Contents
+
+- [Threat Model](#threat-model)
+- [Cryptographic Design](#cryptographic-design)
+  - [Envelope Encryption](#envelope-encryption)
+  - [Algorithms](#algorithms)
+  - [Data Key Lifecycle](#data-key-lifecycle)
+- [Key Material Handling](#key-material-handling)
+  - [Private Key Isolation](#private-key-isolation)
+  - [Temporary File Security](#temporary-file-security)
+  - [File Permissions](#file-permissions)
+- [Input Validation and Injection Prevention](#input-validation-and-injection-prevention)
+- [Access Control Model](#access-control-model)
+- [Installation Script Trust Model](#installation-script-trust-model)
+- [Known Limitations](#known-limitations)
+- [Vulnerability Reporting](#vulnerability-reporting)
+
+---
+
+## Threat Model
+
+dotenc is designed to protect secrets at rest in a Git repository. Its security model assumes:
+
+**Protected against:**
+- An attacker who can read the repository (including all `.enc` files and public keys in `.dotenc/`) but does not have access to any authorized SSH private key
+- Accidental secret exposure through environment variable leakage to child processes
+- Tampering with encrypted files (authenticated encryption detects modification)
+- Path traversal or command injection via user-supplied names and editor configuration
+
+**Not protected against:**
+- An attacker who has already obtained an authorized SSH private key
+- Secrets that were previously exposed before being stored in dotenc
+- Secrets known to a user before their access was revoked (see [Access Control Model](#access-control-model))
+- A compromised machine where decryption takes place (memory forensics, malicious processes)
+- Passphrase-protected key attacks — dotenc does not support passphrase-protected keys; see [Known Limitations](#known-limitations)
+
+---
+
+## Cryptographic Design
+
+### Envelope Encryption
+
+dotenc uses envelope encryption: each environment has a single randomly generated **data key**, and that data key is individually encrypted for each authorized user using their SSH public key.
+
+```
+Environment secrets
+        │
+        ▼ AES-256-GCM (data key + env name as AAD)
+        │
+Encrypted ciphertext (.env.*.enc)
+
+Data key
+        │
+        ├─▶ ECIES encrypt (Ed25519 public key) → stored in .env.*.enc
+        └─▶ RSA-OAEP encrypt (RSA public key)  → stored in .env.*.enc
+```
+
+This means:
+- Only authorized users can decrypt the data key, and therefore the environment
+- Re-keying an environment (adding or revoking access) only re-encrypts the data key, not the environment contents
+- Rotating the data key generates a new random key and re-encrypts all environment contents
+
+### Algorithms
+
+| Operation | Algorithm | Parameters |
+|-----------|-----------|------------|
+| Environment encryption | AES-256-GCM | 96-bit random IV, 128-bit auth tag |
+| Additional Authenticated Data | Environment name bound to ciphertext | Prevents ciphertext swap across environments |
+| Data key encryption (Ed25519 keys) | ECIES (`eciesjs` v0.4+) | X25519 ECDH + AES-GCM |
+| Data key encryption (RSA keys) | RSA-OAEP | SHA-256 |
+| Supported public key types | Ed25519, RSA ≥ 2048-bit | ECDSA and DSA are rejected |
+
+**IV generation:** A fresh 12-byte random IV is generated for every encryption operation using Node.js `crypto.randomBytes()`. IVs are never reused.
+
+**Authentication:** AES-256-GCM provides authenticated encryption. Any modification to the ciphertext, auth tag, or IV is detected during decryption and results in an error. The environment name is included as Additional Authenticated Data (AAD), preventing a ciphertext from one environment from being replayed against another.
+
+### Data Key Lifecycle
+
+1. On `dotenc env create` or `dotenc env edit`, a new 32-byte random data key is generated
+2. The data key is encrypted for each authorized public key and stored in the `.enc` file header
+3. The data key is never written to disk in plaintext
+4. On decryption, the data key is held in memory only for the duration of the operation, then explicitly zeroed
+
+---
+
+## Key Material Handling
+
+### Private Key Isolation
+
+**SSH private keys stay in `~/.ssh/`** — dotenc reads them in place and never copies, moves, or stores them elsewhere.
+
+**In-memory zeroing:** After the private key is used to decrypt the data key, the raw key bytes are explicitly overwritten with zeros before being released:
+
+```typescript
+// cli/src/helpers/decryptDataKey.ts
+try {
+    return eciesDecrypt(rawSeed, encryptedDataKey)
+} finally {
+    rawSeed.fill(0)   // zero Ed25519 seed bytes
+    privDer.fill(0)   // zero DER-encoded private key buffer
+}
+```
+
+**Child process isolation:** When running commands with `dotenc run` or `dotenc dev`, the `DOTENC_PRIVATE_KEY` environment variable is explicitly stripped from the child process environment before launch. Injected secrets are limited to the decrypted variables only:
+
+```typescript
+// cli/src/commands/run.ts
+const { DOTENC_PRIVATE_KEY: _privateKey, ...baseEnv } = process.env
+const mergedEnv = { ...baseEnv, ...decryptedEnv }
+spawn(command, args, { env: mergedEnv })
+```
+
+### Temporary File Security
+
+`dotenc env edit` decrypts the environment into a temporary file for editing. This file is handled securely:
+
+- Created in a temporary directory with mode `0o600` (readable only by the current user)
+- **Overwritten with zeros** before deletion, preventing recovery from the filesystem:
+
+```typescript
+// cli/src/commands/env/edit.ts
+const stat = await fs.stat(tempFilePath)
+await fs.writeFile(tempFilePath, Buffer.alloc(stat.size, 0))
+```
+
+- Signal handlers for `SIGINT` and `SIGTERM` ensure secure erasure even if the process is interrupted mid-edit
+
+### File Permissions
+
+| Resource | Mode | Notes |
+|----------|------|-------|
+| SSH key directory (`~/.ssh/`) | `0o700` | Created if absent |
+| Temporary plaintext files | `0o600` | Zeroed before deletion |
+| `.env.*.enc` files | Default umask | Encrypted; safe to be world-readable |
+| `.dotenc/*.pub` files | Default umask | Public keys; intentionally public |
+
+---
+
+## Input Validation and Injection Prevention
+
+**Environment and key names** are validated with a strict whitelist — only alphanumeric characters, dots, hyphens, and underscores are accepted. The values `.` and `..` and Windows reserved names (`CON`, `NUL`, `COM1`, etc.) are explicitly rejected.
+
+**Public keys** are validated before use:
+- RSA keys shorter than 2048 bits are rejected
+- ECDSA and DSA keys are rejected (unsupported)
+- Ed25519 keys are accepted as preferred
+
+**Editor commands** (from `$EDITOR`, `$VISUAL`, or `dotenc config editor`) are checked against a shell metacharacter denylist (`$`, `` ` ``, `(`, `)`, `;`, `|`, `<`, `>`, `&`, `!`, newlines) before use. The editor is then executed via `spawnSync` with arguments as an array — not through a shell — so no shell interpolation occurs.
+
+**Child command execution** (`dotenc run`, `dotenc dev`) uses `spawn()` with the command and arguments as separate values, never concatenated into a shell string.
+
+---
+
+## Access Control Model
+
+Access in dotenc is enforced cryptographically, not by policy:
+
+- A user who is not in the authorized list for an environment cannot decrypt that environment's data key, and therefore cannot read the secrets
+- Granting access re-encrypts the data key for the new user's public key; no re-encryption of the environment contents is required
+- Revoking access removes the user's encrypted data key copy and re-encrypts the data key for all remaining users (requires the revoking user to have decrypt access)
+
+**Important limitation:** Revoking access prevents future decryption but does not invalidate knowledge of secrets already seen by the revoked user. For full offboarding, rotate the affected external secrets (API keys, database passwords, etc.) and optionally run `dotenc env rotate <environment>` to generate a new data key.
+
+All grant and revoke operations are reflected in Git-tracked files, providing a full audit trail in repository history.
+
+---
+
+## Installation Script Trust Model
+
+The VS Code extension offers an installation helper that downloads and runs the dotenc install script:
+
+```bash
+curl -fsSL https://dotenc.org/install.sh | sh
+```
+
+This is a standard pattern used by many developer tools (Homebrew, Rust, Node.js version managers, etc.). Security properties:
+
+- **HTTPS only** — the connection is encrypted and the server's identity is verified by TLS certificate
+- **User-initiated** — the script runs only when you explicitly trigger the install action; nothing runs automatically
+- **Domain controlled by the project** — `dotenc.org` is under project ownership
+
+If you prefer to audit the script before running it, download it first:
+
+```bash
+curl -fsSL https://dotenc.org/install.sh -o install.sh
+# review install.sh
+sh install.sh
+```
+
+Alternatively, install via Homebrew, Scoop, npm, or a standalone binary from the [GitHub Releases](https://github.com/ivanfilhoz/dotenc/releases) page — none of these methods use the install script.
+
+---
+
+## Known Limitations
+
+- **Passphrase-protected SSH keys are not supported.** dotenc reads private key files directly and cannot prompt for passphrases. Use a dedicated passphrase-free key for dotenc (or for CI/CD). This is a deliberate design tradeoff: supporting passphrases would require interactive prompts or a key agent integration that is out of scope.
+- **No HSM or hardware key support.** Private keys must be accessible as files in `~/.ssh/` or via the `DOTENC_PRIVATE_KEY` environment variable.
+- **Revocation is not retroactive.** See [Access Control Model](#access-control-model).
+- **No centralized policy engine.** Access control is enforced per-environment and per-repository, not across an organization.
+
+---
+
+## Vulnerability Reporting
+
+If you discover a security vulnerability in dotenc, please report it responsibly.
+
+**Do not open a public GitHub issue for security vulnerabilities.**
+
+Instead, report via [GitHub Security Advisories](https://github.com/ivanfilhoz/dotenc/security/advisories/new). You will receive a response as soon as possible. Please include:
+
+- A description of the vulnerability and its potential impact
+- Steps to reproduce or a proof-of-concept
+- Any relevant environment details (OS, dotenc version, key type)

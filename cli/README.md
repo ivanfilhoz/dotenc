@@ -91,6 +91,8 @@ Managing secrets and environment variables is critical for any modern applicatio
 - Your repository alone is not enough to decrypt secrets.
 - Access can be revoked at any time.
 
+For a detailed breakdown of the cryptographic design, key material handling, threat model, and vulnerability reporting, see [SECURITY.md](/SECURITY.md).
+
 ## How It Works
 
 1. dotenc detects your existing SSH keys in `~/.ssh/` (Ed25519 or RSA);
