@@ -2,15 +2,18 @@ import { Command, Option } from "commander"
 import pkg from "../package.json"
 import { grantCommand } from "./commands/auth/grant"
 import { authListCommand } from "./commands/auth/list"
+import { authPurgeCommand } from "./commands/auth/purge"
 import { revokeCommand } from "./commands/auth/revoke"
 import { configCommand } from "./commands/config"
 import { devCommand } from "./commands/dev"
 import { createCommand } from "./commands/env/create"
 import { decryptCommand } from "./commands/env/decrypt"
+import { envDeleteCommand } from "./commands/env/delete"
 import { editCommand } from "./commands/env/edit"
 import { encryptCommand } from "./commands/env/encrypt"
 import { envListCommand } from "./commands/env/list"
 import { rotateCommand } from "./commands/env/rotate"
+import { envRotateAllCommand } from "./commands/env/rotate-all"
 import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
 import { keyListCommand } from "./commands/key/list"
@@ -74,6 +77,21 @@ env
 	.description("rotate the data key for an environment")
 	.action(rotateCommand)
 
+env
+	.command("delete")
+	.argument("[environment]", "the environment to delete")
+	.addOption(new Option("--yes", "skip confirmation prompt"))
+	.description("delete an environment file")
+	.action((environment, options) =>
+		envDeleteCommand(environment, options.yes ?? false),
+	)
+
+env
+	.command("rotate-all")
+	.addOption(new Option("--yes", "skip confirmation prompt"))
+	.description("rotate the data key for all environments")
+	.action((options) => envRotateAllCommand(options.yes ?? false))
+
 env.command("list").description("list all environments").action(envListCommand)
 
 const auth = program.command("auth").description("manage environment access")
@@ -103,6 +121,15 @@ auth
 	.argument("[environment]", "the environment to list access for")
 	.description("list keys with access to an environment")
 	.action(authListCommand)
+
+auth
+	.command("purge")
+	.argument("<publicKey>", "the name of the public key to fully offboard")
+	.addOption(new Option("--yes", "skip confirmation prompt"))
+	.description("revoke and rotate all environments for a key, then remove it")
+	.action((publicKey, options) =>
+		authPurgeCommand(publicKey, options.yes ?? false),
+	)
 
 program
 	.command("run")

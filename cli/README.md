@@ -298,22 +298,30 @@ Now, Alice will be able to decrypt the `development` and `test` environments usi
 
 ### Revoking access from a team member
 
-One of your team members, John, is leaving the company. You need to revoke his access to all environments. To do this, you can run:
+To fully offboard a team member (e.g., John), use `auth purge`:
+
+```bash
+dotenc auth purge john --yes
+```
+
+This revokes and re-encrypts every affected environment, then removes his public key file. Then, commit your changes:
+
+```bash
+git checkout -b offboard-john
+git add .
+git commit -m "Offboard John from all environments"
+git push origin offboard-john
+```
+
+Once merged, he will no longer be able to decrypt any environments.
+
+If you only want to remove the key file without revoking environment access, use `key remove`:
 
 ```bash
 dotenc key remove john
 ```
 
-This will delete his key from the repository and attempt to revoke and re-encrypt every affected environment. If one environment cannot be decrypted on your machine, dotenc will warn you so you can revoke access manually or rotate that environment. Then, commit your changes:
-
-```bash
-git checkout -b revoke-john-key
-git add .
-git commit -m "Revoke John's access to all environments"
-git push origin revoke-john-key
-```
-
-Once merged, he will no longer be able to decrypt any environments.
+This removes the `.pub` file only. Access to encrypted environments is left intact until you run `auth purge`.
 
 ### Listing access
 
@@ -325,13 +333,34 @@ Lists all public keys that have access to the specified environment.
 
 ## Offboarding a Team Member
 
-Revoking repository decryption does not undo previously granted access to already-seen secrets.
-For proper offboarding, we recommend:
+Use `auth purge` to fully offboard a team member in one step:
 
-1. `dotenc key remove <user>`
-2. Rotate external secrets (database passwords, API tokens, etc.)
-3. (Optional) `dotenc env rotate <environment>` to rotate the environment data key
-4. Deploy updated configuration
+```bash
+dotenc auth purge <user> [--yes]
+```
+
+This command:
+1. Revokes the user's access from all environments they were granted
+2. Re-encrypts each environment without their key (data key rotation)
+3. Deletes their public key file from `.dotenc/`
+
+After running `auth purge`, also:
+- Rotate external secrets (database passwords, API tokens, etc.)
+- Deploy updated configuration
+
+### Individual environment management
+
+```bash
+dotenc env delete [environment] [--yes]
+```
+
+Deletes an environment file entirely.
+
+```bash
+dotenc env rotate-all [--yes]
+```
+
+Rotates the data key for all environments in one step. Useful for periodic key rotation or after a security event.
 
 ## CI/CD Integration
 
@@ -461,7 +490,7 @@ Lists all public keys in the project, showing each key's name and algorithm.
 dotenc key remove [name]
 ```
 
-Removes a public key from the project, attempting to revoke it from every environment.
+Removes the public key file from the project (`.dotenc/<name>.pub`). Does not revoke environment access. To fully offboard a key — revoking access from all environments and deleting the file — use `auth purge` instead.
 
 ## Tips
 

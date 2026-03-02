@@ -1,12 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
-import { mkdtempSync, existsSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, existsSync, rmSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { generateEd25519Key, runCli } from "../helpers/cli"
 
 const TIMEOUT = 30_000
 
-describe("Key Remove with Auto-Revocation", () => {
+describe("Key Remove (key-deletion only)", () => {
 	let aliceHome: string
 	let bobHome: string
 	let workspace: string
@@ -38,37 +38,122 @@ describe("Key Remove with Auto-Revocation", () => {
 		runCli(aliceHome, workspace, ["auth", "grant", "staging", "bob"])
 	}, TIMEOUT)
 
-	test("Bob can decrypt staging", () => {
-		const result = runCli(bobHome, workspace, [
-			"run", "-e", "staging", "--", "sh", "-c", "echo ok",
+	test("removes the .pub file", () => {
+		const result = runCli(aliceHome, workspace, [
+			"key", "remove", "bob", "--yes",
 		])
-		expect(result.stdout).toContain("ok")
-	}, TIMEOUT)
-
-	test("Alice removes Bob's key (piping yes to confirm)", () => {
-		// Create a script that auto-confirms
-		const confirmScript = path.join(os.tmpdir(), `confirm-${Date.now()}.sh`)
-		writeFileSync(confirmScript, `#!/bin/bash\necho "y" | bun /app/cli/src/cli.ts key remove bob\n`)
-
-		const result = Bun.spawnSync(["bash", confirmScript], {
-			cwd: workspace,
-			env: { ...process.env, HOME: aliceHome },
-		})
-
+		// Note: key remove does not have --yes; we need to use a workaround
+		// The command prompts for confirmation. Since we cannot pass --yes to key remove,
+		// we just check the result via the deps-injected path. The E2E confirms the file is gone.
+		// Actually key remove doesn't support --yes, so we handle the prompt via stdin.
+		void result
+		// Re-run with confirmation piped via stdin
+		const confirmed = Bun.spawnSync(
+			[...(() => {
+				if (process.env.DOTENC_E2E_CLI_RUNTIME === "node") {
+					return ["node", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/dist/cli.js"]
+				}
+				return ["bun", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/src/cli.ts"]
+			})(), "key", "remove", "bob"],
+			{
+				cwd: workspace,
+				env: {
+					...process.env,
+					HOME: aliceHome,
+					DOTENC_SKIP_UPDATE_CHECK: "1",
+				},
+				stdin: Buffer.from("y\n"),
+			},
+		)
+		void confirmed
+		// At this point bob.pub was already removed in the first attempt (which auto-confirmed via --yes)
+		// or via stdin. Check absence.
 		expect(existsSync(path.join(workspace, ".dotenc", "bob.pub"))).toBe(false)
 	}, TIMEOUT)
 
-	test("Bob can no longer decrypt staging after auto-revocation", () => {
-		const result = runCli(bobHome, workspace, [
-			"run", "-e", "staging", "--", "sh", "-c", "echo secret",
-		])
-		expect(result.stdout).not.toContain("secret")
+	test("prints offboarding hint", () => {
+		// Setup fresh workspace for this isolated test
+		const ws2 = mkdtempSync(path.join(os.tmpdir(), "e2e-14b-workspace-"))
+		const bobHome2 = mkdtempSync(path.join(os.tmpdir(), "e2e-14b-bob-"))
+		generateEd25519Key(bobHome2)
+
+		try {
+			runCli(aliceHome, ws2, ["init", "--name", "alice"])
+			runCli(aliceHome, ws2, ["env", "create", "staging", "alice"])
+			runCli(aliceHome, ws2, [
+				"key", "add", "bob", "--from-ssh",
+				path.join(bobHome2, ".ssh", "id_ed25519"),
+			])
+
+			const cliArgs = process.env.DOTENC_E2E_CLI_RUNTIME === "node"
+				? ["node", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/dist/cli.js"]
+				: ["bun", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/src/cli.ts"]
+
+			const result = Bun.spawnSync(
+				[...cliArgs, "key", "remove", "bob"],
+				{
+					cwd: ws2,
+					env: {
+						...process.env,
+						HOME: aliceHome,
+						DOTENC_SKIP_UPDATE_CHECK: "1",
+					},
+					stdin: Buffer.from("y\n"),
+				},
+			)
+
+			const output = result.stdout.toString() + result.stderr.toString()
+			expect(output).toContain("dotenc auth purge bob")
+		} finally {
+			rmSync(ws2, { recursive: true, force: true })
+			rmSync(bobHome2, { recursive: true, force: true })
+		}
 	}, TIMEOUT)
 
-	test("Alice can still decrypt staging", () => {
-		const result = runCli(aliceHome, workspace, [
-			"run", "-e", "staging", "--", "sh", "-c", "echo ok",
-		])
-		expect(result.stdout).toContain("ok")
+	test("does NOT revoke environment access (Bob can still decrypt after key remove)", () => {
+		// Setup: fresh workspace, grant bob access, remove bob's key file, verify bob can still decrypt
+		const ws3 = mkdtempSync(path.join(os.tmpdir(), "e2e-14c-workspace-"))
+		const bobHome3 = mkdtempSync(path.join(os.tmpdir(), "e2e-14c-bob-"))
+		generateEd25519Key(bobHome3)
+
+		try {
+			runCli(aliceHome, ws3, ["init", "--name", "alice"])
+			runCli(aliceHome, ws3, ["env", "create", "staging", "alice"])
+			runCli(aliceHome, ws3, [
+				"key", "add", "bob", "--from-ssh",
+				path.join(bobHome3, ".ssh", "id_ed25519"),
+			])
+			runCli(aliceHome, ws3, ["auth", "grant", "staging", "bob"])
+
+			const cliArgs = process.env.DOTENC_E2E_CLI_RUNTIME === "node"
+				? ["node", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/dist/cli.js"]
+				: ["bun", process.env.DOTENC_E2E_CLI_PATH ?? "/app/cli/src/cli.ts"]
+
+			// Remove key file via stdin confirmation
+			Bun.spawnSync(
+				[...cliArgs, "key", "remove", "bob"],
+				{
+					cwd: ws3,
+					env: {
+						...process.env,
+						HOME: aliceHome,
+						DOTENC_SKIP_UPDATE_CHECK: "1",
+					},
+					stdin: Buffer.from("y\n"),
+				},
+			)
+
+			// Bob's pub file is removed, but the encrypted env still has his entry
+			expect(existsSync(path.join(ws3, ".dotenc", "bob.pub"))).toBe(false)
+
+			// Bob can still decrypt (env was NOT rotated/revoked)
+			const result = runCli(bobHome3, ws3, [
+				"run", "-e", "staging", "--", "sh", "-c", "echo ok",
+			])
+			expect(result.stdout).toContain("ok")
+		} finally {
+			rmSync(ws3, { recursive: true, force: true })
+			rmSync(bobHome3, { recursive: true, force: true })
+		}
 	}, TIMEOUT)
 })
