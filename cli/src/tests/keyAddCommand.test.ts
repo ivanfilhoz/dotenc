@@ -80,6 +80,7 @@ const makeDeps = (
 		logInfo: (message) => {
 			infos.push(message)
 		},
+		privateKeyPassphrase: undefined,
 		exit: ((code: number): never => {
 			throw new Error(`exit(${code})`)
 		}) as never,
@@ -114,6 +115,28 @@ describe("keyAddCommand", () => {
 		await expect(
 			_runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps),
 		).rejects.toThrow("exit(1)")
+	})
+
+	test("supports passphrase-protected --from-ssh when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
+		const { privateKey } = crypto.generateKeyPairSync("ed25519")
+		const encryptedPrivatePem = privateKey
+			.export({
+				type: "pkcs8",
+				format: "pem",
+				cipher: "aes-256-cbc",
+				passphrase: "secret",
+			})
+			.toString("utf-8")
+		const { deps, writes } = makeDeps({
+			readFile: (async () => encryptedPrivatePem) as never,
+			isPassphraseProtected: () => true,
+			privateKeyPassphrase: "secret",
+		})
+
+		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
+			true,
+		)
 	})
 
 	test("accepts --from-ssh private key and writes normalized .pub file", async () => {
@@ -222,6 +245,33 @@ describe("keyAddCommand", () => {
 		).rejects.toThrow("exit(1)")
 	})
 
+	test("supports passphrase-protected --from-file when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
+		const { privateKey } = crypto.generateKeyPairSync("ed25519")
+		const encryptedPrivatePem = privateKey
+			.export({
+				type: "pkcs8",
+				format: "pem",
+				cipher: "aes-256-cbc",
+				passphrase: "secret",
+			})
+			.toString("utf-8")
+		const fromFilePath = "/tmp/key.pem"
+
+		const { deps, writes } = makeDeps({
+			existsSync: (filePath) =>
+				String(filePath) === path.join("/workspace", ".dotenc") ||
+				String(filePath) === fromFilePath,
+			readFile: (async () => encryptedPrivatePem) as never,
+			isPassphraseProtected: () => true,
+			privateKeyPassphrase: "secret",
+		})
+
+		await _runKeyAddCommand("alice", { fromFile: fromFilePath }, deps)
+		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
+			true,
+		)
+	})
+
 	test("falls back to private key parse for --from-file", async () => {
 		const { privateKey } = crypto.generateKeyPairSync("ed25519")
 		const privatePem = privateKey
@@ -305,6 +355,38 @@ describe("keyAddCommand", () => {
 		expect(
 			errors.some((message) => message.includes("Invalid key format")),
 		).toBe(true)
+	})
+
+	test("rejects passphrase-protected --from-string key without passphrase", async () => {
+		const { deps } = makeDeps({
+			isPassphraseProtected: () => true,
+		})
+
+		await expect(
+			_runKeyAddCommand("alice", { fromString: "any" }, deps),
+		).rejects.toThrow("exit(1)")
+	})
+
+	test("supports passphrase-protected --from-string when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
+		const { privateKey } = crypto.generateKeyPairSync("ed25519")
+		const encryptedPrivatePem = privateKey
+			.export({
+				type: "pkcs8",
+				format: "pem",
+				cipher: "aes-256-cbc",
+				passphrase: "secret",
+			})
+			.toString("utf-8")
+
+		const { deps, writes } = makeDeps({
+			isPassphraseProtected: () => true,
+			privateKeyPassphrase: "secret",
+		})
+
+		await _runKeyAddCommand("alice", { fromString: encryptedPrivatePem }, deps)
+		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
+			true,
+		)
 	})
 
 	test("rejects invalid --from-string content", async () => {

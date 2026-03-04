@@ -37,7 +37,7 @@ dotenc is designed to protect secrets at rest in a Git repository. Its security 
 - Secrets that were previously exposed before being stored in dotenc
 - Secrets known to a user before their access was revoked (see [Access Control Model](#access-control-model))
 - A compromised machine where decryption takes place (memory forensics, malicious processes)
-- Passphrase-protected key attacks — dotenc does not support passphrase-protected keys; see [Known Limitations](#known-limitations)
+- Passphrase-protected keys when no passphrase source is provided — dotenc does not prompt interactively for passphrases; see [Known Limitations](#known-limitations)
 
 ---
 
@@ -225,7 +225,7 @@ Alternatively, install via Homebrew, Scoop, npm, or a standalone binary from the
 
 ## Known Limitations
 
-- **Passphrase-protected SSH keys are not supported.** dotenc reads private key files directly and cannot prompt for passphrases. Use a dedicated passphrase-free key for dotenc (or for CI/CD). This is a deliberate design tradeoff: supporting passphrases would require interactive prompts or a key agent integration that is out of scope.
+- **dotenc does not prompt for passphrases.** To use passphrase-protected SSH keys, provide `DOTENC_PRIVATE_KEY_PASSPHRASE` in the environment. In interactive key selection flows (`dotenc init`, interactive `dotenc key add`), dotenc can also create an optional passwordless copy (for example `id_ed25519_passwordless`) after explicit user confirmation.
 - **No HSM or hardware key support.** Private keys must be accessible as files in `~/.ssh/` or via the `DOTENC_PRIVATE_KEY` environment variable.
 - **Revocation is not retroactive.** See [Access Control Model](#access-control-model).
 - **No centralized policy engine.** Access control is enforced per-environment and per-repository, not across an organization.
