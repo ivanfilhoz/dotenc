@@ -1,6 +1,6 @@
 const { spawn } = require("node:child_process")
 
-async function runProcess(executable, cwd, args, stdinInput) {
+async function _defaultImpl(executable, cwd, args, stdinInput) {
 	return new Promise((resolve) => {
 		let stdout = ""
 		let stderr = ""
@@ -55,6 +55,32 @@ async function runProcess(executable, cwd, args, stdinInput) {
 		}
 	})
 }
+
+let _impl = _defaultImpl
+
+/**
+ * Spawn the dotenc CLI and collect stdout/stderr.
+ *
+ * The implementation is swappable via _setImpl so the dev/test harness can
+ * redirect all CLI calls to a different executable without touching the callers
+ * (which all destructure this export at require-time).
+ */
+async function runProcess(executable, cwd, args, stdinInput) {
+	return _impl(executable, cwd, args, stdinInput)
+}
+
+/** Replace the spawn implementation. Called by the dev/test harness. */
+runProcess._setImpl = (fn) => {
+	_impl = fn
+}
+
+/** Restore the default spawn implementation. */
+runProcess._clearImpl = () => {
+	_impl = _defaultImpl
+}
+
+/** The original spawn implementation, available to overrides that want to delegate. */
+runProcess._defaultImpl = _defaultImpl
 
 module.exports = {
 	runProcess,

@@ -24,6 +24,7 @@ function getDotencTarget(uri) {
 		uri: fileUri,
 		environmentName,
 		workspaceRoot,
+		cwd: path.dirname(fileUri.fsPath),
 	}
 }
 

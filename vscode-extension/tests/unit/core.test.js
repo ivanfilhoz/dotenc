@@ -32,6 +32,18 @@ describe("core helpers", () => {
 		expect(parseJsonPayload("not-json")).toBeUndefined()
 	})
 
+	test("parses JSON array payload (env list --json shape)", () => {
+		const input = JSON.stringify([
+			{ name: "staging", dir: "/workspace", filePath: "/workspace/.env.staging.enc" },
+			{ name: "production", dir: "/workspace/packages/web", filePath: "/workspace/packages/web/.env.production.enc" },
+		])
+		const result = parseJsonPayload(input)
+		expect(Array.isArray(result)).toBe(true)
+		expect(result.length).toBe(2)
+		expect(result[0].name).toBe("staging")
+		expect(result[1].filePath).toBe("/workspace/packages/web/.env.production.enc")
+	})
+
 	test("strips ANSI escapes", () => {
 		expect(stripAnsi("\u001b[31mError:\u001b[0m boom")).toBe("Error: boom")
 	})

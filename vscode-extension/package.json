@@ -2,7 +2,7 @@
 	"name": "dotenc-vscode-extension",
 	"displayName": "dotenc",
 	"description": "Seamless editing for dotenc encrypted environment files.",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"publisher": "dotenc",
 	"icon": "assets/logo-square.png",
 	"license": "MIT",
@@ -41,7 +41,8 @@
 			"dotenc": [
 				{
 					"id": "dotenc.environments",
-					"name": "Environments"
+					"name": "Environments",
+					"showCollapseAll": true
 				},
 				{
 					"id": "dotenc.keys",
@@ -61,9 +62,44 @@
 				"category": "dotenc",
 				"title": "View encrypted",
 				"icon": "$(unlock)"
+			},
+			{
+				"command": "dotenc.editEnvironment",
+				"title": "Edit",
+				"icon": "$(pencil)",
+				"category": "dotenc"
+			},
+			{
+				"command": "dotenc.rotateEnvironment",
+				"title": "Rotate",
+				"icon": "$(refresh)",
+				"category": "dotenc"
+			},
+			{
+				"command": "dotenc.deleteEnvironment",
+				"title": "Delete",
+				"icon": "$(trash)",
+				"category": "dotenc"
 			}
 		],
 		"menus": {
+			"view/item/context": [
+				{
+					"command": "dotenc.editEnvironment",
+					"when": "view == dotenc.environments && viewItem == environment",
+					"group": "inline@1"
+				},
+				{
+					"command": "dotenc.rotateEnvironment",
+					"when": "view == dotenc.environments && viewItem == environment",
+					"group": "inline@2"
+				},
+				{
+					"command": "dotenc.deleteEnvironment",
+					"when": "view == dotenc.environments && viewItem == environment",
+					"group": "inline@3"
+				}
+			],
 			"explorer/context": [
 				{
 					"command": "dotenc.viewDecrypted",

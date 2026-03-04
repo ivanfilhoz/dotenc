@@ -160,7 +160,7 @@ async function runDotenc(uri, cwd, args, stdinInput) {
 async function decryptEnvironment(document) {
 	const result = await runDotenc(
 		document.uri,
-		document.workspaceRoot,
+		document.cwd,
 		["env", "decrypt", document.environmentName, "--json"],
 		undefined,
 	)
@@ -188,7 +188,7 @@ async function decryptEnvironment(document) {
 async function encryptEnvironment(document, plaintext) {
 	const result = await runDotenc(
 		document.uri,
-		document.workspaceRoot,
+		document.cwd,
 		["env", "encrypt", document.environmentName, "--stdin", "--json"],
 		plaintext,
 	)
@@ -496,6 +496,53 @@ function activate(context) {
 		vscode.commands.registerCommand(VIEW_ENCRYPTED_COMMAND, (resource) =>
 			viewEncrypted(resource, suppressAutoRedirectOnce),
 		),
+		vscode.commands.registerCommand("dotenc.editEnvironment", async (item) => {
+			if (item?.fileUri) {
+				await viewDecrypted(item.fileUri)
+			}
+		}),
+		vscode.commands.registerCommand(
+			"dotenc.rotateEnvironment",
+			async (item) => {
+				if (!item?.envDir || !item?.environmentName) return
+				const result = await runDotenc(
+					getWorkspaceUriForStartup(),
+					item.envDir,
+					["env", "rotate", item.environmentName, "--yes"],
+				)
+				if (result.error || result.code !== 0) {
+					vscode.window.showErrorMessage(
+						`Rotate failed: ${result.stderr || result.error?.message}`,
+					)
+				} else {
+					environmentsProvider.refresh()
+				}
+			},
+		),
+		vscode.commands.registerCommand(
+			"dotenc.deleteEnvironment",
+			async (item) => {
+				if (!item?.envDir || !item?.environmentName) return
+				const answer = await vscode.window.showWarningMessage(
+					`Delete environment "${item.environmentName}"?`,
+					{ modal: true },
+					"Delete",
+				)
+				if (answer !== "Delete") return
+				const result = await runDotenc(
+					getWorkspaceUriForStartup(),
+					item.envDir,
+					["env", "delete", item.environmentName, "--yes"],
+				)
+				if (result.error || result.code !== 0) {
+					vscode.window.showErrorMessage(
+						`Delete failed: ${result.stderr || result.error?.message}`,
+					)
+				} else {
+					environmentsProvider.refresh()
+				}
+			},
+		),
 		vscode.window.onDidChangeActiveTextEditor((editor) => {
 			void autoOpenCurrentEditorIfNeeded(editor)
 		}),
@@ -504,7 +551,7 @@ function activate(context) {
 		keysProvider,
 		vscode.window.createTreeView("dotenc.environments", {
 			treeDataProvider: environmentsProvider,
-			showCollapseAll: false,
+			showCollapseAll: true,
 		}),
 		vscode.window.createTreeView("dotenc.keys", {
 			treeDataProvider: keysProvider,
