@@ -2,6 +2,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const path = require("node:path")
 const vscode = require("vscode")
+const { MIN_DOTENC_VERSION } = require("../../src/helpers/minDotencVersion")
 
 const VIEW_DECRYPTED_COMMAND = "dotenc.viewDecrypted"
 const VIEW_ENCRYPTED_COMMAND = "dotenc.viewEncrypted"
@@ -33,7 +34,7 @@ function appendLog(entry) {
 }
 
 if (args.length === 1 && args[0] === "--version") {
-	console.log("dotenc version 0.5.2")
+	console.log("dotenc version ${MIN_DOTENC_VERSION}")
 	process.exit(0)
 }
 

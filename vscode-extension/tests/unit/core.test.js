@@ -49,11 +49,11 @@ describe("core helpers", () => {
 	})
 
 	test("supports versions >= minimum", () => {
-		expect(isVersionSupported("0.5.2", MIN_DOTENC_VERSION)).toBe(true)
-		expect(isVersionSupported("0.5.9", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.9.0", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.9.9", MIN_DOTENC_VERSION)).toBe(true)
 		expect(isVersionSupported("1.0.0", MIN_DOTENC_VERSION)).toBe(true)
-		expect(isVersionSupported("0.5.1", MIN_DOTENC_VERSION)).toBe(false)
-		expect(isVersionSupported("v0.5.2", MIN_DOTENC_VERSION)).toBe(true)
+		expect(isVersionSupported("0.8.9", MIN_DOTENC_VERSION)).toBe(false)
+		expect(isVersionSupported("v0.9.0", MIN_DOTENC_VERSION)).toBe(true)
 		expect(isVersionSupported("invalid", MIN_DOTENC_VERSION)).toBe(false)
 	})
 
