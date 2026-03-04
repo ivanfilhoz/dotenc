@@ -77,6 +77,7 @@ export function generateRsaKey(
 	}
 }
 
+// E2E fixture passphrase: "secret" — matched in test interactions and env overrides.
 export function generatePassphraseEd25519Key(homeDir: string): void {
 	generateEd25519Key(homeDir, { passphrase: "secret" })
 }
@@ -120,6 +121,63 @@ export function runCliWithStdin(
 		},
 		stdin: Buffer.from(stdin),
 	})
+	return {
+		stdout: result.stdout.toString(),
+		stderr: result.stderr.toString(),
+		exitCode: result.exitCode,
+	}
+}
+
+export type ExpectInteraction = {
+	expect: string
+	send: string
+}
+
+function quoteTcl(value: string): string {
+	return `"${value
+		.replace(/\\/g, "\\\\")
+		.replace(/"/g, '\\"')
+		.replace(/\$/g, "\\$")
+		.replace(/\[/g, "\\[")
+		.replace(/\]/g, "\\]")}"`
+}
+
+export function runCliWithExpect(
+	homeDir: string,
+	workspace: string,
+	args: string[],
+	interactions: ExpectInteraction[],
+	extraEnv?: Record<string, string>,
+): { stdout: string; stderr: string; exitCode: number } {
+	const invocation = [...getCliInvocation(), ...args]
+	const scriptLines = [
+		"set timeout 60",
+		"match_max 100000",
+		"log_user 1",
+		`spawn -noecho ${invocation.map((part) => quoteTcl(part)).join(" ")}`,
+	]
+
+	for (const interaction of interactions) {
+		scriptLines.push(`expect -re ${quoteTcl(interaction.expect)}`)
+		scriptLines.push(`send -- ${quoteTcl(interaction.send)}`)
+	}
+
+	scriptLines.push("expect eof")
+	scriptLines.push("catch wait result")
+	scriptLines.push("set exit_code [lindex $result 3]")
+	scriptLines.push("exit $exit_code")
+
+	const result = Bun.spawnSync(["expect", "-c", scriptLines.join("\n")], {
+		cwd: workspace,
+		env: {
+			...process.env,
+			HOME: homeDir,
+			TERM: "xterm",
+			DOTENC_SKIP_UPDATE_CHECK: "1",
+			...extraEnv,
+		},
+	})
+
 	return {
 		stdout: result.stdout.toString(),
 		stderr: result.stderr.toString(),

@@ -420,6 +420,12 @@ b3BlbnNzaC1rZXktdjEAAAAABG5vbm...
 
 Paste the full output — including the `BEGIN` and `END` lines — as the value of `DOTENC_PRIVATE_KEY`.
 
+If this private key is passphrase-protected, also set:
+
+```bash
+DOTENC_PRIVATE_KEY_PASSPHRASE=<your-passphrase>
+```
+
 Once stored, delete the local private key file:
 
 ```bash
@@ -430,7 +436,7 @@ The public key (`ci_key.pub`) can also be deleted — it's already tracked insid
 
 ### 4. Use dotenc in your CI pipeline
 
-With `DOTENC_PRIVATE_KEY` set, dotenc will automatically pick up the key. No `~/.ssh` directory required:
+With `DOTENC_PRIVATE_KEY` set (and `DOTENC_PRIVATE_KEY_PASSPHRASE` when using an encrypted key), dotenc will automatically pick up the key. No `~/.ssh` directory required:
 
 ```bash
 dotenc run -e test npm test
@@ -453,6 +459,7 @@ jobs:
       - run: dotenc run -e test npm test
         env:
           DOTENC_PRIVATE_KEY: ${{ secrets.DOTENC_PRIVATE_KEY }}
+          DOTENC_PRIVATE_KEY_PASSPHRASE: ${{ secrets.DOTENC_PRIVATE_KEY_PASSPHRASE }}
 ```
 
 ## Key Management
@@ -471,7 +478,7 @@ dotenc supports the following SSH key types:
 
 These types are widely supported and provide strong security guarantees.
 
-> **Note:** Passphrase-protected SSH keys are not currently supported. dotenc needs to read your private key directly, and it cannot prompt for or decrypt passphrases. If all your keys are passphrase-protected, you can generate a dedicated key without a passphrase:
+> **Note:** dotenc can use passphrase-protected SSH keys when `DOTENC_PRIVATE_KEY_PASSPHRASE` is set. In interactive flows (`dotenc init` and interactive `dotenc key add`), selecting a passphrase-protected key also offers an optional passwordless copy flow (for example `id_ed25519_passwordless`). If you prefer a dedicated passwordless key, you can generate one with:
 >
 > ```bash
 > ssh-keygen -t ed25519 -N ""

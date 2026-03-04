@@ -1,8 +1,10 @@
 import crypto from "node:crypto"
+import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
 import inquirer from "inquirer"
 import { createEd25519SshKey } from "../helpers/createEd25519SshKey"
+import { createPasswordlessSshKeyCopy } from "../helpers/createPasswordlessSshKeyCopy"
 import { passphraseProtectedKeyError } from "../helpers/errors"
 import {
 	getPrivateKeys,
@@ -12,6 +14,8 @@ import {
 import { validatePublicKey } from "../helpers/validatePublicKey"
 
 export const CREATE_NEW_PRIVATE_KEY_CHOICE = "__dotenc_create_new_private_key__"
+const PASSPHRASE_PROTECTED_KEY_CHOICE_PREFIX =
+	"__dotenc_passphrase_protected_key__:"
 
 type PromptChoice = {
 	name: string
@@ -23,6 +27,8 @@ type ChoosePrivateKeyPromptDeps = {
 	getPrivateKeys: typeof getPrivateKeys
 	prompt: typeof inquirer.prompt
 	createEd25519SshKey: typeof createEd25519SshKey
+	createPasswordlessSshKeyCopy: typeof createPasswordlessSshKeyCopy
+	homedir: typeof os.homedir
 	logInfo: (message: string) => void
 	logWarn: (message: string) => void
 	isInteractive: () => boolean
@@ -32,6 +38,8 @@ const defaultChoosePrivateKeyPromptDeps: ChoosePrivateKeyPromptDeps = {
 	getPrivateKeys,
 	prompt: inquirer.prompt,
 	createEd25519SshKey,
+	createPasswordlessSshKeyCopy,
+	homedir: os.homedir,
 	logInfo: console.log,
 	logWarn: console.warn,
 	isInteractive: () => Boolean(process.stdin.isTTY && process.stdout.isTTY),
@@ -55,13 +63,21 @@ function toUnsupportedChoice(
 	}
 }
 
+function toPassphraseChoice(name: string): PromptChoice {
+	return {
+		name: `${chalk.yellow(name)} (${chalk.yellow("passphrase-protected")})`,
+		value: `${PASSPHRASE_PROTECTED_KEY_CHOICE_PREFIX}${name}`,
+	}
+}
+
 const buildPromptChoices = (
 	keys: PrivateKeyEntry[],
+	passphraseProtectedKeys: string[],
 	unsupportedKeys: UnsupportedPrivateKeyEntry[],
 ): PromptChoice[] => {
 	const choices: PromptChoice[] = keys.map(toSupportedChoice)
 
-	if (unsupportedKeys.length > 0) {
+	if (passphraseProtectedKeys.length > 0 || unsupportedKeys.length > 0) {
 		if (choices.length > 0) {
 			choices.push({
 				name: chalk.gray("────────"),
@@ -70,13 +86,35 @@ const buildPromptChoices = (
 			})
 		}
 
-		choices.push({
-			name: chalk.gray("Unsupported keys (ignored)"),
-			value: "__unsupported_header__",
-			disabled: true,
-		})
+		if (passphraseProtectedKeys.length > 0) {
+			choices.push({
+				name: chalk.gray(
+					"Passphrase-protected keys (set DOTENC_PRIVATE_KEY_PASSPHRASE or create a passwordless copy)",
+				),
+				value: "__passphrase_protected_header__",
+				disabled: true,
+			})
 
-		choices.push(...unsupportedKeys.map(toUnsupportedChoice))
+			choices.push(...passphraseProtectedKeys.map(toPassphraseChoice))
+		}
+
+		if (unsupportedKeys.length > 0) {
+			if (passphraseProtectedKeys.length > 0) {
+				choices.push({
+					name: chalk.gray("────────"),
+					value: "__separator_passphrase_unsupported__",
+					disabled: true,
+				})
+			}
+
+			choices.push({
+				name: chalk.gray("Unsupported keys (ignored)"),
+				value: "__unsupported_header__",
+				disabled: true,
+			})
+
+			choices.push(...unsupportedKeys.map(toUnsupportedChoice))
+		}
 	}
 
 	if (choices.length > 0) {
@@ -131,6 +169,8 @@ export const _runChoosePrivateKeyPrompt = async (
 	message: string,
 	deps: ChoosePrivateKeyPromptDeps = defaultChoosePrivateKeyPromptDeps,
 ): Promise<PrivateKeyEntry> => {
+	let autoSelectKeyName: string | undefined
+
 	for (;;) {
 		const {
 			keys,
@@ -139,7 +179,23 @@ export const _runChoosePrivateKeyPrompt = async (
 		} = await deps.getPrivateKeys()
 		const { supportedKeys, policyUnsupportedKeys } = classifySupportedKeys(keys)
 		const allUnsupportedKeys = [...unsupportedKeys, ...policyUnsupportedKeys]
+		const passphraseProtectedKeySet = new Set(passphraseProtectedKeys)
+		const promptUnsupportedKeys = allUnsupportedKeys.filter(
+			(key) => !passphraseProtectedKeySet.has(key.name),
+		)
 		const privateKeyMap = new Map(supportedKeys.map((key) => [key.name, key]))
+
+		if (autoSelectKeyName) {
+			const autoSelectedKey = privateKeyMap.get(autoSelectKeyName)
+			if (autoSelectedKey) {
+				return autoSelectedKey
+			}
+
+			deps.logWarn(
+				`${chalk.yellow("Warning:")} created key ${chalk.cyan(autoSelectKeyName)} was not found in ~/.ssh.`,
+			)
+			autoSelectKeyName = undefined
+		}
 
 		if (!deps.isInteractive()) {
 			if (supportedKeys.length > 0) {
@@ -169,7 +225,11 @@ export const _runChoosePrivateKeyPrompt = async (
 				type: "list",
 				name: "key",
 				message,
-				choices: buildPromptChoices(supportedKeys, allUnsupportedKeys),
+				choices: buildPromptChoices(
+					supportedKeys,
+					passphraseProtectedKeys,
+					promptUnsupportedKeys,
+				),
 			},
 		])
 
@@ -186,6 +246,51 @@ export const _runChoosePrivateKeyPrompt = async (
 					`${chalk.yellow("Warning:")} failed to create a new SSH key. ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
+			continue
+		}
+
+		if (selected.startsWith(PASSPHRASE_PROTECTED_KEY_CHOICE_PREFIX)) {
+			const selectedPassphraseKey = selected.slice(
+				PASSPHRASE_PROTECTED_KEY_CHOICE_PREFIX.length,
+			)
+
+			deps.logInfo(
+				`${chalk.yellow("Info:")} ${chalk.cyan(selectedPassphraseKey)} is passphrase-protected. You can set ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")} to use it directly, or create a passwordless copy.`,
+			)
+
+			const confirmation = await deps.prompt([
+				{
+					type: "confirm",
+					name: "shouldCreatePasswordlessCopy",
+					message:
+						"Create a passwordless copy of this key now? (optional if DOTENC_PRIVATE_KEY_PASSPHRASE is set)",
+					default: true,
+				},
+			])
+
+			if (!confirmation.shouldCreatePasswordlessCopy) {
+				continue
+			}
+
+			try {
+				const selectedPassphraseKeyPath = path.join(
+					deps.homedir(),
+					".ssh",
+					selectedPassphraseKey,
+				)
+				const createdCopy = await deps.createPasswordlessSshKeyCopy(
+					selectedPassphraseKeyPath,
+				)
+				deps.logInfo(
+					`${chalk.green("✔")} Created ${chalk.cyan(createdCopy.name)} at ${chalk.gray(createdCopy.path)}.`,
+				)
+				autoSelectKeyName = createdCopy.name
+			} catch (error) {
+				deps.logWarn(
+					`${chalk.yellow("Warning:")} failed to create a passwordless SSH key copy. ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
 			continue
 		}
 

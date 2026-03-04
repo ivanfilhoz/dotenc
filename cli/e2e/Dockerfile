@@ -1,7 +1,7 @@
 FROM oven/bun:1-slim
 
-# Install openssh-client for ssh-keygen
-RUN apt-get update && apt-get install -y openssh-client git && rm -rf /var/lib/apt/lists/*
+# Install openssh-client for ssh-keygen and expect for PTY-driven e2e flows
+RUN apt-get update && apt-get install -y openssh-client git expect && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

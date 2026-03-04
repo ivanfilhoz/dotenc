@@ -35,9 +35,11 @@ const buildFakeUnsupportedOpenSshPrivateKey = (algorithm: string): string => {
 describe("getPrivateKeys", () => {
 	let tmpDir: string
 	let ed25519PrivateKeyPem: string
+	let encryptedEd25519PrivateKeyPem: string
 	let rsaPrivateKeyPem: string
 	let ecdsaPrivateKeyPem: string
 	const originalDotencKey = process.env.DOTENC_PRIVATE_KEY
+	const originalDotencKeyPassphrase = process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
 	let homeSpy: ReturnType<typeof spyOn>
 
 	beforeAll(() => {
@@ -48,6 +50,14 @@ describe("getPrivateKeys", () => {
 		const ed = crypto.generateKeyPairSync("ed25519")
 		ed25519PrivateKeyPem = ed.privateKey
 			.export({ type: "pkcs8", format: "pem" })
+			.toString()
+		encryptedEd25519PrivateKeyPem = ed.privateKey
+			.export({
+				type: "pkcs8",
+				format: "pem",
+				cipher: "aes-256-cbc",
+				passphrase: "secret",
+			})
 			.toString()
 
 		const rsa = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 })
@@ -80,6 +90,9 @@ describe("getPrivateKeys", () => {
 		homeSpy.mockRestore()
 		if (originalDotencKey) process.env.DOTENC_PRIVATE_KEY = originalDotencKey
 		else delete process.env.DOTENC_PRIVATE_KEY
+		if (originalDotencKeyPassphrase)
+			process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = originalDotencKeyPassphrase
+		else delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
 		rmSync(tmpDir, { recursive: true, force: true })
 	})
 
@@ -182,6 +195,7 @@ describe("getPrivateKeys", () => {
 			"ZmFrZQ==",
 			"-----END ENCRYPTED PRIVATE KEY-----",
 		].join("\n")
+		delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
 
 		await expect(getPrivateKeys()).rejects.toThrow("process.exit(1)")
 		expect(exitSpy).toHaveBeenCalledWith(1)
@@ -189,6 +203,64 @@ describe("getPrivateKeys", () => {
 		delete process.env.DOTENC_PRIVATE_KEY
 		errorSpy.mockRestore()
 		exitSpy.mockRestore()
+	})
+
+	test("parses passphrase-protected DOTENC_PRIVATE_KEY when DOTENC_PRIVATE_KEY_PASSPHRASE is set", async () => {
+		process.env.DOTENC_PRIVATE_KEY = encryptedEd25519PrivateKeyPem
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "secret"
+
+		const { keys } = await getPrivateKeys()
+		const envKey = keys.find((k) => k.name === "env.DOTENC_PRIVATE_KEY")
+
+		expect(envKey).toBeDefined()
+		expect(envKey?.algorithm).toBe("ed25519")
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
+	})
+
+	test("loads passphrase-protected ~/.ssh key when DOTENC_PRIVATE_KEY_PASSPHRASE is set", async () => {
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_protected_decryptable"),
+			encryptedEd25519PrivateKeyPem,
+			"utf-8",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "secret"
+
+		const result = await getPrivateKeys()
+		expect(
+			result.keys.some((key) => key.name === "id_protected_decryptable"),
+		).toBe(true)
+		expect(result.passphraseProtectedKeys).not.toContain(
+			"id_protected_decryptable",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
+	})
+
+	test("keeps passphrase-protected ~/.ssh key classified as unsupported when passphrase is wrong", async () => {
+		writeFileSync(
+			path.join(tmpDir, ".ssh", "id_protected_wrong_pass"),
+			encryptedEd25519PrivateKeyPem,
+			"utf-8",
+		)
+
+		delete process.env.DOTENC_PRIVATE_KEY
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "wrong-pass"
+
+		const result = await getPrivateKeys()
+		expect(result.passphraseProtectedKeys).toContain("id_protected_wrong_pass")
+		expect(
+			result.unsupportedKeys?.some(
+				(k) =>
+					k.name === "id_protected_wrong_pass" &&
+					k.reason.includes("failed to decrypt"),
+			),
+		).toBe(true)
+
+		delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
 	})
 
 	test("tracks passphrase-protected keys found in ~/.ssh", async () => {

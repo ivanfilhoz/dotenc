@@ -6,6 +6,7 @@ import path from "node:path"
 import { getKeyFingerprint } from "./getKeyFingerprint"
 import { isPassphraseProtected } from "./isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "./parseOpenSSHKey"
+import { parsePassphraseProtectedPrivateKey } from "./parsePassphraseProtectedPrivateKey"
 
 export type PrivateKeyEntry = {
 	name: string
@@ -141,16 +142,23 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 	const privateKeys: PrivateKeyEntry[] = []
 	const passphraseProtectedKeys: string[] = []
 	const unsupportedKeys: UnsupportedPrivateKeyEntry[] = []
+	const privateKeyPassphrase = process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
 
 	// Check DOTENC_PRIVATE_KEY env var first
 	if (process.env.DOTENC_PRIVATE_KEY) {
-		let privateKey: crypto.KeyObject | null = null
-		try {
-			privateKey = crypto.createPrivateKey(process.env.DOTENC_PRIVATE_KEY)
-		} catch {
-			// Fallback: parse OpenSSH format that Node/OpenSSL can't handle natively
-			privateKey = parseOpenSSHPrivateKey(process.env.DOTENC_PRIVATE_KEY)
-		}
+		const dotencPrivateKey = process.env.DOTENC_PRIVATE_KEY
+		const dotencPrivateKeyPassphraseProtected =
+			isPassphraseProtected(dotencPrivateKey)
+
+		const privateKey: crypto.KeyObject | null =
+			dotencPrivateKeyPassphraseProtected
+				? privateKeyPassphrase !== undefined
+					? await parsePassphraseProtectedPrivateKey(
+							dotencPrivateKey,
+							privateKeyPassphrase,
+						)
+					: null
+				: tryParsePrivateKey(dotencPrivateKey)
 
 		if (privateKey) {
 			const algorithm = detectAlgorithm(privateKey)
@@ -179,9 +187,15 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 				)
 			}
 		} else {
-			if (isPassphraseProtected(process.env.DOTENC_PRIVATE_KEY)) {
+			if (dotencPrivateKeyPassphraseProtected) {
+				if (privateKeyPassphrase !== undefined) {
+					console.error(
+						"Error: failed to decrypt the key in DOTENC_PRIVATE_KEY with DOTENC_PRIVATE_KEY_PASSPHRASE. Please verify the passphrase.",
+					)
+					process.exit(1)
+				}
 				console.error(
-					"Error: the key in DOTENC_PRIVATE_KEY is passphrase-protected, which is not currently supported by dotenc.",
+					"Error: the key in DOTENC_PRIVATE_KEY is passphrase-protected. Set DOTENC_PRIVATE_KEY_PASSPHRASE to use it, or provide a passwordless key.",
 				)
 				process.exit(1)
 			}
@@ -241,11 +255,53 @@ export const getPrivateKeys = async (): Promise<GetPrivateKeysResult> => {
 		// leaves the OpenSSL error queue dirty, which then breaks all subsequent
 		// PKCS#8 DER imports (e.g. Ed25519) for the rest of the process lifetime.
 		if (isPassphraseProtected(keyContent)) {
-			passphraseProtectedKeys.push(fileName)
-			unsupportedKeys.push({
+			if (privateKeyPassphrase === undefined) {
+				passphraseProtectedKeys.push(fileName)
+				unsupportedKeys.push({
+					name: fileName,
+					reason: "passphrase-protected",
+				})
+				continue
+			}
+
+			const decryptedPrivateKey = await parsePassphraseProtectedPrivateKey(
+				keyContent,
+				privateKeyPassphrase,
+			)
+			if (!decryptedPrivateKey) {
+				passphraseProtectedKeys.push(fileName)
+				unsupportedKeys.push({
+					name: fileName,
+					reason:
+						"passphrase-protected (failed to decrypt with DOTENC_PRIVATE_KEY_PASSPHRASE)",
+				})
+				continue
+			}
+
+			const algorithm = detectAlgorithm(decryptedPrivateKey)
+			if (!algorithm) {
+				unsupportedKeys.push({
+					name: fileName,
+					reason: describeUnsupportedAlgorithm(
+						decryptedPrivateKey.asymmetricKeyType,
+					),
+				})
+				continue
+			}
+
+			const entry: PrivateKeyEntry = {
 				name: fileName,
-				reason: "passphrase-protected",
-			})
+				privateKey: decryptedPrivateKey,
+				fingerprint: getKeyFingerprint(decryptedPrivateKey),
+				algorithm,
+			}
+
+			if (algorithm === "ed25519") {
+				const { rawPublicKey } = extractEd25519RawKeys(decryptedPrivateKey)
+				entry.rawPublicKey = rawPublicKey
+			}
+
+			privateKeys.push(entry)
 			continue
 		}
 
