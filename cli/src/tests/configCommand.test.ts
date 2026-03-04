@@ -1,86 +1,64 @@
-import { describe, expect, mock, test } from "bun:test"
-import { configCommand } from "../commands/config"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 
-type ConfigCommandDeps = NonNullable<Parameters<typeof configCommand>[3]>
+const getHomeConfig = mock(async () => ({} as Record<string, string | undefined>))
+const setHomeConfig = mock(async (_config: object) => {})
+
+mock.module("../helpers/homeConfig", () => ({
+	getHomeConfig,
+	setHomeConfig,
+}))
+
+const { configCommand } = await import("../commands/config")
 
 describe("configCommand", () => {
+	beforeEach(() => {
+		getHomeConfig.mockClear()
+		setHomeConfig.mockClear()
+	})
+
 	test("sets supported config key", async () => {
-		const setHomeConfig = mock(async (_config: object) => {})
+		getHomeConfig.mockImplementation(async () => ({}))
 
-		const deps: ConfigCommandDeps = {
-			getHomeConfig: async () => ({}),
-			setHomeConfig,
-			log: mock((_message: string) => {}),
-			logError: mock((_message: string) => {}),
-			exit: mock((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}),
-		}
-
-		await configCommand("editor", "vim", { remove: false }, deps)
+		await configCommand("editor", "vim", { remove: false })
 
 		expect(setHomeConfig).toHaveBeenCalledTimes(1)
 		expect(setHomeConfig).toHaveBeenCalledWith({ editor: "vim" })
 	})
 
 	test("reads supported config key", async () => {
-		const log = mock((_message: string) => {})
+		getHomeConfig.mockImplementation(async () => ({ editor: "nano" }))
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 
-		const deps: ConfigCommandDeps = {
-			getHomeConfig: async () => ({ editor: "nano" }),
-			setHomeConfig: mock(async (_config: object) => {}),
-			log,
-			logError: mock((_message: string) => {}),
-			exit: mock((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}),
-		}
+		await configCommand("editor", undefined, { remove: false })
 
-		await configCommand("editor", undefined, { remove: false }, deps)
-
-		expect(log).toHaveBeenCalledWith("nano")
+		expect(logSpy).toHaveBeenCalledWith("nano")
+		logSpy.mockRestore()
 	})
 
 	test("removes supported config key", async () => {
-		const setHomeConfig = mock(async (_config: object) => {})
+		getHomeConfig.mockImplementation(async () => ({ editor: "code" }))
 
-		const deps: ConfigCommandDeps = {
-			getHomeConfig: async () => ({ editor: "code" }),
-			setHomeConfig,
-			log: mock((_message: string) => {}),
-			logError: mock((_message: string) => {}),
-			exit: mock((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}),
-		}
-
-		await configCommand("editor", undefined, { remove: true }, deps)
+		await configCommand("editor", undefined, { remove: true })
 
 		expect(setHomeConfig).toHaveBeenCalledWith({})
 	})
 
 	test("rejects unsupported config keys", async () => {
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: ConfigCommandDeps = {
-			getHomeConfig: async () => ({}),
-			setHomeConfig: mock(async (_config: object) => {}),
-			log: mock((_message: string) => {}),
-			logError,
-			exit,
-		}
-
 		await expect(
-			configCommand("unknown", "value", { remove: false }, deps),
+			configCommand("unknown", "value", { remove: false }),
 		).rejects.toThrow("exit(1)")
 
-		expect(logError).toHaveBeenCalledTimes(1)
-		expect(String(logError.mock.calls[0][0])).toContain(
+		expect(logErrorSpy).toHaveBeenCalledTimes(1)
+		expect(String(logErrorSpy.mock.calls[0][0])).toContain(
 			'unsupported config key "unknown"',
 		)
-		expect(exit).toHaveBeenCalledWith(1)
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 })

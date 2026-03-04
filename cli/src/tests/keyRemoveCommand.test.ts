@@ -1,13 +1,42 @@
-import { describe, expect, mock, spyOn, test } from "bun:test"
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as realFs from "node:fs"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import * as realFsPromises from "node:fs/promises"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import inquirer from "inquirer"
-import type { KeyRemoveCommandDeps } from "../commands/key/remove"
-import { keyRemoveCommand } from "../commands/key/remove"
+
+const confirmPromptMock = mock(async (_msg: string) => true)
+const choosePublicKeyPromptMock = mock(async (_msg: string) => "alice")
+const validateKeyNameMock = mock((name: string) =>
+	name.startsWith("../")
+		? { valid: false as const, reason: "invalid key name" }
+		: { valid: true as const },
+)
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => process.cwd())
+const fsUnlink = mock(async (_filePath: string) => {})
+const existsSync = mock((_p: string) => true)
+
+mock.module("../prompts/confirm", () => ({ confirmPrompt: confirmPromptMock }))
+mock.module("../prompts/choosePublicKey", () => ({ choosePublicKeyPrompt: choosePublicKeyPromptMock }))
+mock.module("../helpers/validateKeyName", () => ({ validateKeyName: validateKeyNameMock }))
+mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
+mock.module("node:fs", () => ({ ...realFs, existsSync, default: realFs }))
+mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, unlink: fsUnlink } }))
+
+const { keyRemoveCommand } = await import("../commands/key/remove")
 
 describe("keyRemoveCommand", () => {
+	beforeEach(() => {
+		confirmPromptMock.mockClear()
+		choosePublicKeyPromptMock.mockClear()
+		validateKeyNameMock.mockClear()
+		resolveProjectRoot.mockClear()
+		fsUnlink.mockClear()
+		existsSync.mockClear()
+		existsSync.mockImplementation(() => true)
+	})
+
 	test("rejects invalid key names before touching filesystem", async () => {
 		const exitSpy = spyOn(process, "exit").mockImplementation(
 			(code?: number) => {
@@ -34,20 +63,20 @@ describe("keyRemoveCommand", () => {
 		const keyPath = path.join(workspace, ".dotenc", "alice.pub")
 		writeFileSync(keyPath, "fake-public-key", "utf-8")
 		const cwdSpy = spyOn(process, "cwd").mockReturnValue(workspace)
+		resolveProjectRoot.mockImplementation(() => workspace)
+		confirmPromptMock.mockImplementation(async () => true)
+		existsSync.mockImplementation(() => true)
 
-		const promptSpy = spyOn(inquirer, "prompt").mockResolvedValue({
-			confirm: true,
-		} as never)
 		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 
 		try {
 			await keyRemoveCommand("alice")
-			expect(promptSpy).toHaveBeenCalledTimes(1)
-			expect(existsSync(keyPath)).toBe(false)
+			expect(confirmPromptMock).toHaveBeenCalledTimes(1)
+			expect(fsUnlink).toHaveBeenCalledWith(keyPath)
 		} finally {
 			logSpy.mockRestore()
-			promptSpy.mockRestore()
 			cwdSpy.mockRestore()
+			resolveProjectRoot.mockImplementation(() => process.cwd())
 			rmSync(workspace, { recursive: true, force: true })
 		}
 	})
@@ -58,20 +87,20 @@ describe("keyRemoveCommand", () => {
 		const keyPath = path.join(workspace, ".dotenc", "alice.pub")
 		writeFileSync(keyPath, "fake-public-key", "utf-8")
 		const cwdSpy = spyOn(process, "cwd").mockReturnValue(workspace)
+		resolveProjectRoot.mockImplementation(() => workspace)
+		confirmPromptMock.mockImplementation(async () => false)
+		existsSync.mockImplementation(() => true)
 
-		const promptSpy = spyOn(inquirer, "prompt").mockResolvedValue({
-			confirm: false,
-		} as never)
 		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 
 		try {
 			await keyRemoveCommand("alice")
-			expect(promptSpy).toHaveBeenCalledTimes(1)
-			expect(existsSync(keyPath)).toBe(true)
+			expect(confirmPromptMock).toHaveBeenCalledTimes(1)
+			expect(fsUnlink).not.toHaveBeenCalled()
 		} finally {
 			logSpy.mockRestore()
-			promptSpy.mockRestore()
 			cwdSpy.mockRestore()
+			resolveProjectRoot.mockImplementation(() => process.cwd())
 			rmSync(workspace, { recursive: true, force: true })
 		}
 	})
@@ -80,6 +109,8 @@ describe("keyRemoveCommand", () => {
 		const workspace = mkdtempSync(path.join(os.tmpdir(), "dotenc-key-missing-"))
 		await fs.mkdir(path.join(workspace, ".dotenc"), { recursive: true })
 		const cwdSpy = spyOn(process, "cwd").mockReturnValue(workspace)
+		resolveProjectRoot.mockImplementation(() => workspace)
+		existsSync.mockImplementation(() => false)
 
 		const exitSpy = spyOn(process, "exit").mockImplementation(
 			(code?: number) => {
@@ -95,39 +126,32 @@ describe("keyRemoveCommand", () => {
 			errorSpy.mockRestore()
 			exitSpy.mockRestore()
 			cwdSpy.mockRestore()
+			resolveProjectRoot.mockImplementation(() => process.cwd())
 			rmSync(workspace, { recursive: true, force: true })
 		}
 	})
 
 	test("prints offboarding hint after removing key", async () => {
-		const log = mock((_message: string) => {})
-		const unlink = mock(async (_filePath: string) => {})
+		const workspace = mkdtempSync(path.join(os.tmpdir(), "dotenc-key-hint-"))
+		await fs.mkdir(path.join(workspace, ".dotenc"), { recursive: true })
+		const keyPath = path.join(workspace, ".dotenc", "alice.pub")
+		writeFileSync(keyPath, "fake-public-key", "utf-8")
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(workspace)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => workspace)
+		confirmPromptMock.mockImplementation(async () => true)
+		existsSync.mockImplementation(() => true)
+		// fsUnlink is already mocked to a no-op by default
 
-		const CWD = "/tmp/dotenc-key-remove-hint"
-		const deps: KeyRemoveCommandDeps = {
-			validateKeyName: (() => ({
-				valid: true,
-			})) as KeyRemoveCommandDeps["validateKeyName"],
-			choosePublicKeyPrompt: mock(
-				async () => "alice",
-			) as unknown as KeyRemoveCommandDeps["choosePublicKeyPrompt"],
-			confirmPrompt: mock(
-				async () => true,
-			) as unknown as KeyRemoveCommandDeps["confirmPrompt"],
-			resolveProjectRoot: () => CWD,
-			existsSync: (() => true) as KeyRemoveCommandDeps["existsSync"],
-			unlink: unlink as unknown as KeyRemoveCommandDeps["unlink"],
-			cwd: () => CWD,
-			log,
-			logError: mock((_message: string) => {}),
-			exit: mock((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}),
+		try {
+			await keyRemoveCommand("alice")
+			const logged = logSpy.mock.calls.map((call) => String(call[0]))
+			expect(logged.some((msg) => msg.includes("dotenc auth purge"))).toBe(true)
+		} finally {
+			logSpy.mockRestore()
+			cwdSpy.mockRestore()
+			resolveProjectRoot.mockImplementation(() => process.cwd())
+			rmSync(workspace, { recursive: true, force: true })
 		}
-
-		await keyRemoveCommand("alice", deps)
-
-		const logged = log.mock.calls.map((call) => String(call[0]))
-		expect(logged.some((msg) => msg.includes("dotenc auth purge"))).toBe(true)
 	})
 })

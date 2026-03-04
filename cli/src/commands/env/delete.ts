@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
@@ -5,86 +6,39 @@ import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import { confirmPrompt } from "../../prompts/confirm"
 
-export type EnvDeleteCommandDeps = {
-	validateEnvironmentName: typeof validateEnvironmentName
-	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
-	confirmPrompt: typeof confirmPrompt
-	existsSync: (path: string) => boolean
-	unlink: typeof fs.unlink
-	cwd: () => string
-	log: (msg: string) => void
-	logError: (msg: string) => void
-	exit: (code: number) => never
-}
-
-const defaultEnvDeleteCommandDeps: EnvDeleteCommandDeps = {
-	validateEnvironmentName,
-	chooseEnvironmentPrompt,
-	confirmPrompt,
-	existsSync: (p) => require("node:fs").existsSync(p),
-	unlink: fs.unlink,
-	cwd: () => process.cwd(),
-	log: (msg) => console.log(msg),
-	logError: (msg) => console.error(msg),
-	exit: (code) => process.exit(code),
-}
-
-const isEnvDeleteCommandDeps = (
-	value: unknown,
-): value is EnvDeleteCommandDeps => {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"validateEnvironmentName" in value &&
-		"chooseEnvironmentPrompt" in value &&
-		"confirmPrompt" in value &&
-		"existsSync" in value &&
-		"unlink" in value &&
-		"cwd" in value &&
-		"log" in value &&
-		"logError" in value &&
-		"exit" in value
-	)
-}
-
 export const envDeleteCommand = async (
 	environmentNameArg: string,
 	yes: boolean,
-	commandOrDeps?: unknown,
 ) => {
-	const deps = isEnvDeleteCommandDeps(commandOrDeps)
-		? commandOrDeps
-		: defaultEnvDeleteCommandDeps
-
 	const environmentName =
 		environmentNameArg ||
-		(await deps.chooseEnvironmentPrompt(
+		(await chooseEnvironmentPrompt(
 			"Which environment do you want to delete?",
 		))
 
-	const validation = deps.validateEnvironmentName(environmentName)
+	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		process.exit(1)
 	}
 
-	const filePath = path.join(deps.cwd(), `.env.${environmentName}.enc`)
+	const filePath = path.join(process.cwd(), `.env.${environmentName}.enc`)
 
-	if (!deps.existsSync(filePath)) {
-		deps.logError(`Environment ${chalk.cyan(environmentName)} not found.`)
-		deps.exit(1)
+	if (!existsSync(filePath)) {
+		console.error(`Environment ${chalk.cyan(environmentName)} not found.`)
+		process.exit(1)
 	}
 
 	if (!yes) {
-		const confirmed = await deps.confirmPrompt(
+		const confirmed = await confirmPrompt(
 			`Are you sure you want to delete environment ${environmentName}?`,
 		)
 		if (!confirmed) {
-			deps.log("Operation cancelled.")
+			console.log("Operation cancelled.")
 			return
 		}
 	}
 
-	await deps.unlink(filePath)
-	deps.log(`Environment ${chalk.cyan(environmentName)} deleted.`)
+	await fs.unlink(filePath)
+	console.log(`Environment ${chalk.cyan(environmentName)} deleted.`)
 }

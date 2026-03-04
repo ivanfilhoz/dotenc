@@ -1,79 +1,47 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import path from "node:path"
-import type { RevokeCommandDeps } from "../commands/auth/revoke"
-import { revokeCommand } from "../commands/auth/revoke"
 
 const CWD = "/tmp/dotenc-revoke-test"
 
-const createDeps = (
-	overrides: Partial<RevokeCommandDeps> = {},
-): {
-	deps: RevokeCommandDeps
-	logError: ReturnType<typeof mock>
-	exit: ReturnType<typeof mock>
-	chooseEnvironmentPrompt: ReturnType<typeof mock>
-	choosePublicKeyPrompt: ReturnType<typeof mock>
-	decryptEnvironment: ReturnType<typeof mock>
-	getPublicKeyByName: ReturnType<typeof mock>
-	encryptEnvironment: ReturnType<typeof mock>
-} => {
-	const chooseEnvironmentPrompt = mock(async () => "staging")
-	const choosePublicKeyPrompt = mock(async () => "bob")
-	const decryptEnvironment = mock(async () => "TOKEN=secret")
-	const getPublicKeyByName = mock(async (_name: string) => ({}))
-	const encryptEnvironment = mock(
-		async (_name: string, _content: string, _options?: object) => {},
-	)
-	const logError = mock((_message: string) => {})
-	const exit = mock((code: number): never => {
-		throw new Error(`exit(${code})`)
-	})
+const chooseEnvironmentPrompt = mock(async (_msg: string) => "staging")
+const choosePublicKeyPrompt = mock(async (_msg: string) => "bob")
+const decryptEnvironment = mock(async (_name: string) => "TOKEN=secret")
+const getPublicKeyByName = mock(async (_name: string) => ({}))
+const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const validateEnvironmentName = mock((name: string) =>
+	name === "invalid"
+		? { valid: false as const, reason: "invalid environment" }
+		: { valid: true as const },
+)
 
-	const deps = {
-		decryptEnvironment:
-			decryptEnvironment as unknown as RevokeCommandDeps["decryptEnvironment"],
-		encryptEnvironment:
-			encryptEnvironment as unknown as RevokeCommandDeps["encryptEnvironment"],
-		getPublicKeyByName:
-			getPublicKeyByName as unknown as RevokeCommandDeps["getPublicKeyByName"],
-		validateEnvironmentName: ((name: string) =>
-			name === "invalid"
-				? { valid: false, reason: "invalid environment" }
-				: { valid: true }) as RevokeCommandDeps["validateEnvironmentName"],
-		chooseEnvironmentPrompt:
-			chooseEnvironmentPrompt as unknown as RevokeCommandDeps["chooseEnvironmentPrompt"],
-		choosePublicKeyPrompt:
-			choosePublicKeyPrompt as unknown as RevokeCommandDeps["choosePublicKeyPrompt"],
-		cwd: () => CWD,
-		logError,
-		exit,
-		...overrides,
-	} as RevokeCommandDeps
+mock.module("../prompts/chooseEnvironment", () => ({ chooseEnvironmentPrompt }))
+mock.module("../prompts/choosePublicKey", () => ({ choosePublicKeyPrompt }))
+mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironment, decryptEnvironmentData: decryptEnvironment }))
+mock.module("../helpers/getPublicKeyByName", () => ({ getPublicKeyByName }))
+mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
+mock.module("../helpers/validateEnvironmentName", () => ({ validateEnvironmentName }))
 
-	return {
-		deps,
-		logError,
-		exit,
-		chooseEnvironmentPrompt,
-		choosePublicKeyPrompt,
-		decryptEnvironment,
-		getPublicKeyByName,
-		encryptEnvironment,
-	}
-}
+const { revokeCommand } = await import("../commands/auth/revoke")
 
 describe("revokeCommand", () => {
-	test("prompts for missing args and revokes access", async () => {
-		const {
-			deps,
-			chooseEnvironmentPrompt,
-			choosePublicKeyPrompt,
-			decryptEnvironment,
-			getPublicKeyByName,
-			encryptEnvironment,
-		} = createDeps()
+	beforeEach(() => {
+		chooseEnvironmentPrompt.mockClear()
+		choosePublicKeyPrompt.mockClear()
+		decryptEnvironment.mockClear()
+		getPublicKeyByName.mockClear()
+		encryptEnvironment.mockClear()
+		validateEnvironmentName.mockClear()
+	})
 
-		await revokeCommand("", "", deps)
+	test("prompts for missing args and revokes access", async () => {
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		chooseEnvironmentPrompt.mockImplementation(async () => "staging")
+		choosePublicKeyPrompt.mockImplementation(async () => "bob")
+		decryptEnvironment.mockImplementation(async () => "TOKEN=secret")
+		getPublicKeyByName.mockImplementation(async () => ({}))
+		encryptEnvironment.mockImplementation(async () => {})
+
+		await revokeCommand("", "")
 
 		expect(chooseEnvironmentPrompt).toHaveBeenCalledTimes(1)
 		expect(choosePublicKeyPrompt).toHaveBeenCalledTimes(1)
@@ -83,74 +51,99 @@ describe("revokeCommand", () => {
 			revokePublicKeys: ["bob"],
 			baseDir: CWD,
 		})
+		cwdSpy.mockRestore()
 	})
 
 	test("encrypts to cwd, not projectRoot, in a monorepo", async () => {
 		const SUBDIR = path.join("/workspace", "packages", "web")
-		const { deps, encryptEnvironment } = createDeps({ cwd: () => SUBDIR })
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(SUBDIR)
+		decryptEnvironment.mockImplementation(async () => "TOKEN=secret")
+		getPublicKeyByName.mockImplementation(async () => ({}))
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await revokeCommand("staging", "bob", deps)
+		await revokeCommand("staging", "bob")
 
 		const options = encryptEnvironment.mock.calls[0]?.[2] as {
 			baseDir?: string
 		}
 		expect(options?.baseDir).toBe(SUBDIR)
+		cwdSpy.mockRestore()
 	})
 
 	test("exits on invalid environment name", async () => {
-		const { deps, logError, exit, decryptEnvironment } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
 
-		await expect(revokeCommand("invalid", "bob", deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(revokeCommand("invalid", "bob")).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
+		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(decryptEnvironment).not.toHaveBeenCalled()
-		expect(String(logError.mock.calls[0]?.[0])).toContain("invalid environment")
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("invalid environment")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when decryption fails", async () => {
-		const { deps, logError, exit } = createDeps({
-			decryptEnvironment: mock(async () => {
-				throw new Error("decrypt failed")
-			}) as unknown as RevokeCommandDeps["decryptEnvironment"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+		decryptEnvironment.mockImplementation(async () => {
+			throw new Error("decrypt failed")
 		})
 
-		await expect(revokeCommand("staging", "bob", deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(revokeCommand("staging", "bob")).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(logError).toHaveBeenCalledWith("decrypt failed")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(logErrorSpy).toHaveBeenCalledWith("decrypt failed")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when public key lookup fails", async () => {
-		const { deps, logError, exit } = createDeps({
-			getPublicKeyByName: mock(async () => {
-				throw new Error("key not found")
-			}) as unknown as RevokeCommandDeps["getPublicKeyByName"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+		decryptEnvironment.mockImplementation(async () => "TOKEN=secret")
+		getPublicKeyByName.mockImplementation(async () => {
+			throw new Error("key not found")
 		})
 
-		await expect(revokeCommand("staging", "bob", deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(revokeCommand("staging", "bob")).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(logError).toHaveBeenCalledWith("key not found")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(logErrorSpy).toHaveBeenCalledWith("key not found")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when encryption fails", async () => {
-		const { deps, logError, exit } = createDeps({
-			encryptEnvironment: mock(async () => {
-				throw new Error("encrypt failed")
-			}) as unknown as RevokeCommandDeps["encryptEnvironment"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+		decryptEnvironment.mockImplementation(async () => "TOKEN=secret")
+		getPublicKeyByName.mockImplementation(async () => ({}))
+		encryptEnvironment.mockImplementation(async () => {
+			throw new Error("encrypt failed")
 		})
 
-		await expect(revokeCommand("staging", "bob", deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(revokeCommand("staging", "bob")).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(logError).toHaveBeenCalledWith("encrypt failed")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(logErrorSpy).toHaveBeenCalledWith("encrypt failed")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })
