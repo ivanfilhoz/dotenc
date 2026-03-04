@@ -35,47 +35,17 @@ export const _normalizePublicKeyNamesForCreate = (
 	return []
 }
 
-export type CreateCommandDeps = {
-	resolveProjectRoot: typeof resolveProjectRoot
-	existsSync: typeof existsSync
-	environmentExists: typeof environmentExists
-	getPublicKeys: typeof getPublicKeys
-	writeFile: typeof fs.writeFile
-	cwd: () => string
-	logError: (message: string) => void
-	log: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultCreateCommandDeps: CreateCommandDeps = {
-	resolveProjectRoot,
-	existsSync,
-	environmentExists,
-	getPublicKeys,
-	writeFile: fs.writeFile,
-	cwd: () => process.cwd(),
-	logError: (message) => console.error(message),
-	log: (message) => console.log(message),
-	exit: (code) => process.exit(code),
-}
-
 export const createCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
 	initialContent?: string,
-	depsOverrides: Partial<CreateCommandDeps> = {},
 ) => {
-	const deps: CreateCommandDeps = {
-		...defaultCreateCommandDeps,
-		...depsOverrides,
-	}
-
-	const invocationDir = deps.cwd()
+	const invocationDir = process.cwd()
 	const targetDir = invocationDir
 
 	let projectRoot: string
 	try {
-		projectRoot = deps.resolveProjectRoot(invocationDir, deps.existsSync)
+		projectRoot = resolveProjectRoot(invocationDir, existsSync)
 	} catch {
 		projectRoot = invocationDir
 	}
@@ -91,32 +61,32 @@ export const createCommand = async (
 	}
 
 	if (!environmentName) {
-		deps.logError(`${chalk.red("Error:")} no environment name provided`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} no environment name provided`)
+		process.exit(1)
 	}
 
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		process.exit(1)
 	}
 
-	if (deps.environmentExists(environmentName, targetDir)) {
-		deps.logError(
+	if (environmentExists(environmentName, targetDir)) {
+		console.error(
 			`${chalk.red("Error:")} environment ${environmentName} already exists. To edit it, use ${chalk.gray(
 				`dotenc env edit ${environmentName}`,
 			)}`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	const dotencDir = path.join(projectRoot, ".dotenc")
-	const availablePublicKeys = await deps.getPublicKeys(dotencDir)
+	const availablePublicKeys = await getPublicKeys(dotencDir)
 	if (!availablePublicKeys.length) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} no public keys found. Please add a public key using ${chalk.gray("dotenc key add")}.`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	const publicKeySelection = publicKeyNameArg
@@ -127,10 +97,10 @@ export const createCommand = async (
 			)
 	const publicKeys = _normalizePublicKeyNamesForCreate(publicKeySelection)
 	if (publicKeys.length === 0) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} select at least one public key before creating an environment.`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 	const dataKey = createDataKey()
 
@@ -148,7 +118,7 @@ export const createCommand = async (
 		)
 
 		if (!publicKey) {
-			deps.logError(
+			console.error(
 				`Public key ${chalk.cyan(publicKeyName)} not found or invalid.`,
 			)
 			continue
@@ -165,26 +135,26 @@ export const createCommand = async (
 	}
 
 	if (environmentJson.keys.length === 0) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} no valid public keys were selected. Environment creation aborted.`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
-	await deps.writeFile(
+	await fs.writeFile(
 		path.join(targetDir, `.env.${environmentName}.enc`),
 		JSON.stringify(environmentJson, null, 2),
 		"utf-8",
 	)
 
 	// Output success message
-	deps.log(
+	console.log(
 		`${chalk.green("✔")} Environment ${chalk.cyan(environmentName)} created!`,
 	)
-	deps.log("\nSome useful tips:")
+	console.log("\nSome useful tips:")
 	const editCommand = chalk.gray(`dotenc env edit ${environmentName}`)
-	deps.log(`\n- To securely edit your environment:\t${editCommand}`)
-	deps.log(
+	console.log(`\n- To securely edit your environment:\t${editCommand}`)
+	console.log(
 		`- To run your application:\t\t${_getRunUsageHintForEnvironment(environmentName)}`,
 	)
 }

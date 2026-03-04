@@ -1,84 +1,78 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as realFs from "node:fs"
 import path from "node:path"
-import type { EnvListCommandDeps } from "../commands/env/list"
-import { envListCommand } from "../commands/env/list"
 
 const ROOT = "/workspace"
 const SUBDIR = path.join(ROOT, "packages", "web")
 
+const getEnvironments = mock(async (_dir?: string) => [] as string[])
+const findEnvironmentsRecursive = mock(async (_dir: string) => [] as Array<{ name: string; dir: string; filePath: string }>)
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
+const existsSync = mock((_p: string) => true)
+
+mock.module("../helpers/getEnvironments", () => ({ getEnvironments }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
+mock.module("node:fs", () => ({ ...realFs, existsSync }))
+
+const { envListCommand } = await import("../commands/env/list")
+
 describe("envListCommand — default (local only)", () => {
+	beforeEach(() => {
+		getEnvironments.mockClear()
+		findEnvironmentsRecursive.mockClear()
+		resolveProjectRoot.mockClear()
+		existsSync.mockClear()
+	})
+
 	test("prints 'No environments found' when none exist", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		getEnvironments.mockImplementation(async () => [])
 
-		await envListCommand(
-			{},
-			{
-				getEnvironments: mock(
-					async () => [],
-				) as unknown as EnvListCommandDeps["getEnvironments"],
-				cwd: () => ROOT,
-				log,
-			},
-		)
+		await envListCommand({})
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toEqual(["No environments found."])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("prints environment names flat, without folder labels", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		getEnvironments.mockImplementation(async () => ["staging", "production"])
 
-		await envListCommand(
-			{},
-			{
-				getEnvironments: mock(async () => [
-					"staging",
-					"production",
-				]) as unknown as EnvListCommandDeps["getEnvironments"],
-				cwd: () => ROOT,
-				log,
-			},
-		)
+		await envListCommand({})
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toEqual(["staging", "production"])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("--json outputs { environments: [] } when none exist", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		getEnvironments.mockImplementation(async () => [])
 
-		await envListCommand(
-			{ json: true },
-			{
-				getEnvironments: mock(
-					async () => [],
-				) as unknown as EnvListCommandDeps["getEnvironments"],
-				cwd: () => ROOT,
-				log,
-			},
-		)
+		await envListCommand({ json: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toHaveLength(1)
 		expect(JSON.parse(logged[0])).toEqual({ environments: [] })
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("--json outputs { environments: [...] } with name/dir/filePath", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		getEnvironments.mockImplementation(async () => ["staging", "production"])
 
-		await envListCommand(
-			{ json: true },
-			{
-				getEnvironments: mock(async () => [
-					"staging",
-					"production",
-				]) as unknown as EnvListCommandDeps["getEnvironments"],
-				cwd: () => ROOT,
-				log,
-			},
-		)
+		await envListCommand({ json: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toHaveLength(1)
 		const parsed = JSON.parse(logged[0]) as {
 			environments: Array<{ name: string; dir: string; filePath: string }>
@@ -95,6 +89,8 @@ describe("envListCommand — default (local only)", () => {
 				filePath: path.join(ROOT, ".env.production.enc"),
 			},
 		])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })
 
@@ -112,114 +108,93 @@ describe("envListCommand — --all (recursive)", () => {
 		},
 	]
 
+	beforeEach(() => {
+		getEnvironments.mockClear()
+		findEnvironmentsRecursive.mockClear()
+		resolveProjectRoot.mockClear()
+		existsSync.mockClear()
+	})
+
 	test("prints 'No environments found' when none exist", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(SUBDIR)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [])
 
-		await envListCommand(
-			{ all: true },
-			{
-				findEnvironmentsRecursive: mock(
-					async () => [],
-				) as unknown as EnvListCommandDeps["findEnvironmentsRecursive"],
-				resolveProjectRoot: () => ROOT,
-				existsSync: () => true,
-				cwd: () => SUBDIR,
-				log,
-			},
-		)
+		await envListCommand({ all: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toEqual(["No environments found."])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("prints environment names with relative folder labels", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(SUBDIR)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => webFiles)
 
-		await envListCommand(
-			{ all: true },
-			{
-				findEnvironmentsRecursive: mock(
-					async () => webFiles,
-				) as unknown as EnvListCommandDeps["findEnvironmentsRecursive"],
-				resolveProjectRoot: () => ROOT,
-				existsSync: () => true,
-				cwd: () => SUBDIR,
-				log,
-			},
-		)
+		await envListCommand({ all: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toEqual(["production  (.)", "staging  (packages/web)"])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("--json outputs { environments: [] } when none exist", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(SUBDIR)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [])
 
-		await envListCommand(
-			{ all: true, json: true },
-			{
-				findEnvironmentsRecursive: mock(
-					async () => [],
-				) as unknown as EnvListCommandDeps["findEnvironmentsRecursive"],
-				resolveProjectRoot: () => ROOT,
-				existsSync: () => true,
-				cwd: () => SUBDIR,
-				log,
-			},
-		)
+		await envListCommand({ all: true, json: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toHaveLength(1)
 		expect(JSON.parse(logged[0])).toEqual({ environments: [] })
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("--json outputs { environments: [...] } with all entries across dirs", async () => {
-		const log = mock((_msg: string) => {})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(SUBDIR)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => webFiles)
 
-		await envListCommand(
-			{ all: true, json: true },
-			{
-				findEnvironmentsRecursive: mock(
-					async () => webFiles,
-				) as unknown as EnvListCommandDeps["findEnvironmentsRecursive"],
-				resolveProjectRoot: () => ROOT,
-				existsSync: () => true,
-				cwd: () => SUBDIR,
-				log,
-			},
-		)
+		await envListCommand({ all: true, json: true })
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toHaveLength(1)
 		const parsed = JSON.parse(logged[0]) as {
 			environments: Array<{ name: string; dir: string; filePath: string }>
 		}
 		expect(parsed.environments).toEqual(webFiles)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("uses cwd as project root when not in a dotenc project", async () => {
-		const log = mock((_msg: string) => {})
-
-		await envListCommand(
-			{ all: true },
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => {
+			throw new Error("Not in a dotenc project")
+		})
+		findEnvironmentsRecursive.mockImplementation(async (rootDir: string) => [
 			{
-				findEnvironmentsRecursive: mock(async (rootDir: string) => [
-					{
-						name: "dev",
-						dir: rootDir,
-						filePath: path.join(rootDir, ".env.dev.enc"),
-					},
-				]) as unknown as EnvListCommandDeps["findEnvironmentsRecursive"],
-				resolveProjectRoot: () => {
-					throw new Error("Not in a dotenc project")
-				},
-				existsSync: () => false,
-				cwd: () => ROOT,
-				log,
+				name: "dev",
+				dir: rootDir,
+				filePath: path.join(rootDir, ".env.dev.enc"),
 			},
-		)
+		])
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		await envListCommand({ all: true })
+
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged).toEqual(["dev  (.)"])
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })

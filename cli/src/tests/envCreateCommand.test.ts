@@ -1,11 +1,30 @@
-import { describe, expect, mock, test } from "bun:test"
-import type { CreateCommandDeps } from "../commands/env/create"
-import {
-	_normalizePublicKeyNamesForCreate,
-	createCommand,
-} from "../commands/env/create"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as realFs from "node:fs"
+import * as realFsPromises from "node:fs/promises"
 
 const ROOT = "/workspace"
+
+const makePublicKey = (name: string) => ({
+	name,
+	algorithm: "ed25519" as const,
+	fingerprint: `SHA256:${name}`,
+	publicKey: {} as never,
+	rawPublicKey: Buffer.alloc(32),
+})
+
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
+const existsSync = mock((_p: string) => true)
+const environmentExists = mock((_name: string, _dir: string) => false)
+const getPublicKeys = mock(async (_dotencDir: string) => [makePublicKey("alice")])
+const fsWriteFile = mock(async (_path: unknown, _content: unknown, _options?: unknown) => {})
+
+mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
+mock.module("node:fs", () => ({ ...realFs, existsSync }))
+mock.module("../helpers/environmentExists", () => ({ environmentExists }))
+mock.module("../helpers/getPublicKeys", () => ({ getPublicKeys }))
+mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, writeFile: fsWriteFile } }))
+
+const { _normalizePublicKeyNamesForCreate, createCommand } = await import("../commands/env/create")
 
 describe("createCommand key selection normalization", () => {
 	test("normalizes a single selected key string into an array", () => {
@@ -26,48 +45,28 @@ describe("createCommand key selection normalization", () => {
 	})
 })
 
-const makePublicKey = (name: string) => ({
-	name,
-	algorithm: "ed25519" as const,
-	fingerprint: `SHA256:${name}`,
-	publicKey: {} as never,
-	rawPublicKey: Buffer.alloc(32),
-})
-
-const createBaseDeps = (
-	overrides: Partial<CreateCommandDeps> = {},
-): Partial<CreateCommandDeps> => ({
-	resolveProjectRoot: () => ROOT,
-	existsSync: () => true,
-	environmentExists: () => false,
-	getPublicKeys: mock(async () => [
-		makePublicKey("alice"),
-	]) as unknown as CreateCommandDeps["getPublicKeys"],
-	writeFile: mock(async () => {}) as unknown as CreateCommandDeps["writeFile"],
-	cwd: () => ROOT,
-	logError: mock((_msg: string) => {}),
-	log: mock((_msg: string) => {}),
-	exit: mock((code: number): never => {
-		throw new Error(`exit(${code})`)
-	}),
-	...overrides,
-})
-
 describe("createCommand location resolution", () => {
+	beforeEach(() => {
+		resolveProjectRoot.mockClear()
+		existsSync.mockClear()
+		environmentExists.mockClear()
+		getPublicKeys.mockClear()
+		fsWriteFile.mockClear()
+	})
+
 	test("creates file in cwd", async () => {
-		const writeFile = mock(
-			async () => {},
-		) as unknown as CreateCommandDeps["writeFile"]
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		environmentExists.mockImplementation(() => false)
+		getPublicKeys.mockImplementation(async () => [makePublicKey("alice")])
+		fsWriteFile.mockImplementation(async () => {})
 
-		await createCommand("staging", "alice", undefined, {
-			...createBaseDeps(),
-			cwd: () => ROOT,
-			writeFile,
-		})
+		await createCommand("staging", "alice", undefined)
 
-		const writtenPath = String(
-			(writeFile as ReturnType<typeof mock>).mock.calls[0]?.[0],
-		)
+		const writtenPath = String(fsWriteFile.mock.calls[0]?.[0])
 		expect(writtenPath.startsWith(ROOT)).toBe(true)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })

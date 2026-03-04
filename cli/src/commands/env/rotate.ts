@@ -10,111 +10,54 @@ import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import { confirmPrompt } from "../../prompts/confirm"
 
-export type RotateCommandDeps = {
-	decryptEnvironmentData: typeof decryptEnvironmentData
-	encryptEnvironment: typeof encryptEnvironment
-	getEnvironmentByPath: typeof getEnvironmentByPath
-	validateEnvironmentName: typeof validateEnvironmentName
-	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
-	findEnvironmentsRecursive: typeof findEnvironmentsRecursive
-	resolveProjectRoot: typeof resolveProjectRoot
-	confirmPrompt: typeof confirmPrompt
-	existsSync: (path: string) => boolean
-	cwd: () => string
-	log: (message: string) => void
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultRotateCommandDeps: RotateCommandDeps = {
-	decryptEnvironmentData,
-	encryptEnvironment,
-	getEnvironmentByPath,
-	validateEnvironmentName,
-	chooseEnvironmentPrompt,
-	findEnvironmentsRecursive,
-	resolveProjectRoot,
-	confirmPrompt,
-	existsSync,
-	cwd: () => process.cwd(),
-	log: (message) => console.log(message),
-	logError: (message) => console.error(message),
-	exit: (code) => process.exit(code),
-}
-
-const isRotateCommandDeps = (value: unknown): value is RotateCommandDeps => {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"decryptEnvironmentData" in value &&
-		"encryptEnvironment" in value &&
-		"getEnvironmentByPath" in value &&
-		"validateEnvironmentName" in value &&
-		"chooseEnvironmentPrompt" in value &&
-		"findEnvironmentsRecursive" in value &&
-		"resolveProjectRoot" in value &&
-		"confirmPrompt" in value &&
-		"existsSync" in value &&
-		"cwd" in value &&
-		"log" in value &&
-		"logError" in value &&
-		"exit" in value
-	)
-}
-
 export const rotateCommand = async (
 	environmentNameArg: string,
 	all: boolean,
 	yes: boolean,
-	commandOrDeps?: unknown,
 ) => {
-	const deps = isRotateCommandDeps(commandOrDeps)
-		? commandOrDeps
-		: defaultRotateCommandDeps
-
 	if (all) {
 		let projectRoot: string
 		try {
-			projectRoot = deps.resolveProjectRoot(deps.cwd(), deps.existsSync)
+			projectRoot = resolveProjectRoot(process.cwd(), existsSync)
 		} catch {
-			projectRoot = deps.cwd()
+			projectRoot = process.cwd()
 		}
 
-		const envFiles = await deps.findEnvironmentsRecursive(projectRoot)
+		const envFiles = await findEnvironmentsRecursive(projectRoot)
 
 		if (envFiles.length === 0) {
-			deps.log("No environments found.")
+			console.log("No environments found.")
 			return
 		}
 
-		deps.log("Environments to rotate:")
+		console.log("Environments to rotate:")
 		for (const envFile of envFiles) {
 			const label = path.relative(projectRoot, envFile.dir) || "."
-			deps.log(`  - ${envFile.name} (${label})`)
+			console.log(`  - ${envFile.name} (${label})`)
 		}
 
 		if (!yes) {
-			const confirmed = await deps.confirmPrompt(
+			const confirmed = await confirmPrompt(
 				`Rotate data keys for all ${envFiles.length} environment${envFiles.length !== 1 ? "s" : ""}?`,
 			)
 			if (!confirmed) {
-				deps.log("Operation cancelled.")
+				console.log("Operation cancelled.")
 				return
 			}
 		}
 
 		for (const envFile of envFiles) {
 			try {
-				const envJson = await deps.getEnvironmentByPath(envFile.filePath)
-				const content = await deps.decryptEnvironmentData(envFile.name, envJson)
-				await deps.encryptEnvironment(envFile.name, content, {
+				const envJson = await getEnvironmentByPath(envFile.filePath)
+				const content = await decryptEnvironmentData(envFile.name, envJson)
+				await encryptEnvironment(envFile.name, content, {
 					baseDir: envFile.dir,
 				})
 				const label = path.relative(projectRoot, envFile.dir) || "."
-				deps.log(`${chalk.green("✓")} ${envFile.name} (${label})`)
+				console.log(`${chalk.green("✓")} ${envFile.name} (${label})`)
 			} catch (error) {
 				const label = path.relative(projectRoot, envFile.dir) || "."
-				deps.logError(
+				console.error(
 					`${chalk.red("✗")} ${envFile.name} (${label}): ${error instanceof Error ? error.message : "unknown error"}`,
 				)
 			}
@@ -125,51 +68,51 @@ export const rotateCommand = async (
 	// Single environment rotation
 	const environmentName =
 		environmentNameArg ||
-		(await deps.chooseEnvironmentPrompt(
+		(await chooseEnvironmentPrompt(
 			"What environment do you want to rotate the data key for?",
 		))
 
-	const validation = deps.validateEnvironmentName(environmentName)
+	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		process.exit(1)
 	}
 
-	const targetDir = deps.cwd()
+	const targetDir = process.cwd()
 	const targetFilePath = path.join(targetDir, `.env.${environmentName}.enc`)
 
-	if (!deps.existsSync(targetFilePath)) {
-		deps.logError(
+	if (!existsSync(targetFilePath)) {
+		console.error(
 			`${chalk.red("Error:")} environment ${chalk.cyan(environmentName)} not found.`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	let currentContent!: string
 	try {
-		const envJson = await deps.getEnvironmentByPath(targetFilePath)
-		currentContent = await deps.decryptEnvironmentData(environmentName, envJson)
+		const envJson = await getEnvironmentByPath(targetFilePath)
+		currentContent = await decryptEnvironmentData(environmentName, envJson)
 	} catch (error) {
-		deps.logError(
+		console.error(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	try {
-		await deps.encryptEnvironment(environmentName, currentContent, {
+		await encryptEnvironment(environmentName, currentContent, {
 			baseDir: targetDir,
 		})
 	} catch (error) {
-		deps.logError(
+		console.error(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while encrypting the environment.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
-	deps.log(`Data key for ${environmentName} has been rotated.`)
+	console.log(`Data key for ${environmentName} has been rotated.`)
 }

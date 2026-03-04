@@ -6,108 +6,63 @@ import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 
-export type GrantCommandDeps = {
-	decryptEnvironment: typeof decryptEnvironment
-	encryptEnvironment: typeof encryptEnvironment
-	getPublicKeyByName: typeof getPublicKeyByName
-	validateEnvironmentName: typeof validateEnvironmentName
-	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
-	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
-	cwd: () => string
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultGrantCommandDeps: GrantCommandDeps = {
-	decryptEnvironment,
-	encryptEnvironment,
-	getPublicKeyByName,
-	validateEnvironmentName,
-	chooseEnvironmentPrompt,
-	choosePublicKeyPrompt,
-	cwd: () => process.cwd(),
-	logError: (message) => console.error(message),
-	exit: (code) => process.exit(code),
-}
-
-const isGrantCommandDeps = (value: unknown): value is GrantCommandDeps => {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"decryptEnvironment" in value &&
-		"encryptEnvironment" in value &&
-		"getPublicKeyByName" in value &&
-		"validateEnvironmentName" in value &&
-		"chooseEnvironmentPrompt" in value &&
-		"choosePublicKeyPrompt" in value &&
-		"cwd" in value &&
-		"logError" in value &&
-		"exit" in value
-	)
-}
-
 export const grantCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
-	commandOrDeps?: unknown,
 ) => {
-	const deps = isGrantCommandDeps(commandOrDeps)
-		? commandOrDeps
-		: defaultGrantCommandDeps
-
 	const environmentName =
 		environmentNameArg ||
-		(await deps.chooseEnvironmentPrompt(
+		(await chooseEnvironmentPrompt(
 			"What environment do you want to grant access to?",
 		))
 
-	const validation = deps.validateEnvironmentName(environmentName)
+	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} ${validation.reason}`)
+		process.exit(1)
 	}
 
 	let currentContent!: string
 	try {
-		currentContent = await deps.decryptEnvironment(environmentName)
+		currentContent = await decryptEnvironment(environmentName)
 	} catch (error) {
-		deps.logError(
+		console.error(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	let publicKeyName = publicKeyNameArg
 	if (!publicKeyName) {
-		publicKeyName = await deps.choosePublicKeyPrompt(
+		publicKeyName = await choosePublicKeyPrompt(
 			"Which public key do you want to grant access to this environment?",
 		)
 	}
 
 	try {
-		await deps.getPublicKeyByName(publicKeyName)
+		await getPublicKeyByName(publicKeyName)
 	} catch (error) {
-		deps.logError(
+		console.error(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while retrieving the public key.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	try {
-		await deps.encryptEnvironment(environmentName, currentContent, {
+		await encryptEnvironment(environmentName, currentContent, {
 			grantPublicKeys: [publicKeyName],
-			baseDir: deps.cwd(),
+			baseDir: process.cwd(),
 		})
 	} catch (error) {
-		deps.logError(
+		console.error(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while encrypting the environment.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 }

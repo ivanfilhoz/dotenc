@@ -1,7 +1,6 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as realFs from "node:fs"
 import path from "node:path"
-import type { RotateCommandDeps } from "../commands/env/rotate"
-import { rotateCommand } from "../commands/env/rotate"
 import type { EnvFile } from "../helpers/findEnvironmentsRecursive"
 
 const ROOT = "/workspace"
@@ -12,246 +11,318 @@ const makeEnvFile = (name: string, dir = ROOT): EnvFile => ({
 	filePath: path.join(dir, `.env.${name}.enc`),
 })
 
-const createDeps = (
-	overrides: Partial<RotateCommandDeps> = {},
-): {
-	deps: RotateCommandDeps
-	log: ReturnType<typeof mock>
-	logError: ReturnType<typeof mock>
-	exit: ReturnType<typeof mock>
-	chooseEnvironmentPrompt: ReturnType<typeof mock>
-	confirmPrompt: ReturnType<typeof mock>
-	findEnvironmentsRecursive: ReturnType<typeof mock>
-	decryptEnvironmentData: ReturnType<typeof mock>
-	encryptEnvironment: ReturnType<typeof mock>
-} => {
-	const chooseEnvironmentPrompt = mock(async () => "production")
-	const confirmPrompt = mock(async () => true)
-	const decryptEnvironmentData = mock(async () => "A=1")
-	const encryptEnvironment = mock(
-		async (_name: string, _content: string, _options?: object) => {},
-	)
-	const findEnvironmentsRecursive = mock(async () => [
-		makeEnvFile("staging"),
-		makeEnvFile("production"),
-	])
-	const log = mock((_message: string) => {})
-	const logError = mock((_message: string) => {})
-	const exit = mock((code: number): never => {
-		throw new Error(`exit(${code})`)
-	})
+const chooseEnvironmentPrompt = mock(async (_msg: string) => "production")
+const confirmPrompt = mock(async (_msg: string) => true)
+const decryptEnvironmentData = mock(async () => "A=1")
+const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const findEnvironmentsRecursive = mock(async (_dir: string) => [
+	makeEnvFile("staging"),
+	makeEnvFile("production"),
+])
+const getEnvironmentByPath = mock(async (_filePath: string) => ({
+	version: 2 as const,
+	keys: [],
+	encryptedContent: "",
+}))
+const validateEnvironmentName = mock((name: string) =>
+	name === "invalid"
+		? { valid: false as const, reason: "invalid environment" }
+		: { valid: true as const },
+)
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
+const existsSync = mock((_p: string) => true)
 
-	const deps: RotateCommandDeps = {
-		decryptEnvironmentData:
-			decryptEnvironmentData as unknown as RotateCommandDeps["decryptEnvironmentData"],
-		encryptEnvironment:
-			encryptEnvironment as unknown as RotateCommandDeps["encryptEnvironment"],
-		getEnvironmentByPath: mock(async () => ({
-			version: 2 as const,
-			keys: [],
-			encryptedContent: "",
-		})) as unknown as RotateCommandDeps["getEnvironmentByPath"],
-		validateEnvironmentName: ((name: string) =>
-			name === "invalid"
-				? { valid: false, reason: "invalid environment" }
-				: { valid: true }) as RotateCommandDeps["validateEnvironmentName"],
-		chooseEnvironmentPrompt:
-			chooseEnvironmentPrompt as unknown as RotateCommandDeps["chooseEnvironmentPrompt"],
-		findEnvironmentsRecursive:
-			findEnvironmentsRecursive as unknown as RotateCommandDeps["findEnvironmentsRecursive"],
-		resolveProjectRoot: () => ROOT,
-		confirmPrompt:
-			confirmPrompt as unknown as RotateCommandDeps["confirmPrompt"],
-		existsSync: (() => true) as RotateCommandDeps["existsSync"],
-		cwd: () => ROOT,
-		log,
-		logError,
-		exit,
-		...overrides,
-	}
+mock.module("../prompts/chooseEnvironment", () => ({ chooseEnvironmentPrompt }))
+mock.module("../prompts/confirm", () => ({ confirmPrompt }))
+mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData, decryptEnvironment: decryptEnvironmentData }))
+mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
+mock.module("../helpers/validateEnvironmentName", () => ({ validateEnvironmentName }))
+mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
+mock.module("node:fs", () => ({ ...realFs, existsSync }))
 
-	return {
-		deps,
-		log,
-		logError,
-		exit,
-		chooseEnvironmentPrompt,
-		confirmPrompt,
-		findEnvironmentsRecursive,
-		decryptEnvironmentData,
-		encryptEnvironment,
-	}
-}
+const { rotateCommand } = await import("../commands/env/rotate")
 
 describe("rotateCommand (single)", () => {
-	test("prompts for missing environment and rotates data key", async () => {
-		const {
-			deps,
-			chooseEnvironmentPrompt,
-			decryptEnvironmentData,
-			encryptEnvironment,
-			log,
-		} = createDeps()
+	beforeEach(() => {
+		chooseEnvironmentPrompt.mockClear()
+		confirmPrompt.mockClear()
+		decryptEnvironmentData.mockClear()
+		encryptEnvironment.mockClear()
+		findEnvironmentsRecursive.mockClear()
+		getEnvironmentByPath.mockClear()
+		validateEnvironmentName.mockClear()
+		resolveProjectRoot.mockClear()
+		existsSync.mockClear()
+	})
 
-		await rotateCommand("", false, false, deps)
+	test("prompts for missing environment and rotates data key", async () => {
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		existsSync.mockImplementation(() => true)
+		chooseEnvironmentPrompt.mockImplementation(async () => "production")
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {})
+
+		await rotateCommand("", false, false)
 
 		expect(chooseEnvironmentPrompt).toHaveBeenCalledTimes(1)
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(1)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(1)
-		expect(String(log.mock.calls[0]?.[0])).toContain("Data key for production")
+		expect(String(logSpy.mock.calls[0]?.[0])).toContain("Data key for production")
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("rotates the environment in cwd", async () => {
-		const { deps, encryptEnvironment } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		existsSync.mockImplementation(() => true)
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await rotateCommand("production", false, false, deps)
+		await rotateCommand("production", false, false)
 
 		expect(encryptEnvironment).toHaveBeenCalledWith("production", "A=1", {
 			baseDir: ROOT,
 		})
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits on invalid environment name", async () => {
-		const { deps, logError, exit, decryptEnvironmentData } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
 
-		await expect(rotateCommand("invalid", false, false, deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(rotateCommand("invalid", false, false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
+		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(decryptEnvironmentData).not.toHaveBeenCalled()
-		expect(String(logError.mock.calls[0]?.[0])).toContain("invalid environment")
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("invalid environment")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when environment file not found", async () => {
-		const { deps, logError, exit } = createDeps({
-			existsSync: (() => false) as RotateCommandDeps["existsSync"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
+		existsSync.mockImplementation(() => false)
 
-		await expect(
-			rotateCommand("production", false, false, deps),
-		).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(String(logError.mock.calls[0]?.[0])).toContain("not found")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("not found")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when decryption fails", async () => {
-		const { deps, logError, exit } = createDeps({
-			decryptEnvironmentData: mock(async () => {
-				throw new Error("decrypt failed")
-			}) as unknown as RotateCommandDeps["decryptEnvironmentData"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+		existsSync.mockImplementation(() => true)
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => {
+			throw new Error("decrypt failed")
 		})
 
-		await expect(
-			rotateCommand("production", false, false, deps),
-		).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(logError).toHaveBeenCalledWith("decrypt failed")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(logErrorSpy).toHaveBeenCalledWith("decrypt failed")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when encryption fails", async () => {
-		const { deps, logError, exit } = createDeps({
-			encryptEnvironment: mock(async () => {
-				throw new Error("encrypt failed")
-			}) as unknown as RotateCommandDeps["encryptEnvironment"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+		existsSync.mockImplementation(() => true)
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {
+			throw new Error("encrypt failed")
 		})
 
-		await expect(
-			rotateCommand("production", false, false, deps),
-		).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(logError).toHaveBeenCalledWith("encrypt failed")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(logErrorSpy).toHaveBeenCalledWith("encrypt failed")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })
 
 describe("rotateCommand --all", () => {
-	test("prints 'No environments found' when list is empty", async () => {
-		const { deps, log, decryptEnvironmentData } = createDeps({
-			findEnvironmentsRecursive: mock(
-				async () => [],
-			) as unknown as RotateCommandDeps["findEnvironmentsRecursive"],
-		})
+	beforeEach(() => {
+		chooseEnvironmentPrompt.mockClear()
+		confirmPrompt.mockClear()
+		decryptEnvironmentData.mockClear()
+		encryptEnvironment.mockClear()
+		findEnvironmentsRecursive.mockClear()
+		getEnvironmentByPath.mockClear()
+		validateEnvironmentName.mockClear()
+		resolveProjectRoot.mockClear()
+		existsSync.mockClear()
+	})
 
-		await rotateCommand("", true, true, deps)
+	test("prints 'No environments found' when list is empty", async () => {
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [])
+
+		await rotateCommand("", true, true)
 
 		expect(decryptEnvironmentData).not.toHaveBeenCalled()
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged.some((m) => m.includes("No environments found"))).toBe(true)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("rotates all environments when yes=true", async () => {
-		const { deps, decryptEnvironmentData, encryptEnvironment } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await rotateCommand("", true, true, deps)
+		await rotateCommand("", true, true)
 
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(2)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(2)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("aborts when user declines", async () => {
-		const { deps, encryptEnvironment } = createDeps({
-			confirmPrompt: mock(
-				async () => false,
-			) as unknown as RotateCommandDeps["confirmPrompt"],
-		})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		confirmPrompt.mockImplementation(async () => false)
 
-		await rotateCommand("", true, false, deps)
+		await rotateCommand("", true, false)
 
 		expect(encryptEnvironment).not.toHaveBeenCalled()
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("skips confirmation when yes=true", async () => {
-		const { deps, confirmPrompt } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await rotateCommand("", true, true, deps)
+		await rotateCommand("", true, true)
 
 		expect(confirmPrompt).not.toHaveBeenCalled()
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("reports per-file errors but continues (best-effort)", async () => {
-		const { deps, logError } = createDeps({
-			decryptEnvironmentData: mock(async () => {
-				throw new Error("decrypt failed")
-			}) as unknown as RotateCommandDeps["decryptEnvironmentData"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => {
+			throw new Error("decrypt failed")
 		})
 
-		await rotateCommand("", true, true, deps)
+		await rotateCommand("", true, true)
 
-		const errors = logError.mock.calls.map((c) => String(c[0]))
+		const errors = logErrorSpy.mock.calls.map((c) => String(c[0]))
 		expect(errors.length).toBeGreaterThan(0)
+		logSpy.mockRestore()
+		logErrorSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("prints per-file success/failure summary", async () => {
-		const { deps, log, logError } = createDeps({
-			encryptEnvironment: mock(async (_name: string) => {
-				if (_name === "production") throw new Error("encrypt failed")
-			}) as unknown as RotateCommandDeps["encryptEnvironment"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async (_name: string) => {
+			if (_name === "production") throw new Error("encrypt failed")
 		})
 
-		await rotateCommand("", true, true, deps)
+		await rotateCommand("", true, true)
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
-		const errors = logError.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
+		const errors = logErrorSpy.mock.calls.map((c) => String(c[0]))
 
 		expect(logged.some((m) => m.includes("staging"))).toBe(true)
 		expect(errors.some((m) => m.includes("production"))).toBe(true)
+		logSpy.mockRestore()
+		logErrorSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("recursively discovers and rotates nested env files", async () => {
 		const subdir = path.join(ROOT, "packages", "web")
-		const { deps, decryptEnvironmentData, encryptEnvironment } = createDeps({
-			findEnvironmentsRecursive: mock(async () => [
-				makeEnvFile("staging", ROOT),
-				makeEnvFile("staging", subdir),
-			]) as unknown as RotateCommandDeps["findEnvironmentsRecursive"],
-		})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging", ROOT),
+			makeEnvFile("staging", subdir),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		decryptEnvironmentData.mockImplementation(async () => "A=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await rotateCommand("", true, true, deps)
+		await rotateCommand("", true, true)
 
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(2)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(2)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })

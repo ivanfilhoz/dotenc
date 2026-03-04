@@ -1,7 +1,7 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+import * as realFs from "node:fs"
+import * as realFsPromises from "node:fs/promises"
 import path from "node:path"
-import type { AuthPurgeCommandDeps } from "../commands/auth/purge"
-import { authPurgeCommand } from "../commands/auth/purge"
 import type { EnvFile } from "../helpers/findEnvironmentsRecursive"
 
 const CWD = "/tmp/dotenc-purge-test"
@@ -13,217 +13,280 @@ const makeEnvFile = (name: string, dir = ROOT): EnvFile => ({
 	filePath: path.join(dir, `.env.${name}.enc`),
 })
 
-const createDeps = (
-	overrides: Partial<AuthPurgeCommandDeps> = {},
-): {
-	deps: AuthPurgeCommandDeps
-	log: ReturnType<typeof mock>
-	logError: ReturnType<typeof mock>
-	exit: ReturnType<typeof mock>
-	confirmPrompt: ReturnType<typeof mock>
-	findEnvironmentsRecursive: ReturnType<typeof mock>
-	getEnvironmentByPath: ReturnType<typeof mock>
-	decryptEnvironmentData: ReturnType<typeof mock>
-	encryptEnvironment: ReturnType<typeof mock>
-	unlink: ReturnType<typeof mock>
-} => {
-	const log = mock((_msg: string) => {})
-	const logError = mock((_msg: string) => {})
-	const exit = mock((code: number): never => {
-		throw new Error(`exit(${code})`)
-	})
-	const confirmPrompt = mock(async () => true)
-	const findEnvironmentsRecursive = mock(async () => [
-		makeEnvFile("staging"),
-		makeEnvFile("production"),
-	])
-	const getEnvironmentByPath = mock(async (_filePath: string) => ({
-		keys: [{ name: "bob" }, { name: "alice" }],
-	}))
-	const decryptEnvironmentData = mock(async () => "SECRET=1")
-	const encryptEnvironment = mock(
-		async (_name: string, _content: string, _options?: object) => {},
-	)
-	const unlink = mock(async (_filePath: string) => {})
+const findEnvironmentsRecursive = mock(async (_dir: string) => [
+	makeEnvFile("staging"),
+	makeEnvFile("production"),
+])
+const getEnvironmentByPath = mock(async (_filePath: string) => ({
+	keys: [{ name: "bob" }, { name: "alice" }],
+}))
+const decryptEnvironmentData = mock(async () => "SECRET=1")
+const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
+const validateKeyName = mock((name: string) =>
+	name.startsWith("../")
+		? { valid: false as const, reason: "invalid key name" }
+		: { valid: true as const },
+)
+const confirmPrompt = mock(async (_msg: string) => true)
+const existsSync = mock((_p: string) => true)
+const fsUnlink = mock(async (_filePath: string) => {})
 
-	const deps: AuthPurgeCommandDeps = {
-		findEnvironmentsRecursive:
-			findEnvironmentsRecursive as unknown as AuthPurgeCommandDeps["findEnvironmentsRecursive"],
-		getEnvironmentByPath:
-			getEnvironmentByPath as unknown as AuthPurgeCommandDeps["getEnvironmentByPath"],
-		decryptEnvironmentData:
-			decryptEnvironmentData as unknown as AuthPurgeCommandDeps["decryptEnvironmentData"],
-		encryptEnvironment:
-			encryptEnvironment as unknown as AuthPurgeCommandDeps["encryptEnvironment"],
-		resolveProjectRoot: () => ROOT,
-		validateKeyName: ((name: string) =>
-			name.startsWith("../")
-				? { valid: false, reason: "invalid key name" }
-				: { valid: true }) as AuthPurgeCommandDeps["validateKeyName"],
-		confirmPrompt:
-			confirmPrompt as unknown as AuthPurgeCommandDeps["confirmPrompt"],
-		existsSync: (() => true) as AuthPurgeCommandDeps["existsSync"],
-		unlink: unlink as unknown as AuthPurgeCommandDeps["unlink"],
-		cwd: () => CWD,
-		log,
-		logError,
-		exit,
-		...overrides,
-	}
+mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
+mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData, decryptEnvironment: decryptEnvironmentData }))
+mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
+mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
+mock.module("../helpers/validateKeyName", () => ({ validateKeyName }))
+mock.module("../prompts/confirm", () => ({ confirmPrompt }))
+mock.module("node:fs", () => ({ ...realFs, existsSync }))
+mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, unlink: fsUnlink } }))
 
-	return {
-		deps,
-		log,
-		logError,
-		exit,
-		confirmPrompt,
-		findEnvironmentsRecursive,
-		getEnvironmentByPath,
-		decryptEnvironmentData,
-		encryptEnvironment,
-		unlink,
-	}
-}
+const { authPurgeCommand } = await import("../commands/auth/purge")
 
 describe("authPurgeCommand", () => {
+	beforeEach(() => {
+		findEnvironmentsRecursive.mockClear()
+		getEnvironmentByPath.mockClear()
+		decryptEnvironmentData.mockClear()
+		encryptEnvironment.mockClear()
+		resolveProjectRoot.mockClear()
+		validateKeyName.mockClear()
+		confirmPrompt.mockClear()
+		existsSync.mockClear()
+		fsUnlink.mockClear()
+	})
+
 	test("rejects invalid key names", async () => {
-		const { deps, logError, exit } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
 
-		await expect(authPurgeCommand("../evil", false, deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(authPurgeCommand("../evil", false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(String(logError.mock.calls[0]?.[0])).toContain("invalid key name")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("invalid key name")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("exits when key file does not exist", async () => {
-		const { deps, logError, exit } = createDeps({
-			existsSync: (() => false) as AuthPurgeCommandDeps["existsSync"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => false)
 
-		await expect(authPurgeCommand("bob", false, deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(authPurgeCommand("bob", false)).rejects.toThrow("exit(1)")
 
-		expect(exit).toHaveBeenCalledWith(1)
-		expect(String(logError.mock.calls[0]?.[0])).toContain("not found")
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("not found")
+		logErrorSpy.mockRestore()
+		exitSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("proceeds with no environments — just removes key file", async () => {
-		const { deps, log, unlink } = createDeps({
-			findEnvironmentsRecursive: mock(
-				async () => [],
-			) as unknown as AuthPurgeCommandDeps["findEnvironmentsRecursive"],
-		})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [])
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
-		expect(unlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		expect(fsUnlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(logged.some((m) => m.includes("Offboarding complete"))).toBe(true)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("revokes and rotates all affected environments, then removes key", async () => {
-		const { deps, unlink, decryptEnvironmentData, encryptEnvironment } =
-			createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		decryptEnvironmentData.mockImplementation(async () => "SECRET=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(2)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(2)
-		expect(unlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		expect(fsUnlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("skips environments with per-file errors and reports failures in summary", async () => {
-		const { deps, log, logError, unlink } = createDeps({
-			decryptEnvironmentData: mock(async (_name: string, _env: unknown) => {
-				// First call is staging, which fails
-				throw new Error("decrypt failed")
-			}) as unknown as AuthPurgeCommandDeps["decryptEnvironmentData"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		decryptEnvironmentData.mockImplementation(async () => {
+			throw new Error("decrypt failed")
 		})
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
 		// Key still deleted (best-effort)
-		expect(unlink).toHaveBeenCalledTimes(1)
+		expect(fsUnlink).toHaveBeenCalledTimes(1)
 
 		// Summary mentions failure
 		const allLogged = [
-			...log.mock.calls.map((c) => String(c[0])),
-			...logError.mock.calls.map((c) => String(c[0])),
+			...logSpy.mock.calls.map((c) => String(c[0])),
+			...logErrorSpy.mock.calls.map((c) => String(c[0])),
 		]
 		expect(
 			allLogged.some((m) => m.includes("failed") || m.includes("staging")),
 		).toBe(true)
+		logSpy.mockRestore()
+		logErrorSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("treats environment with zero remaining recipients as a file-level error", async () => {
-		const { deps, log, encryptEnvironment } = createDeps({
-			getEnvironmentByPath: mock(async (_filePath: string) => ({
-				keys: [{ name: "bob" }], // bob is the only key
-			})) as unknown as AuthPurgeCommandDeps["getEnvironmentByPath"],
-		})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }], // bob is the only key
+		}))
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
 		// Should not encrypt (skipped)
 		expect(encryptEnvironment).not.toHaveBeenCalled()
 
-		const logged = log.mock.calls.map((c) => String(c[0]))
+		const logged = logSpy.mock.calls.map((c) => String(c[0]))
 		expect(
 			logged.some((m) => m.includes("skipped") || m.includes("zero recipient")),
 		).toBe(true)
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("aborts when user declines confirmation", async () => {
-		const declineConfirmPrompt = mock(async () => false)
-		const { deps, unlink } = createDeps({
-			confirmPrompt:
-				declineConfirmPrompt as unknown as AuthPurgeCommandDeps["confirmPrompt"],
-		})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		confirmPrompt.mockImplementation(async () => false)
 
-		await authPurgeCommand("bob", false, deps)
+		await authPurgeCommand("bob", false)
 
-		expect(declineConfirmPrompt).toHaveBeenCalledTimes(1)
-		expect(unlink).not.toHaveBeenCalled()
+		expect(confirmPrompt).toHaveBeenCalledTimes(1)
+		expect(fsUnlink).not.toHaveBeenCalled()
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("skips confirmation when yes=true", async () => {
-		const { deps, confirmPrompt } = createDeps()
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		decryptEnvironmentData.mockImplementation(async () => "SECRET=1")
+		encryptEnvironment.mockImplementation(async () => {})
+		confirmPrompt.mockImplementation(async () => true)
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
 		expect(confirmPrompt).not.toHaveBeenCalled()
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("removes key file even when some environments fail (best-effort)", async () => {
-		const { deps, unlink } = createDeps({
-			encryptEnvironment: mock(async () => {
-				throw new Error("encrypt failed")
-			}) as unknown as AuthPurgeCommandDeps["encryptEnvironment"],
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const logErrorSpy = spyOn(console, "error").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+			makeEnvFile("production"),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		decryptEnvironmentData.mockImplementation(async () => "SECRET=1")
+		encryptEnvironment.mockImplementation(async () => {
+			throw new Error("encrypt failed")
 		})
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
-		expect(unlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		expect(fsUnlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		logSpy.mockRestore()
+		logErrorSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 
 	test("recursively discovers env files in subdirectories", async () => {
 		const subdir = path.join(ROOT, "packages", "web")
-		const { deps, decryptEnvironmentData, encryptEnvironment, unlink } =
-			createDeps({
-				findEnvironmentsRecursive: mock(async () => [
-					makeEnvFile("staging", ROOT),
-					makeEnvFile("staging", subdir),
-				]) as unknown as AuthPurgeCommandDeps["findEnvironmentsRecursive"],
-			})
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		resolveProjectRoot.mockImplementation(() => ROOT)
+		existsSync.mockImplementation(() => true)
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging", ROOT),
+			makeEnvFile("staging", subdir),
+		])
+		getEnvironmentByPath.mockImplementation(async () => ({
+			keys: [{ name: "bob" }, { name: "alice" }],
+		}))
+		decryptEnvironmentData.mockImplementation(async () => "SECRET=1")
+		encryptEnvironment.mockImplementation(async () => {})
 
-		await authPurgeCommand("bob", true, deps)
+		await authPurgeCommand("bob", true)
 
 		// Both staging envs (root + subdir) should be processed
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(2)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(2)
-		expect(unlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		expect(fsUnlink).toHaveBeenCalledWith(path.join(ROOT, ".dotenc", "bob.pub"))
+		logSpy.mockRestore()
+		cwdSpy.mockRestore()
 	})
 })
