@@ -15,6 +15,7 @@ This document describes the security model, cryptographic design, and operationa
   - [File Permissions](#file-permissions)
 - [Input Validation and Injection Prevention](#input-validation-and-injection-prevention)
 - [Access Control Model](#access-control-model)
+- [Operational Flow](#operational-flow)
 - [Installation Script Trust Model](#installation-script-trust-model)
 - [Known Limitations](#known-limitations)
 - [Vulnerability Reporting](#vulnerability-reporting)
@@ -166,6 +167,33 @@ Access in dotenc is enforced cryptographically, not by policy:
 **Important limitation:** Revoking access prevents future decryption but does not invalidate knowledge of secrets already seen by the revoked user. For full offboarding, rotate the affected external secrets (API keys, database passwords, etc.) and optionally run `dotenc env rotate <environment>` to generate a new data key.
 
 All grant and revoke operations are reflected in Git-tracked files, providing a full audit trail in repository history.
+
+---
+
+## Operational Flow
+
+### Project Root Resolution
+
+When any dotenc command runs, it resolves the **project root** by walking ancestor directories from the current working directory, looking for a `.dotenc/` folder. Key material (public keys) is always read from and written to this resolved root, regardless of where the command was invoked. If no `.dotenc/` folder is found at any ancestor level, the command falls back to the current directory (which applies during `dotenc init` flows).
+
+### Hierarchical Environment Loading
+
+`dotenc run` and `dotenc dev` support a hierarchical merge model for monorepo projects:
+
+1. The ancestor chain from the project root to the invocation directory is computed.
+2. For each requested environment name, dotenc scans every directory in the chain (root → local) for a `.env.${name}.enc` file.
+3. Variables from deeper (more local) files override variables from shallower (root) files for the same name.
+4. Missing files at any level are silently skipped — only existing files that fail to decrypt cause an error.
+
+The `--local-only` flag narrows decryption scope to the current directory only, bypassing ancestor scanning entirely.
+
+### Recursive Environment Discovery
+
+Batch operations (`env rotate --all`, `auth purge`) recursively walk the project tree to find all `.env.*.enc` files. The following directories are explicitly excluded from this walk to avoid processing build artifacts or dependency caches: `node_modules`, `.git`, `dist`, `build`, `.next`, `coverage`, `vendor`.
+
+### AAD and Multi-Level Environments
+
+The **Additional Authenticated Data (AAD)** used during AES-256-GCM encryption is the environment name only — not the file path. This means same-named environments at different directory levels (e.g., a `staging` environment at the project root and one in `packages/web`) use the same AAD value. They are treated as independent encrypted files that happen to share a logical name, consistent with the hierarchical merge semantics described above.
 
 ---
 

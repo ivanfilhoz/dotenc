@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from "bun:test"
+import path from "node:path"
 import type { GrantCommandDeps } from "../commands/auth/grant"
 import { grantCommand } from "../commands/auth/grant"
+
+const CWD = "/tmp/dotenc-grant-test"
 
 const createDeps = (
 	overrides: Partial<GrantCommandDeps> = {},
@@ -41,6 +44,7 @@ const createDeps = (
 			chooseEnvironmentPrompt as unknown as GrantCommandDeps["chooseEnvironmentPrompt"],
 		choosePublicKeyPrompt:
 			choosePublicKeyPrompt as unknown as GrantCommandDeps["choosePublicKeyPrompt"],
+		cwd: () => CWD,
 		logError,
 		exit,
 		...overrides,
@@ -80,8 +84,21 @@ describe("grantCommand", () => {
 			"API_KEY=secret",
 			{
 				grantPublicKeys: ["alice"],
+				baseDir: CWD,
 			},
 		)
+	})
+
+	test("encrypts to cwd, not projectRoot, in a monorepo", async () => {
+		const SUBDIR = path.join("/workspace", "packages", "web")
+		const { deps, encryptEnvironment } = createDeps({ cwd: () => SUBDIR })
+
+		await grantCommand("production", "alice", deps)
+
+		const options = encryptEnvironment.mock.calls[0]?.[2] as {
+			baseDir?: string
+		}
+		expect(options?.baseDir).toBe(SUBDIR)
 	})
 
 	test("exits on invalid environment name", async () => {

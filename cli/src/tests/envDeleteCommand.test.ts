@@ -90,7 +90,7 @@ describe("envDeleteCommand", () => {
 		expect(unlink).toHaveBeenCalledWith(path.join(CWD, ".env.staging.enc"))
 	})
 
-	test("deletes file when confirmed", async () => {
+	test("deletes file in cwd when confirmed", async () => {
 		const { deps, confirmPrompt, unlink, log } = createDeps()
 
 		await envDeleteCommand("staging", false, deps)

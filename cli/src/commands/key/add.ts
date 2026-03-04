@@ -7,6 +7,7 @@ import chalk from "chalk"
 import inquirer from "inquirer"
 import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
+import { resolveProjectRoot } from "../../helpers/resolveProjectRoot"
 import { validateKeyName } from "../../helpers/validateKeyName"
 import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
@@ -31,6 +32,7 @@ type KeyAddCommandDeps = {
 	prompt: typeof inquirer.prompt
 	isPassphraseProtected: typeof isPassphraseProtected
 	parseOpenSSHPrivateKey: typeof parseOpenSSHPrivateKey
+	resolveProjectRoot: typeof resolveProjectRoot
 	validatePublicKey: typeof validatePublicKey
 	validateKeyName: typeof validateKeyName
 	choosePrivateKeyPrompt: typeof choosePrivateKeyPrompt
@@ -53,6 +55,7 @@ const defaultDeps: KeyAddCommandDeps = {
 	prompt: inquirer.prompt,
 	isPassphraseProtected,
 	parseOpenSSHPrivateKey,
+	resolveProjectRoot,
 	validatePublicKey,
 	validateKeyName,
 	choosePrivateKeyPrompt,
@@ -262,9 +265,18 @@ export const _runKeyAddCommand = async (
 		format: "pem",
 	})
 
+	let projectRoot: string
+	try {
+		projectRoot = deps.resolveProjectRoot(deps.cwd(), deps.existsSync)
+	} catch {
+		// Not yet in a project — fall back to cwd (init flow)
+		projectRoot = deps.cwd()
+	}
+	const dotencDir = path.join(projectRoot, ".dotenc")
+
 	// Create folder if it doesn't exist
-	if (!deps.existsSync(path.join(deps.cwd(), ".dotenc"))) {
-		await deps.mkdir(path.join(deps.cwd(), ".dotenc"))
+	if (!deps.existsSync(dotencDir)) {
+		await deps.mkdir(dotencDir)
 	}
 
 	let name = nameArg
@@ -280,7 +292,7 @@ export const _runKeyAddCommand = async (
 		deps.exit(1)
 	}
 
-	const keyOutputPath = path.join(deps.cwd(), ".dotenc", `${name}.pub`)
+	const keyOutputPath = path.join(dotencDir, `${name}.pub`)
 
 	try {
 		await deps.writeFile(keyOutputPath, publicKeyOutput, {

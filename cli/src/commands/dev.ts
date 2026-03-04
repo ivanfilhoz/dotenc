@@ -40,6 +40,7 @@ const defaultDevCommandDeps: DevCommandDeps = {
 export const devCommand = async (
 	command: string,
 	args: string[],
+	options: { localOnly?: boolean } = {},
 	deps: DevCommandDeps = defaultDevCommandDeps,
 ) => {
 	const keyNames = await deps.getCurrentKeyName()
@@ -62,5 +63,8 @@ export const devCommand = async (
 		)
 	}
 
-	await deps.runCommand(command, args, { env: `development,${keyName}` })
+	await deps.runCommand(command, args, {
+		env: `development,${keyName}`,
+		localOnly: options.localOnly,
+	})
 }

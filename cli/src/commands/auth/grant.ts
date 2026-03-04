@@ -13,6 +13,7 @@ export type GrantCommandDeps = {
 	validateEnvironmentName: typeof validateEnvironmentName
 	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
 	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
+	cwd: () => string
 	logError: (message: string) => void
 	exit: (code: number) => never
 }
@@ -24,6 +25,7 @@ const defaultGrantCommandDeps: GrantCommandDeps = {
 	validateEnvironmentName,
 	chooseEnvironmentPrompt,
 	choosePublicKeyPrompt,
+	cwd: () => process.cwd(),
 	logError: (message) => console.error(message),
 	exit: (code) => process.exit(code),
 }
@@ -38,6 +40,7 @@ const isGrantCommandDeps = (value: unknown): value is GrantCommandDeps => {
 		"validateEnvironmentName" in value &&
 		"chooseEnvironmentPrompt" in value &&
 		"choosePublicKeyPrompt" in value &&
+		"cwd" in value &&
 		"logError" in value &&
 		"exit" in value
 	)
@@ -97,6 +100,7 @@ export const grantCommand = async (
 	try {
 		await deps.encryptEnvironment(environmentName, currentContent, {
 			grantPublicKeys: [publicKeyName],
+			baseDir: deps.cwd(),
 		})
 	} catch (error) {
 		deps.logError(

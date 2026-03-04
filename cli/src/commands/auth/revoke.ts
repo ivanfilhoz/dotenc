@@ -13,6 +13,7 @@ export type RevokeCommandDeps = {
 	validateEnvironmentName: typeof validateEnvironmentName
 	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
 	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
+	cwd: () => string
 	logError: (message: string) => void
 	exit: (code: number) => never
 }
@@ -24,6 +25,7 @@ const defaultRevokeCommandDeps: RevokeCommandDeps = {
 	validateEnvironmentName,
 	chooseEnvironmentPrompt,
 	choosePublicKeyPrompt,
+	cwd: () => process.cwd(),
 	logError: (message) => console.error(message),
 	exit: (code) => process.exit(code),
 }
@@ -38,6 +40,7 @@ const isRevokeCommandDeps = (value: unknown): value is RevokeCommandDeps => {
 		"validateEnvironmentName" in value &&
 		"chooseEnvironmentPrompt" in value &&
 		"choosePublicKeyPrompt" in value &&
+		"cwd" in value &&
 		"logError" in value &&
 		"exit" in value
 	)
@@ -97,6 +100,7 @@ export const revokeCommand = async (
 	try {
 		await deps.encryptEnvironment(environmentName, currentContent, {
 			revokePublicKeys: [publicKeyName],
+			baseDir: deps.cwd(),
 		})
 	} catch (error) {
 		deps.logError(

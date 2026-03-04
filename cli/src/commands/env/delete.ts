@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
@@ -10,7 +9,7 @@ export type EnvDeleteCommandDeps = {
 	validateEnvironmentName: typeof validateEnvironmentName
 	chooseEnvironmentPrompt: typeof chooseEnvironmentPrompt
 	confirmPrompt: typeof confirmPrompt
-	existsSync: typeof existsSync
+	existsSync: (path: string) => boolean
 	unlink: typeof fs.unlink
 	cwd: () => string
 	log: (msg: string) => void
@@ -22,7 +21,7 @@ const defaultEnvDeleteCommandDeps: EnvDeleteCommandDeps = {
 	validateEnvironmentName,
 	chooseEnvironmentPrompt,
 	confirmPrompt,
-	existsSync,
+	existsSync: (p) => require("node:fs").existsSync(p),
 	unlink: fs.unlink,
 	cwd: () => process.cwd(),
 	log: (msg) => console.log(msg),
@@ -70,6 +69,7 @@ export const envDeleteCommand = async (
 	}
 
 	const filePath = path.join(deps.cwd(), `.env.${environmentName}.enc`)
+
 	if (!deps.existsSync(filePath)) {
 		deps.logError(`Environment ${chalk.cyan(environmentName)} not found.`)
 		deps.exit(1)

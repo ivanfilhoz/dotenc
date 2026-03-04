@@ -6,7 +6,7 @@ import { generateEd25519Key, runCli } from "../helpers/cli"
 
 const TIMEOUT = 30_000
 
-describe("env rotate-all", () => {
+describe("env rotate --all", () => {
 	let aliceHome: string
 	let workspace: string
 	let stagingCiphertextBefore: string
@@ -42,9 +42,9 @@ describe("env rotate-all", () => {
 		expect(productionCiphertextBefore).toBeTruthy()
 	}, TIMEOUT)
 
-	test("env rotate-all --yes exits with code 0", () => {
+	test("env rotate --all --yes exits with code 0", () => {
 		const result = runCli(aliceHome, workspace, [
-			"env", "rotate-all", "--yes",
+			"env", "rotate", "--all", "--yes",
 		])
 		expect(result.exitCode).toBe(0)
 	}, TIMEOUT)
@@ -85,7 +85,7 @@ describe("env rotate-all", () => {
 			runCli(aliceHome, ws2, ["env", "create", "staging", "alice"])
 			runCli(aliceHome, ws2, ["env", "create", "production", "alice"])
 
-			const result = runCli(aliceHome, ws2, ["env", "rotate-all", "--yes"])
+			const result = runCli(aliceHome, ws2, ["env", "rotate", "--all", "--yes"])
 			const output = result.stdout + result.stderr
 			expect(output).toContain("staging")
 			expect(output).toContain("production")

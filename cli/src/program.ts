@@ -13,7 +13,7 @@ import { editCommand } from "./commands/env/edit"
 import { encryptCommand } from "./commands/env/encrypt"
 import { envListCommand } from "./commands/env/list"
 import { rotateCommand } from "./commands/env/rotate"
-import { envRotateAllCommand } from "./commands/env/rotate-all"
+
 import { initCommand } from "./commands/init"
 import { keyAddCommand } from "./commands/key/add"
 import { keyListCommand } from "./commands/key/list"
@@ -54,7 +54,7 @@ env
 	.command("edit")
 	.argument("[environment]", "the environment to edit")
 	.description("edit an environment")
-	.action(editCommand)
+	.action((env) => editCommand(env))
 
 env
 	.command("decrypt", { hidden: true })
@@ -74,8 +74,21 @@ env
 env
 	.command("rotate")
 	.argument("[environment]", "the environment to rotate the data key for")
-	.description("rotate the data key for an environment")
-	.action(rotateCommand)
+	.addOption(
+		new Option(
+			"--all",
+			"rotate all environments recursively from project root",
+		),
+	)
+	.addOption(
+		new Option("--yes", "skip confirmation prompt (only applies with --all)"),
+	)
+	.description(
+		"rotate the data key for an environment, or all environments with --all",
+	)
+	.action((env, options) =>
+		rotateCommand(env, options.all ?? false, options.yes ?? false),
+	)
 
 env
 	.command("delete")
@@ -87,12 +100,16 @@ env
 	)
 
 env
-	.command("rotate-all")
-	.addOption(new Option("--yes", "skip confirmation prompt"))
-	.description("rotate the data key for all environments")
-	.action((options) => envRotateAllCommand(options.yes ?? false))
-
-env.command("list").description("list all environments").action(envListCommand)
+	.command("list")
+	.addOption(
+		new Option(
+			"--all",
+			"recursively list all environments from the project root",
+		),
+	)
+	.addOption(new Option("--json", "output as JSON array"))
+	.description("list environments in the current directory")
+	.action((options) => envListCommand(options))
 
 const auth = program.command("auth").description("manage environment access")
 
@@ -144,6 +161,12 @@ program
 	.addOption(
 		new Option("--strict", "fail if any selected environment fails to load"),
 	)
+	.addOption(
+		new Option(
+			"--local-only",
+			"load only from the current directory, skip ancestor dirs",
+		),
+	)
 	.passThroughOptions()
 	.description("run a command in an environment")
 	.action(runCommand)
@@ -152,9 +175,15 @@ program
 	.command("dev")
 	.argument("<command>", "the command to run")
 	.argument("[args...]", "the arguments to pass to the command")
+	.addOption(
+		new Option(
+			"--local-only",
+			"load only from the current directory, skip ancestor dirs",
+		),
+	)
 	.passThroughOptions()
 	.description("shortcut for 'run -e development,<yourname> <command>'")
-	.action((command, args) => devCommand(command, args))
+	.action((command, args, options) => devCommand(command, args, options))
 
 const key = program.command("key").description("manage keys")
 

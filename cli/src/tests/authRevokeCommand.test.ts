@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from "bun:test"
+import path from "node:path"
 import type { RevokeCommandDeps } from "../commands/auth/revoke"
 import { revokeCommand } from "../commands/auth/revoke"
+
+const CWD = "/tmp/dotenc-revoke-test"
 
 const createDeps = (
 	overrides: Partial<RevokeCommandDeps> = {},
@@ -41,6 +44,7 @@ const createDeps = (
 			chooseEnvironmentPrompt as unknown as RevokeCommandDeps["chooseEnvironmentPrompt"],
 		choosePublicKeyPrompt:
 			choosePublicKeyPrompt as unknown as RevokeCommandDeps["choosePublicKeyPrompt"],
+		cwd: () => CWD,
 		logError,
 		exit,
 		...overrides,
@@ -77,7 +81,20 @@ describe("revokeCommand", () => {
 		expect(getPublicKeyByName).toHaveBeenCalledWith("bob")
 		expect(encryptEnvironment).toHaveBeenCalledWith("staging", "TOKEN=secret", {
 			revokePublicKeys: ["bob"],
+			baseDir: CWD,
 		})
+	})
+
+	test("encrypts to cwd, not projectRoot, in a monorepo", async () => {
+		const SUBDIR = path.join("/workspace", "packages", "web")
+		const { deps, encryptEnvironment } = createDeps({ cwd: () => SUBDIR })
+
+		await revokeCommand("staging", "bob", deps)
+
+		const options = encryptEnvironment.mock.calls[0]?.[2] as {
+			baseDir?: string
+		}
+		expect(options?.baseDir).toBe(SUBDIR)
 	})
 
 	test("exits on invalid environment name", async () => {

@@ -103,6 +103,7 @@ describe("keyRemoveCommand", () => {
 		const log = mock((_message: string) => {})
 		const unlink = mock(async (_filePath: string) => {})
 
+		const CWD = "/tmp/dotenc-key-remove-hint"
 		const deps: KeyRemoveCommandDeps = {
 			validateKeyName: (() => ({
 				valid: true,
@@ -113,9 +114,10 @@ describe("keyRemoveCommand", () => {
 			confirmPrompt: mock(
 				async () => true,
 			) as unknown as KeyRemoveCommandDeps["confirmPrompt"],
+			resolveProjectRoot: () => CWD,
 			existsSync: (() => true) as KeyRemoveCommandDeps["existsSync"],
 			unlink: unlink as unknown as KeyRemoveCommandDeps["unlink"],
-			cwd: () => "/tmp/dotenc-key-remove-hint",
+			cwd: () => CWD,
 			log,
 			logError: mock((_message: string) => {}),
 			exit: mock((code: number): never => {

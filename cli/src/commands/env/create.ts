@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
@@ -6,6 +7,7 @@ import { encryptDataKey } from "../../helpers/encryptDataKey"
 import { environmentExists } from "../../helpers/environmentExists"
 import { getEnvironmentNameSuggestion } from "../../helpers/getEnvironmentNameSuggestion"
 import { getPublicKeys } from "../../helpers/getPublicKeys"
+import { resolveProjectRoot } from "../../helpers/resolveProjectRoot"
 import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { createEnvironmentPrompt } from "../../prompts/createEnvironment"
@@ -33,11 +35,51 @@ export const _normalizePublicKeyNamesForCreate = (
 	return []
 }
 
+export type CreateCommandDeps = {
+	resolveProjectRoot: typeof resolveProjectRoot
+	existsSync: typeof existsSync
+	environmentExists: typeof environmentExists
+	getPublicKeys: typeof getPublicKeys
+	writeFile: typeof fs.writeFile
+	cwd: () => string
+	logError: (message: string) => void
+	log: (message: string) => void
+	exit: (code: number) => never
+}
+
+const defaultCreateCommandDeps: CreateCommandDeps = {
+	resolveProjectRoot,
+	existsSync,
+	environmentExists,
+	getPublicKeys,
+	writeFile: fs.writeFile,
+	cwd: () => process.cwd(),
+	logError: (message) => console.error(message),
+	log: (message) => console.log(message),
+	exit: (code) => process.exit(code),
+}
+
 export const createCommand = async (
 	environmentNameArg: string,
 	publicKeyNameArg: string,
 	initialContent?: string,
+	depsOverrides: Partial<CreateCommandDeps> = {},
 ) => {
+	const deps: CreateCommandDeps = {
+		...defaultCreateCommandDeps,
+		...depsOverrides,
+	}
+
+	const invocationDir = deps.cwd()
+	const targetDir = invocationDir
+
+	let projectRoot: string
+	try {
+		projectRoot = deps.resolveProjectRoot(invocationDir, deps.existsSync)
+	} catch {
+		projectRoot = invocationDir
+	}
+
 	// Prompt for the environment name
 	let environmentName = environmentNameArg
 
@@ -49,31 +91,32 @@ export const createCommand = async (
 	}
 
 	if (!environmentName) {
-		console.error(`${chalk.red("Error:")} no environment name provided`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} no environment name provided`)
+		deps.exit(1)
 	}
 
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {
-		console.error(`${chalk.red("Error:")} ${validation.reason}`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
+		deps.exit(1)
 	}
 
-	if (environmentExists(environmentName)) {
-		console.error(
+	if (deps.environmentExists(environmentName, targetDir)) {
+		deps.logError(
 			`${chalk.red("Error:")} environment ${environmentName} already exists. To edit it, use ${chalk.gray(
 				`dotenc env edit ${environmentName}`,
 			)}`,
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
-	const availablePublicKeys = await getPublicKeys()
+	const dotencDir = path.join(projectRoot, ".dotenc")
+	const availablePublicKeys = await deps.getPublicKeys(dotencDir)
 	if (!availablePublicKeys.length) {
-		console.error(
+		deps.logError(
 			`${chalk.red("Error:")} no public keys found. Please add a public key using ${chalk.gray("dotenc key add")}.`,
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
 	const publicKeySelection = publicKeyNameArg
@@ -84,10 +127,10 @@ export const createCommand = async (
 			)
 	const publicKeys = _normalizePublicKeyNamesForCreate(publicKeySelection)
 	if (publicKeys.length === 0) {
-		console.error(
+		deps.logError(
 			`${chalk.red("Error:")} select at least one public key before creating an environment.`,
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 	const dataKey = createDataKey()
 
@@ -105,7 +148,7 @@ export const createCommand = async (
 		)
 
 		if (!publicKey) {
-			console.error(
+			deps.logError(
 				`Public key ${chalk.cyan(publicKeyName)} not found or invalid.`,
 			)
 			continue
@@ -122,26 +165,26 @@ export const createCommand = async (
 	}
 
 	if (environmentJson.keys.length === 0) {
-		console.error(
+		deps.logError(
 			`${chalk.red("Error:")} no valid public keys were selected. Environment creation aborted.`,
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
-	await fs.writeFile(
-		path.join(process.cwd(), `.env.${environmentName}.enc`),
+	await deps.writeFile(
+		path.join(targetDir, `.env.${environmentName}.enc`),
 		JSON.stringify(environmentJson, null, 2),
 		"utf-8",
 	)
 
 	// Output success message
-	console.log(
+	deps.log(
 		`${chalk.green("✔")} Environment ${chalk.cyan(environmentName)} created!`,
 	)
-	console.log("\nSome useful tips:")
+	deps.log("\nSome useful tips:")
 	const editCommand = chalk.gray(`dotenc env edit ${environmentName}`)
-	console.log(`\n- To securely edit your environment:\t${editCommand}`)
-	console.log(
+	deps.log(`\n- To securely edit your environment:\t${editCommand}`)
+	deps.log(
 		`- To run your application:\t\t${_getRunUsageHintForEnvironment(environmentName)}`,
 	)
 }

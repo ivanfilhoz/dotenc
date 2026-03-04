@@ -14,37 +14,64 @@ import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 import { chooseEnvironmentPrompt } from "../../prompts/chooseEnvironment"
 import type { Environment } from "../../schemas/environment"
 
-export const editCommand = async (environmentNameArg: string) => {
+type EditCommandDeps = {
+	existsSync: typeof existsSync
+	cwd: () => string
+	logError: (message: string) => void
+	log: (message: string) => void
+	exit: (code: number) => never
+}
+
+const defaultEditCommandDeps: EditCommandDeps = {
+	existsSync,
+	cwd: () => process.cwd(),
+	logError: (message) => console.error(message),
+	log: (message) => console.log(message),
+	exit: (code) => process.exit(code),
+}
+
+export const editCommand = async (
+	environmentNameArg: string,
+	_options: Record<string, never> = {},
+	depsOverrides: Partial<EditCommandDeps> = {},
+) => {
+	const deps: EditCommandDeps = { ...defaultEditCommandDeps, ...depsOverrides }
+
 	const environmentName =
 		environmentNameArg ||
 		(await chooseEnvironmentPrompt("What environment do you want to edit?"))
 
 	const nameValidation = validateEnvironmentName(environmentName)
 	if (!nameValidation.valid) {
-		console.error(`${chalk.red("Error:")} ${nameValidation.reason}`)
-		process.exit(1)
+		deps.logError(`${chalk.red("Error:")} ${nameValidation.reason}`)
+		deps.exit(1)
 	}
 
-	const environmentFile = `.env.${environmentName}.enc`
-	const environmentFilePath = path.join(process.cwd(), environmentFile)
+	const invocationDir = deps.cwd()
+	const environmentFilePath = path.join(
+		invocationDir,
+		`.env.${environmentName}.enc`,
+	)
+	const environmentFile = path.basename(environmentFilePath)
+	const envDir = invocationDir
 
-	if (!existsSync(environmentFilePath)) {
-		console.error(`Environment file not found: ${environmentFilePath}`)
-		process.exit(1)
+	if (!deps.existsSync(environmentFilePath)) {
+		deps.logError(`Environment file not found: ${environmentFilePath}`)
+		deps.exit(1)
 	}
 
 	let environment: Environment
 	let content: string
 	try {
-		environment = await getEnvironmentByName(environmentName)
+		environment = await getEnvironmentByName(environmentName, envDir)
 		content = await decryptEnvironment(environmentName)
 	} catch (error: unknown) {
-		console.error(
+		deps.logError(
 			error instanceof Error
 				? error.message
 				: "Unknown error occurred while decrypting the environment.",
 		)
-		process.exit(1)
+		deps.exit(1)
 	}
 
 	// Create header
@@ -111,15 +138,15 @@ ${separator}${content}`
 		}
 
 		if (result.status !== 0) {
-			console.error(`\nEditor exited with code ${result.status}`)
-			process.exit(1)
+			deps.logError(`\nEditor exited with code ${result.status}`)
+			deps.exit(1)
 		}
 
 		let newContent = await fs.readFile(tempFilePath, "utf-8")
 		const finalHash = createHash(newContent)
 
 		if (initialHash === finalHash) {
-			console.log(
+			deps.log(
 				`\nNo changes were made to the ${chalk.cyan(environmentName)} environment.`,
 			)
 		} else {
@@ -130,15 +157,15 @@ ${separator}${content}`
 				newContent = newContent.slice(headerEndIndex).trim()
 			}
 
-			await encryptEnvironment(environmentName, newContent)
+			await encryptEnvironment(environmentName, newContent, { baseDir: envDir })
 
-			console.log(
+			deps.log(
 				`\nEncrypted ${chalk.cyan(environmentName)} environment and saved it to ${chalk.gray(environmentFile)}.`,
 			)
 		}
 	} catch (error: unknown) {
-		console.error(`\nFailed to open editor: ${editorCommand}`)
-		console.error(error instanceof Error ? error.message : error)
+		deps.logError(`\nFailed to open editor: ${editorCommand}`)
+		deps.logError(error instanceof Error ? error.message : String(error))
 	} finally {
 		process.removeListener("SIGINT", onSignal)
 		process.removeListener("SIGTERM", onSignal)

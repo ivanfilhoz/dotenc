@@ -443,4 +443,20 @@ describe("keyAddCommand", () => {
 			_runKeyAddCommand("alice", { fromString: "anything" }, deps),
 		).rejects.toThrow("exit(1)")
 	})
+
+	test("writes to projectRoot .dotenc when cwd is a subdir", async () => {
+		const projectRoot = "/workspace"
+		const subdir = path.join(projectRoot, "packages", "web")
+		const { deps, writes } = makeDeps({
+			cwd: () => subdir,
+			resolveProjectRoot: () => projectRoot,
+		})
+
+		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+
+		// Key should be written to projectRoot/.dotenc, not subdir/.dotenc
+		expect(writes.has(path.join(projectRoot, ".dotenc", "alice.pub"))).toBe(
+			true,
+		)
+	})
 })

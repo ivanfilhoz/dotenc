@@ -2,18 +2,20 @@ import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
-import { decryptEnvironment } from "../../helpers/decryptEnvironment"
+import { decryptEnvironmentData } from "../../helpers/decryptEnvironment"
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
-import { getEnvironmentByName } from "../../helpers/getEnvironmentByName"
-import { getEnvironments } from "../../helpers/getEnvironments"
+import { findEnvironmentsRecursive } from "../../helpers/findEnvironmentsRecursive"
+import { getEnvironmentByPath } from "../../helpers/getEnvironmentByPath"
+import { resolveProjectRoot } from "../../helpers/resolveProjectRoot"
 import { validateKeyName } from "../../helpers/validateKeyName"
 import { confirmPrompt } from "../../prompts/confirm"
 
 export type AuthPurgeCommandDeps = {
-	getEnvironments: typeof getEnvironments
-	getEnvironmentByName: typeof getEnvironmentByName
-	decryptEnvironment: typeof decryptEnvironment
+	findEnvironmentsRecursive: typeof findEnvironmentsRecursive
+	getEnvironmentByPath: typeof getEnvironmentByPath
+	decryptEnvironmentData: typeof decryptEnvironmentData
 	encryptEnvironment: typeof encryptEnvironment
+	resolveProjectRoot: typeof resolveProjectRoot
 	validateKeyName: typeof validateKeyName
 	confirmPrompt: typeof confirmPrompt
 	existsSync: typeof existsSync
@@ -25,10 +27,11 @@ export type AuthPurgeCommandDeps = {
 }
 
 const defaultAuthPurgeCommandDeps: AuthPurgeCommandDeps = {
-	getEnvironments,
-	getEnvironmentByName,
-	decryptEnvironment,
+	findEnvironmentsRecursive,
+	getEnvironmentByPath,
+	decryptEnvironmentData,
 	encryptEnvironment,
+	resolveProjectRoot,
 	validateKeyName,
 	confirmPrompt,
 	existsSync,
@@ -45,10 +48,11 @@ const isAuthPurgeCommandDeps = (
 	return (
 		typeof value === "object" &&
 		value !== null &&
-		"getEnvironments" in value &&
-		"getEnvironmentByName" in value &&
-		"decryptEnvironment" in value &&
+		"findEnvironmentsRecursive" in value &&
+		"getEnvironmentByPath" in value &&
+		"decryptEnvironmentData" in value &&
 		"encryptEnvironment" in value &&
+		"resolveProjectRoot" in value &&
 		"validateKeyName" in value &&
 		"confirmPrompt" in value &&
 		"existsSync" in value &&
@@ -75,29 +79,36 @@ export const authPurgeCommand = async (
 		deps.exit(1)
 	}
 
-	const keyFilePath = path.join(deps.cwd(), ".dotenc", `${publicKeyName}.pub`)
+	let projectRoot: string
+	try {
+		projectRoot = deps.resolveProjectRoot(deps.cwd(), deps.existsSync)
+	} catch {
+		projectRoot = deps.cwd()
+	}
+
+	const keyFilePath = path.join(projectRoot, ".dotenc", `${publicKeyName}.pub`)
 	if (!deps.existsSync(keyFilePath)) {
 		deps.logError(`Public key ${chalk.cyan(publicKeyName)} not found.`)
 		deps.exit(1)
 	}
 
-	// Find environments that include this key
-	const allEnvironments = await deps.getEnvironments()
-	const revocableEnvs: string[] = []
+	// Find all environments recursively under the project
+	const allEnvFiles = await deps.findEnvironmentsRecursive(projectRoot)
+	const revocableEnvs: { name: string; filePath: string; dir: string }[] = []
 	const zeroRecipientErrors: { name: string; reason: string }[] = []
 
-	for (const envName of allEnvironments) {
+	for (const envFile of allEnvFiles) {
 		try {
-			const env = await deps.getEnvironmentByName(envName)
+			const env = await deps.getEnvironmentByPath(envFile.filePath)
 			if (env.keys.some((k) => k.name === publicKeyName)) {
 				const remainingKeys = env.keys.filter((k) => k.name !== publicKeyName)
 				if (remainingKeys.length === 0) {
 					zeroRecipientErrors.push({
-						name: envName,
+						name: `${envFile.name} (${path.relative(projectRoot, envFile.dir) || "."})`,
 						reason: "no remaining recipients after revocation",
 					})
 				} else {
-					revocableEnvs.push(envName)
+					revocableEnvs.push(envFile)
 				}
 			}
 		} catch {
@@ -107,13 +118,14 @@ export const authPurgeCommand = async (
 
 	// Print what will happen
 	if (revocableEnvs.length > 0) {
-		deps.log(`Environments to update (revoke + rotate):`)
-		for (const envName of revocableEnvs) {
-			deps.log(`  - ${envName}`)
+		deps.log("Environments to update (revoke + rotate):")
+		for (const envFile of revocableEnvs) {
+			const label = path.relative(projectRoot, envFile.dir) || "."
+			deps.log(`  - ${envFile.name} (${label})`)
 		}
 	}
 	if (zeroRecipientErrors.length > 0) {
-		deps.log(`Environments skipped (would have zero recipients):`)
+		deps.log("Environments skipped (would have zero recipients):")
 		for (const { name, reason } of zeroRecipientErrors) {
 			deps.log(`  - ${name}: ${reason}`)
 		}
@@ -131,16 +143,18 @@ export const authPurgeCommand = async (
 	const failures: { name: string; error: string }[] = []
 	let successCount = 0
 
-	for (const envName of revocableEnvs) {
+	for (const envFile of revocableEnvs) {
 		try {
-			const content = await deps.decryptEnvironment(envName)
-			await deps.encryptEnvironment(envName, content, {
+			const envJson = await deps.getEnvironmentByPath(envFile.filePath)
+			const content = await deps.decryptEnvironmentData(envFile.name, envJson)
+			await deps.encryptEnvironment(envFile.name, content, {
 				revokePublicKeys: [publicKeyName],
+				baseDir: envFile.dir,
 			})
 			successCount++
 		} catch (error) {
 			failures.push({
-				name: envName,
+				name: `${envFile.name} (${path.relative(projectRoot, envFile.dir) || "."})`,
 				error: error instanceof Error ? error.message : "unknown error",
 			})
 		}

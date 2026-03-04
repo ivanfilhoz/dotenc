@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
@@ -6,10 +7,12 @@ import { createDataKey, encryptData } from "./crypto"
 import { encryptDataKey } from "./encryptDataKey"
 import { getEnvironmentByName } from "./getEnvironmentByName"
 import { getPublicKeys } from "./getPublicKeys"
+import { resolveProjectRoot } from "./resolveProjectRoot"
 
 type Options = {
 	grantPublicKeys?: string[]
 	revokePublicKeys?: string[]
+	baseDir?: string
 }
 
 export const encryptEnvironment = async (
@@ -17,7 +20,15 @@ export const encryptEnvironment = async (
 	newContent: string,
 	options?: Options,
 ) => {
-	const availablePublicKeys = await getPublicKeys()
+	const baseDir = options?.baseDir ?? process.cwd()
+	let projectRoot: string
+	try {
+		projectRoot = resolveProjectRoot(baseDir, existsSync)
+	} catch {
+		projectRoot = baseDir
+	}
+	const dotencDir = path.join(projectRoot, ".dotenc")
+	const availablePublicKeys = await getPublicKeys(dotencDir)
 
 	if (!availablePublicKeys.length) {
 		throw new Error(
@@ -25,7 +36,7 @@ export const encryptEnvironment = async (
 		)
 	}
 
-	const environmentJson = await getEnvironmentByName(name)
+	const environmentJson = await getEnvironmentByName(name, baseDir)
 
 	const removedKeys = environmentJson.keys.filter(
 		(key) =>
@@ -139,7 +150,7 @@ export const encryptEnvironment = async (
 	}
 
 	await fs.writeFile(
-		path.join(process.cwd(), `.env.${name}.enc`),
+		path.join(baseDir, `.env.${name}.enc`),
 		JSON.stringify(newEnvironmentJson, null, 2),
 		"utf-8",
 	)

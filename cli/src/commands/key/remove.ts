@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import chalk from "chalk"
+import { resolveProjectRoot } from "../../helpers/resolveProjectRoot"
 import { validateKeyName } from "../../helpers/validateKeyName"
 import { choosePublicKeyPrompt } from "../../prompts/choosePublicKey"
 import { confirmPrompt } from "../../prompts/confirm"
@@ -10,6 +11,7 @@ export type KeyRemoveCommandDeps = {
 	validateKeyName: typeof validateKeyName
 	choosePublicKeyPrompt: typeof choosePublicKeyPrompt
 	confirmPrompt: typeof confirmPrompt
+	resolveProjectRoot: typeof resolveProjectRoot
 	existsSync: typeof existsSync
 	unlink: typeof fs.unlink
 	cwd: () => string
@@ -22,6 +24,7 @@ const defaultKeyRemoveCommandDeps: KeyRemoveCommandDeps = {
 	validateKeyName,
 	choosePublicKeyPrompt,
 	confirmPrompt,
+	resolveProjectRoot,
 	existsSync,
 	unlink: fs.unlink,
 	cwd: () => process.cwd(),
@@ -39,6 +42,7 @@ const isKeyRemoveCommandDeps = (
 		"validateKeyName" in value &&
 		"choosePublicKeyPrompt" in value &&
 		"confirmPrompt" in value &&
+		"resolveProjectRoot" in value &&
 		"existsSync" in value &&
 		"unlink" in value &&
 		"cwd" in value &&
@@ -70,7 +74,13 @@ export const keyRemoveCommand = async (
 		deps.exit(1)
 	}
 
-	const filePath = path.join(deps.cwd(), ".dotenc", `${name}.pub`)
+	let projectRoot: string
+	try {
+		projectRoot = deps.resolveProjectRoot(deps.cwd(), deps.existsSync)
+	} catch {
+		projectRoot = deps.cwd()
+	}
+	const filePath = path.join(projectRoot, ".dotenc", `${name}.pub`)
 	if (!deps.existsSync(filePath)) {
 		deps.logError(`Public key ${chalk.cyan(name)} not found.`)
 		deps.exit(1)

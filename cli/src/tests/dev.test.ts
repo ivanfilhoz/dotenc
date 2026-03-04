@@ -25,21 +25,27 @@ describe("devCommand", () => {
 			message: string,
 		) => void
 
-		await devCommand("node", ["app.js"], {
-			getCurrentKeyName: async () => ["alice"],
-			runCommand,
-			logError,
-			exit,
-			select: selectMock as typeof selectMock &
-				(<T>(
-					message: string,
-					choices: { name: string; value: T }[],
-				) => Promise<T>),
-		})
+		await devCommand(
+			"node",
+			["app.js"],
+			{},
+			{
+				getCurrentKeyName: async () => ["alice"],
+				runCommand,
+				logError,
+				exit,
+				select: selectMock as typeof selectMock &
+					(<T>(
+						message: string,
+						choices: { name: string; value: T }[],
+					) => Promise<T>),
+			},
+		)
 
 		expect(runCommandMock).toHaveBeenCalledTimes(1)
 		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
 			env: "development,alice",
+			localOnly: undefined,
 		})
 		expect(logErrorMock).not.toHaveBeenCalled()
 		expect(selectMock).not.toHaveBeenCalled()
@@ -56,17 +62,22 @@ describe("devCommand", () => {
 		) => void
 
 		await expect(
-			devCommand("node", ["app.js"], {
-				getCurrentKeyName: async () => [],
-				runCommand,
-				logError,
-				exit: exitMock,
-				select: selectMock as typeof selectMock &
-					(<T>(
-						message: string,
-						choices: { name: string; value: T }[],
-					) => Promise<T>),
-			}),
+			devCommand(
+				"node",
+				["app.js"],
+				{},
+				{
+					getCurrentKeyName: async () => [],
+					runCommand,
+					logError,
+					exit: exitMock,
+					select: selectMock as typeof selectMock &
+						(<T>(
+							message: string,
+							choices: { name: string; value: T }[],
+						) => Promise<T>),
+				},
+			),
 		).rejects.toThrow("process.exit(1)")
 
 		expect(runCommandMock).not.toHaveBeenCalled()
@@ -91,17 +102,22 @@ describe("devCommand", () => {
 				Promise.resolve("alice-deploy"),
 		)
 
-		await devCommand("node", ["app.js"], {
-			getCurrentKeyName: async () => ["alice", "alice-deploy"],
-			runCommand,
-			logError,
-			exit,
-			select: selectForTest as typeof selectForTest &
-				(<T>(
-					message: string,
-					choices: { name: string; value: T }[],
-				) => Promise<T>),
-		})
+		await devCommand(
+			"node",
+			["app.js"],
+			{},
+			{
+				getCurrentKeyName: async () => ["alice", "alice-deploy"],
+				runCommand,
+				logError,
+				exit,
+				select: selectForTest as typeof selectForTest &
+					(<T>(
+						message: string,
+						choices: { name: string; value: T }[],
+					) => Promise<T>),
+			},
+		)
 
 		expect(selectForTest).toHaveBeenCalledTimes(1)
 		expect(selectForTest.mock.calls[0][0]).toContain("Multiple identities")
@@ -112,6 +128,37 @@ describe("devCommand", () => {
 		expect(runCommandMock).toHaveBeenCalledTimes(1)
 		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
 			env: "development,alice-deploy",
+			localOnly: undefined,
+		})
+	})
+
+	test("forwards localOnly option to runCommand", async () => {
+		const exit = (code: number): never => {
+			throw new Error(`Unexpected process.exit(${code})`)
+		}
+		const runCommand = ((...args: unknown[]) =>
+			runCommandMock(...args)) as typeof import("../commands/run").runCommand
+
+		await devCommand(
+			"node",
+			["app.js"],
+			{ localOnly: true },
+			{
+				getCurrentKeyName: async () => ["alice"],
+				runCommand,
+				logError: logErrorMock,
+				exit,
+				select: selectMock as typeof selectMock &
+					(<T>(
+						message: string,
+						choices: { name: string; value: T }[],
+					) => Promise<T>),
+			},
+		)
+
+		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
+			env: "development,alice",
+			localOnly: true,
 		})
 	})
 })
