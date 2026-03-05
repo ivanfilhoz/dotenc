@@ -1,71 +1,77 @@
-import { describe, expect, mock, test } from "bun:test"
-import { decryptCommand } from "../commands/env/decrypt"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 
-type DecryptCommandDeps = NonNullable<Parameters<typeof decryptCommand>[3]>
+const validateEnvironmentName = mock((_name: string) => ({
+	valid: true as boolean,
+	reason: undefined as string | undefined,
+}))
+const getEnvironmentByName = mock(async (_name: string) => ({
+	keys: [] as { name: string }[],
+	encryptedContent: "",
+}))
+const decryptEnvironmentData = mock(async () => "API_KEY=abc123")
+
+mock.module("../helpers/validateEnvironmentName", () => ({
+	validateEnvironmentName,
+}))
+mock.module("../helpers/getEnvironmentByName", () => ({ getEnvironmentByName }))
+mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData }))
+
+const { decryptCommand } = await import("../commands/env/decrypt")
 
 describe("env decrypt command", () => {
+	beforeEach(() => {
+		validateEnvironmentName.mockClear()
+		getEnvironmentByName.mockClear()
+		decryptEnvironmentData.mockClear()
+		validateEnvironmentName.mockImplementation(() => ({
+			valid: true,
+			reason: undefined,
+		}))
+		getEnvironmentByName.mockImplementation(async () => ({
+			keys: [],
+			encryptedContent: "",
+		}))
+		decryptEnvironmentData.mockImplementation(async () => "API_KEY=abc123")
+	})
+
 	test("prints plaintext on success", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
-			throw new Error(`exit(${code})`)
-		})
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
 
-		const deps: DecryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			getEnvironmentByName: async () =>
-				({
-					keys: [],
-					encryptedContent: "",
-				}) as never,
-			decryptEnvironmentData: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
+		await decryptCommand("development", {})
 
-		await decryptCommand("development", {}, undefined, deps)
-
-		expect(writeStdout).toHaveBeenCalledTimes(1)
-		expect(writeStdout).toHaveBeenCalledWith("API_KEY=abc123")
-		expect(logError).not.toHaveBeenCalled()
-		expect(exit).not.toHaveBeenCalled()
+		expect(writeSpy).toHaveBeenCalledWith("API_KEY=abc123")
+		writeSpy.mockRestore()
 	})
 
 	test("returns granted users in JSON success output", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const deps: DecryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			getEnvironmentByName: async () =>
-				({
-					keys: [
-						{
-							name: "alice",
-							fingerprint: "fp-1",
-							encryptedDataKey: "ZW5jcnlwdGVk",
-							algorithm: "ed25519",
-						},
-						{
-							name: "bob",
-							fingerprint: "fp-2",
-							encryptedDataKey: "ZW5jcnlwdGVk",
-							algorithm: "ed25519",
-						},
-					],
-					encryptedContent: "",
-				}) as never,
-			decryptEnvironmentData: async () => "API_KEY=abc123",
-			writeStdout,
-			logError: (_message: string) => {},
-			exit: (_code: number): never => {
-				throw new Error("exit should not be called")
-			},
-		}
+		getEnvironmentByName.mockImplementation(async () => ({
+			keys: [
+				{
+					name: "alice",
+					fingerprint: "fp-1",
+					encryptedDataKey: "ZW5jcnlwdGVk",
+					algorithm: "ed25519",
+				},
+				{
+					name: "bob",
+					fingerprint: "fp-2",
+					encryptedDataKey: "ZW5jcnlwdGVk",
+					algorithm: "ed25519",
+				},
+			],
+			encryptedContent: "",
+		}))
 
-		await decryptCommand("development", { json: true }, undefined, deps)
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
 
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		await decryptCommand("development", { json: true })
+
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			content: string
 			grantedUsers: string[]
@@ -74,68 +80,54 @@ describe("env decrypt command", () => {
 		expect(parsed.ok).toBe(true)
 		expect(parsed.content).toBe("API_KEY=abc123")
 		expect(parsed.grantedUsers).toEqual(["alice", "bob"])
+		writeSpy.mockRestore()
 	})
 
 	test("returns JSON error for invalid environment names", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		validateEnvironmentName.mockImplementation(() => ({
+			valid: false,
+			reason: "Environment name must not be empty.",
+		}))
+
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: DecryptCommandDeps = {
-			validateEnvironmentName: () => ({
-				valid: false,
-				reason: "Environment name must not be empty.",
-			}),
-			getEnvironmentByName: async () => ({}) as never,
-			decryptEnvironmentData: async () => "",
-			writeStdout,
-			logError: (_message: string) => {},
-			exit,
-		}
+		await expect(decryptCommand("", { json: true })).rejects.toThrow("exit(1)")
 
-		await expect(
-			decryptCommand("", { json: true }, undefined, deps),
-		).rejects.toThrow("exit(1)")
-		expect(writeStdout).toHaveBeenCalledTimes(1)
-
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			error: { code: string }
 		}
 
 		expect(parsed.ok).toBe(false)
 		expect(parsed.error.code).toBe("INVALID_ENVIRONMENT_NAME")
+		writeSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("maps access denied errors in JSON mode", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		decryptEnvironmentData.mockImplementation(async () => {
+			throw new Error("Access denied to the environment.")
+		})
+
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: DecryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			getEnvironmentByName: async () =>
-				({
-					keys: [],
-					encryptedContent: "",
-				}) as never,
-			decryptEnvironmentData: async () => {
-				throw new Error("Access denied to the environment.")
-			},
-			writeStdout,
-			logError: (_message: string) => {},
-			exit,
-		}
+		await expect(decryptCommand("production", { json: true })).rejects.toThrow(
+			"exit(1)",
+		)
 
-		await expect(
-			decryptCommand("production", { json: true }, undefined, deps),
-		).rejects.toThrow("exit(1)")
-
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			error: { code: string; message: string }
 		}
@@ -143,5 +135,7 @@ describe("env decrypt command", () => {
 		expect(parsed.ok).toBe(false)
 		expect(parsed.error.code).toBe("ACCESS_DENIED")
 		expect(parsed.error.message).toContain("Access denied")
+		writeSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 })

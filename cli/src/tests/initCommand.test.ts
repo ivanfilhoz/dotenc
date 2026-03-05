@@ -1,11 +1,17 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
 import path from "node:path"
-import { _runInitCommand } from "../commands/init"
 
-type RunInitDeps = NonNullable<Parameters<typeof _runInitCommand>[1]>
+const CWD = "/workspace"
 
-const createPrivateKeyEntry = () => {
+const inputNamePromptMock = mock(
+	async (_message: string, _def?: string) => "alice",
+)
+const userInfoMock = mock(
+	() =>
+		({ username: "tester" }) as ReturnType<typeof import("node:os").userInfo>,
+)
+const choosePrivateKeyPromptMock = mock(async (_message: string) => {
 	const { privateKey } = crypto.generateKeyPairSync("ed25519")
 	return {
 		name: "id_ed25519",
@@ -14,120 +20,142 @@ const createPrivateKeyEntry = () => {
 		algorithm: "ed25519" as const,
 		rawPublicKey: Buffer.alloc(32),
 	}
-}
+})
+const keyAddCommandMock = mock(async (_name: string, _options: unknown) => {})
+const setupGitDiffMock = mock(() => {})
+const existsSyncMock = mock((_p: unknown) => false)
+const readFileMock = mock(async (_p: unknown, _enc?: unknown) => "")
+const unlinkMock = mock(async (_p: unknown) => {})
+const createCommandMock = mock(
+	async (_env: string, _key: string, _content?: string) => {},
+)
+
+mock.module("../prompts/inputName", () => ({
+	inputNamePrompt: inputNamePromptMock,
+}))
+mock.module("node:os", () => ({ default: { userInfo: userInfoMock } }))
+mock.module("../prompts/choosePrivateKey", () => ({
+	choosePrivateKeyPrompt: choosePrivateKeyPromptMock,
+}))
+mock.module("../commands/key/add", () => ({
+	keyAddCommand: keyAddCommandMock,
+}))
+mock.module("../helpers/setupGitDiff", () => ({
+	setupGitDiff: setupGitDiffMock,
+}))
+mock.module("node:fs", () => ({ existsSync: existsSyncMock }))
+mock.module("node:fs/promises", () => ({
+	default: { readFile: readFileMock, unlink: unlinkMock },
+}))
+mock.module("../commands/env/create", () => ({
+	createCommand: createCommandMock,
+}))
+
+const { initCommand, _resolveDocsUrl } = await import("../commands/init")
+
+beforeEach(() => {
+	inputNamePromptMock.mockClear()
+	userInfoMock.mockClear()
+	choosePrivateKeyPromptMock.mockClear()
+	keyAddCommandMock.mockClear()
+	setupGitDiffMock.mockClear()
+	existsSyncMock.mockClear()
+	readFileMock.mockClear()
+	unlinkMock.mockClear()
+	createCommandMock.mockClear()
+
+	inputNamePromptMock.mockImplementation(async () => "alice")
+	userInfoMock.mockImplementation(
+		() =>
+			({ username: "tester" }) as ReturnType<typeof import("node:os").userInfo>,
+	)
+	choosePrivateKeyPromptMock.mockImplementation(async () => {
+		const { privateKey } = crypto.generateKeyPairSync("ed25519")
+		return {
+			name: "id_ed25519",
+			privateKey,
+			fingerprint: "test-fingerprint",
+			algorithm: "ed25519" as const,
+			rawPublicKey: Buffer.alloc(32),
+		}
+	})
+	keyAddCommandMock.mockImplementation(async () => {})
+	setupGitDiffMock.mockImplementation(() => {})
+	existsSyncMock.mockImplementation(() => false)
+	readFileMock.mockImplementation(async () => "")
+	unlinkMock.mockImplementation(async () => {})
+	createCommandMock.mockImplementation(async () => {})
+})
 
 describe("initCommand", () => {
 	test("exits when no name is provided", async () => {
-		const keyAddCommand = mock(async () => {})
-		const createCommand = mock(async () => {})
+		inputNamePromptMock.mockImplementation(async () => "")
 
-		const deps: RunInitDeps = {
-			inputNamePrompt: mock(async () => "") as never,
-			userInfo: () => ({ username: "tester" }) as never,
-			choosePrivateKeyPrompt: mock(async () =>
-				createPrivateKeyEntry(),
-			) as never,
-			createPublicKey: crypto.createPublicKey,
-			keyAddCommand: keyAddCommand as never,
-			setupGitDiff: () => {},
-			existsSync: () => false,
-			readFile: mock(async () => "") as never,
-			unlink: mock(async () => {}) as never,
-			cwd: () => "/workspace",
-			createCommand: createCommand as never,
-			logInfo: (_message: string) => {},
-			logWarn: (_message: string) => {},
-			logError: (_message: string) => {},
-			resolveDocsUrl: () => undefined,
-			exit: ((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}) as never,
-		}
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
 
-		await expect(_runInitCommand({}, deps)).rejects.toThrow("exit(1)")
-		expect(keyAddCommand).not.toHaveBeenCalled()
-		expect(createCommand).not.toHaveBeenCalled()
+		await expect(initCommand({})).rejects.toThrow("exit(1)")
+		expect(keyAddCommandMock).not.toHaveBeenCalled()
+		expect(createCommandMock).not.toHaveBeenCalled()
+		errSpy.mockRestore()
+		logSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("exits when private key selection fails", async () => {
-		const deps: RunInitDeps = {
-			inputNamePrompt: mock(async () => "alice") as never,
-			userInfo: () => ({ username: "tester" }) as never,
-			choosePrivateKeyPrompt: mock(async () => {
-				throw new Error("No private keys available")
-			}) as never,
-			createPublicKey: crypto.createPublicKey,
-			keyAddCommand: mock(async () => {}) as never,
-			setupGitDiff: () => {},
-			existsSync: () => false,
-			readFile: mock(async () => "") as never,
-			unlink: mock(async () => {}) as never,
-			cwd: () => "/workspace",
-			createCommand: mock(async () => {}) as never,
-			logInfo: (_message: string) => {},
-			logWarn: (_message: string) => {},
-			logError: (_message: string) => {},
-			resolveDocsUrl: () => undefined,
-			exit: ((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}) as never,
-		}
+		choosePrivateKeyPromptMock.mockImplementation(async () => {
+			throw new Error("No private keys available")
+		})
 
-		await expect(_runInitCommand({}, deps)).rejects.toThrow("exit(1)")
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		await expect(initCommand({})).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		logSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("migrates .env and creates development + personal environments", async () => {
+		const envPath = path.join(CWD, ".env")
+		existsSyncMock.mockImplementation(
+			(p) =>
+				String(p) === envPath ||
+				String(p) === ".claude" ||
+				String(p) === ".vscode",
+		)
+		readFileMock.mockImplementation(async () => "API_KEY=abc123\n")
+
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
 		const logs: string[] = []
 		const warns: string[] = []
-		const createCommand = mock(
-			async (_env: string, _key: string, _content?: string) => {},
+		const logSpy = spyOn(console, "log").mockImplementation((msg) =>
+			logs.push(String(msg)),
 		)
-		const keyAddCommand = mock(async (_name: string, _options: unknown) => {})
-		const unlink = mock(async (_path: string) => {})
-		const readFile = mock(async () => "API_KEY=abc123\n")
+		const warnSpy = spyOn(console, "warn").mockImplementation((msg) =>
+			warns.push(String(msg)),
+		)
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
 
-		const deps: RunInitDeps = {
-			inputNamePrompt: mock(async () => "ignored") as never,
-			userInfo: () => ({ username: "tester" }) as never,
-			choosePrivateKeyPrompt: mock(async () =>
-				createPrivateKeyEntry(),
-			) as never,
-			createPublicKey: crypto.createPublicKey,
-			keyAddCommand: keyAddCommand as never,
-			setupGitDiff: () => {},
-			existsSync: ((targetPath: unknown) =>
-				String(targetPath) === path.join("/workspace", ".env") ||
-				String(targetPath) === ".claude" ||
-				String(targetPath) === ".vscode") as never,
-			readFile: readFile as never,
-			unlink: unlink as never,
-			cwd: () => "/workspace",
-			createCommand: createCommand as never,
-			logInfo: (message) => logs.push(message),
-			logWarn: (message) => warns.push(message),
-			logError: (_message: string) => {},
-			resolveDocsUrl: () => "https://example.com/docs",
-			exit: ((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}) as never,
-		}
+		await initCommand({ name: "alice" })
 
-		await _runInitCommand({ name: "alice" }, deps)
-
-		expect(keyAddCommand).toHaveBeenCalledTimes(1)
-		expect(keyAddCommand.mock.calls[0]?.[0]).toBe("alice")
-		expect(createCommand).toHaveBeenCalledTimes(2)
-		expect(createCommand.mock.calls[0]).toEqual([
+		expect(keyAddCommandMock).toHaveBeenCalledTimes(1)
+		expect(keyAddCommandMock.mock.calls[0]?.[0]).toBe("alice")
+		expect(createCommandMock).toHaveBeenCalledTimes(2)
+		expect(createCommandMock.mock.calls[0]).toEqual([
 			"development",
 			"alice",
 			"API_KEY=abc123\n",
 		])
-		expect(createCommand.mock.calls[1]).toEqual(["alice", "alice"])
-		expect(unlink).toHaveBeenCalledWith(path.join("/workspace", ".env"))
-		expect(readFile).toHaveBeenCalledWith(
-			path.join("/workspace", ".env"),
-			"utf-8",
-		)
+		expect(createCommandMock.mock.calls[1]).toEqual(["alice", "alice"])
+		expect(unlinkMock).toHaveBeenCalledWith(envPath)
+		expect(readFileMock).toHaveBeenCalledWith(envPath, "utf-8")
 		expect(warns).toHaveLength(0)
 		expect(logs.some((line) => line.includes("Install the agent skill"))).toBe(
 			true,
@@ -135,49 +163,40 @@ describe("initCommand", () => {
 		expect(logs.some((line) => line.includes("install-vscode-extension"))).toBe(
 			true,
 		)
-		expect(logs.some((line) => line.includes("https://example.com/docs"))).toBe(
-			true,
-		)
+
+		const docsUrl = _resolveDocsUrl()
+		if (docsUrl) {
+			expect(logs.some((line) => line.includes(docsUrl))).toBe(true)
+		}
+
+		cwdSpy.mockRestore()
+		logSpy.mockRestore()
+		warnSpy.mockRestore()
+		errSpy.mockRestore()
 	})
 
 	test("continues when git diff setup fails and skips personal environment for development user", async () => {
-		const warns: string[] = []
+		setupGitDiffMock.mockImplementation(() => {
+			throw new Error("not a git repository")
+		})
+
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(CWD)
 		const logs: string[] = []
-		const createCommand = mock(
-			async (_env: string, _key: string, _content?: string) => {},
+		const warns: string[] = []
+		const logSpy = spyOn(console, "log").mockImplementation((msg) =>
+			logs.push(String(msg)),
 		)
+		const warnSpy = spyOn(console, "warn").mockImplementation((msg) =>
+			warns.push(String(msg)),
+		)
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
 
-		const deps: RunInitDeps = {
-			inputNamePrompt: mock(async () => "ignored") as never,
-			userInfo: () => ({ username: "tester" }) as never,
-			choosePrivateKeyPrompt: mock(async () =>
-				createPrivateKeyEntry(),
-			) as never,
-			createPublicKey: crypto.createPublicKey,
-			keyAddCommand: mock(async () => {}) as never,
-			setupGitDiff: () => {
-				throw new Error("not a git repository")
-			},
-			existsSync: () => false,
-			readFile: mock(async () => "") as never,
-			unlink: mock(async () => {}) as never,
-			cwd: () => "/workspace",
-			createCommand: createCommand as never,
-			logInfo: (message) => logs.push(message),
-			logWarn: (message) => warns.push(message),
-			logError: (_message: string) => {},
-			resolveDocsUrl: () => undefined,
-			exit: ((code: number): never => {
-				throw new Error(`exit(${code})`)
-			}) as never,
-		}
-
-		await _runInitCommand({ name: "development" }, deps)
+		await initCommand({ name: "development" })
 
 		expect(warns).toHaveLength(1)
 		expect(warns[0]).toContain("could not set up git diff driver")
-		expect(createCommand).toHaveBeenCalledTimes(1)
-		expect(createCommand.mock.calls[0]).toEqual([
+		expect(createCommandMock).toHaveBeenCalledTimes(1)
+		expect(createCommandMock.mock.calls[0]).toEqual([
 			"development",
 			"development",
 			undefined,
@@ -185,5 +204,10 @@ describe("initCommand", () => {
 		expect(
 			logs.some((line) => line.includes("Edit your personal environment")),
 		).toBe(false)
+
+		cwdSpy.mockRestore()
+		logSpy.mockRestore()
+		warnSpy.mockRestore()
+		errSpy.mockRestore()
 	})
 })

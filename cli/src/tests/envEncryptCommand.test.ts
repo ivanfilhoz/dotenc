@@ -1,61 +1,70 @@
-import { describe, expect, mock, test } from "bun:test"
-import { encryptCommand } from "../commands/env/encrypt"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 
-type EncryptCommandDeps = NonNullable<Parameters<typeof encryptCommand>[3]>
+const validateEnvironmentName = mock((_name: string) => ({
+	valid: true as boolean,
+	reason: undefined as string | undefined,
+}))
+const encryptEnvironment = mock(async (_name: string, _content: string) => {})
+const readStdin = mock(async () => "API_KEY=abc123")
+
+mock.module("../helpers/validateEnvironmentName", () => ({
+	validateEnvironmentName,
+}))
+mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
+mock.module("../helpers/readStdin", () => ({ readStdin }))
+
+const { encryptCommand } = await import("../commands/env/encrypt")
 
 describe("env encrypt command", () => {
+	beforeEach(() => {
+		validateEnvironmentName.mockClear()
+		encryptEnvironment.mockClear()
+		readStdin.mockClear()
+		validateEnvironmentName.mockImplementation(() => ({
+			valid: true,
+			reason: undefined,
+		}))
+		encryptEnvironment.mockImplementation(async () => {})
+		readStdin.mockImplementation(async () => "API_KEY=abc123")
+	})
+
 	test("logs plain error when environment name is invalid", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		validateEnvironmentName.mockImplementation(() => ({
+			valid: false,
+			reason: "Invalid environment name: bad/name",
+		}))
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({
-				valid: false,
-				reason: "Invalid environment name: bad/name",
-			}),
-			encryptEnvironment: async () => {},
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
+		await expect(encryptCommand("bad/name", {})).rejects.toThrow("exit(1)")
 
-		await expect(
-			encryptCommand("bad/name", {}, undefined, deps),
-		).rejects.toThrow("exit(1)")
-
-		expect(logError).toHaveBeenCalledWith("Invalid environment name: bad/name")
-		expect(writeStdout).not.toHaveBeenCalled()
+		expect(errSpy).toHaveBeenCalledWith("Invalid environment name: bad/name")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("returns JSON error when environment name is invalid", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		validateEnvironmentName.mockImplementation(() => ({
+			valid: false,
+			reason: "Invalid environment name: bad/name",
+		}))
+
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({
-				valid: false,
-				reason: "Invalid environment name: bad/name",
-			}),
-			encryptEnvironment: async () => {},
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
+		await expect(encryptCommand("bad/name", { json: true })).rejects.toThrow(
+			"exit(1)",
+		)
 
-		await expect(
-			encryptCommand("bad/name", { json: true }, undefined, deps),
-		).rejects.toThrow("exit(1)")
-
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			error: { code: string; message: string }
 		}
@@ -63,180 +72,118 @@ describe("env encrypt command", () => {
 		expect(parsed.ok).toBe(false)
 		expect(parsed.error.code).toBe("INVALID_ENVIRONMENT_NAME")
 		expect(parsed.error.message).toBe("Invalid environment name: bad/name")
-		expect(logError).not.toHaveBeenCalled()
+		writeSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("returns JSON error when --stdin is not provided", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: async () => {},
-			readStdin: async () => "",
-			writeStdout,
-			logError: (_message: string) => {},
-			exit,
-		}
+		await expect(encryptCommand("development", { json: true })).rejects.toThrow(
+			"exit(1)",
+		)
 
-		await expect(
-			encryptCommand("development", { json: true }, undefined, deps),
-		).rejects.toThrow("exit(1)")
-
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			error: { code: string }
 		}
 
 		expect(parsed.ok).toBe(false)
 		expect(parsed.error.code).toBe("MISSING_STDIN")
+		writeSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("logs plain error when --stdin is not provided", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: async () => {},
-			readStdin: async () => "",
-			writeStdout,
-			logError,
-			exit,
-		}
+		await expect(encryptCommand("development", {})).rejects.toThrow("exit(1)")
 
-		await expect(
-			encryptCommand("development", {}, undefined, deps),
-		).rejects.toThrow("exit(1)")
-
-		expect(logError).toHaveBeenCalledWith(
+		expect(errSpy).toHaveBeenCalledWith(
 			'No input source provided. Use "--stdin" and pipe the plaintext content.',
 		)
-		expect(writeStdout).not.toHaveBeenCalled()
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("encrypts content read from stdin", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const encryptEnvironmentMock = mock(
-			async (_environment: string, _content: string) => {},
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
 		)
-		const exit = mock((code: number): never => {
-			throw new Error(`exit(${code})`)
-		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: encryptEnvironmentMock,
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
+		await encryptCommand("development", { stdin: true })
 
-		await encryptCommand("development", { stdin: true }, undefined, deps)
-
-		expect(encryptEnvironmentMock).toHaveBeenCalledTimes(1)
-		expect(encryptEnvironmentMock).toHaveBeenCalledWith(
+		expect(encryptEnvironment).toHaveBeenCalledWith(
 			"development",
 			"API_KEY=abc123",
 		)
-		expect(logError).not.toHaveBeenCalled()
-		expect(writeStdout).not.toHaveBeenCalled()
-		expect(exit).not.toHaveBeenCalled()
+		expect(errSpy).not.toHaveBeenCalled()
+		expect(writeSpy).not.toHaveBeenCalled()
+		errSpy.mockRestore()
+		writeSpy.mockRestore()
 	})
 
 	test("returns JSON success and suppresses console noise", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const consoleLogSpy = mock((_message: string) => {})
-		const consoleErrorSpy = mock((_message: string) => {})
-		const originalLog = console.log
-		const originalError = console.error
-		console.log = consoleLogSpy as never
-		console.error = consoleErrorSpy as never
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
 
-		const encryptEnvironmentMock = mock(async () => {
+		encryptEnvironment.mockImplementation(async () => {
 			console.log("should-not-appear")
 			console.error("should-not-appear")
 		})
 
-		const exit = mock((code: number): never => {
-			throw new Error(`exit(${code})`)
-		})
+		await encryptCommand("development", { stdin: true, json: true })
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: encryptEnvironmentMock,
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
-
-		try {
-			await encryptCommand(
-				"development",
-				{ stdin: true, json: true },
-				undefined,
-				deps,
-			)
-		} finally {
-			console.log = originalLog
-			console.error = originalError
-		}
-
-		expect(encryptEnvironmentMock).toHaveBeenCalledTimes(1)
-		expect(writeStdout).toHaveBeenCalledTimes(1)
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as { ok: boolean }
-		expect(parsed.ok).toBe(true)
-		expect(logError).not.toHaveBeenCalled()
-		expect(exit).not.toHaveBeenCalled()
-		expect(consoleLogSpy).not.toHaveBeenCalled()
-		expect(consoleErrorSpy).not.toHaveBeenCalled()
+		expect(encryptEnvironment).toHaveBeenCalledTimes(1)
+		expect(writeSpy).toHaveBeenCalledTimes(1)
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		expect(JSON.parse(rawJson)).toEqual({ ok: true })
+		expect(logSpy).not.toHaveBeenCalled()
+		expect(errSpy).not.toHaveBeenCalled()
+		writeSpy.mockRestore()
+		logSpy.mockRestore()
+		errSpy.mockRestore()
 	})
 
 	test("maps encryption errors in JSON mode", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		encryptEnvironment.mockImplementation(async () => {
+			throw new Error("Environment file not found: /tmp/.env.production.enc")
+		})
+
+		const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+			() => true,
+		)
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: async () => {
-				throw new Error("Environment file not found: /tmp/.env.production.enc")
-			},
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError: (_message: string) => {},
-			exit,
-		}
-
 		await expect(
-			encryptCommand(
-				"production",
-				{ stdin: true, json: true },
-				undefined,
-				deps,
-			),
+			encryptCommand("production", { stdin: true, json: true }),
 		).rejects.toThrow("exit(1)")
 
-		const [rawJson] = writeStdout.mock.calls[0]
-		const parsed = JSON.parse(rawJson as string) as {
+		const [rawJson] = writeSpy.mock.calls[0] as [string]
+		const parsed = JSON.parse(rawJson) as {
 			ok: boolean
 			error: { code: string }
 		}
 
 		expect(parsed.ok).toBe(false)
 		expect(parsed.error.code).toBe("ENVIRONMENT_NOT_FOUND")
+		writeSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("maps access/no-key/passphrase/unknown encryption errors in JSON mode", async () => {
@@ -257,74 +204,58 @@ describe("env encrypt command", () => {
 				message: "Found passphrase-protected key and cannot proceed.",
 				expectedCode: "PASSPHRASE_PROTECTED_KEYS",
 			},
-			{
-				message: "Something else exploded.",
-				expectedCode: "UNKNOWN",
-			},
+			{ message: "Something else exploded.", expectedCode: "UNKNOWN" },
 		]
 
 		for (const { message, expectedCode } of cases) {
-			const writeStdout = mock((_output: string) => {})
-			const exit = mock((code: number): never => {
-				throw new Error(`exit(${code})`)
+			encryptEnvironment.mockImplementation(async () => {
+				throw new Error(message)
 			})
 
-			const deps: EncryptCommandDeps = {
-				validateEnvironmentName: () => ({ valid: true }),
-				encryptEnvironment: async () => {
-					throw new Error(message)
+			const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+				() => true,
+			)
+			const exitSpy = spyOn(process, "exit").mockImplementation(
+				(code): never => {
+					throw new Error(`exit(${code})`)
 				},
-				readStdin: async () => "API_KEY=abc123",
-				writeStdout,
-				logError: (_message: string) => {},
-				exit,
-			}
+			)
 
 			await expect(
-				encryptCommand(
-					"production",
-					{ stdin: true, json: true },
-					undefined,
-					deps,
-				),
+				encryptCommand("production", { stdin: true, json: true }),
 			).rejects.toThrow("exit(1)")
 
-			const [rawJson] = writeStdout.mock.calls[0]
-			const parsed = JSON.parse(rawJson as string) as {
+			const [rawJson] = writeSpy.mock.calls[0] as [string]
+			const parsed = JSON.parse(rawJson) as {
 				ok: boolean
 				error: { code: string }
 			}
 
 			expect(parsed.ok).toBe(false)
 			expect(parsed.error.code).toBe(expectedCode)
+			writeSpy.mockRestore()
+			exitSpy.mockRestore()
 		}
 	})
 
 	test("strips ANSI codes before logging plain-text errors", async () => {
-		const writeStdout = mock((_message: string) => {})
-		const logError = mock((_message: string) => {})
-		const exit = mock((code: number): never => {
+		encryptEnvironment.mockImplementation(async () => {
+			throw new Error(
+				`${String.fromCharCode(27)}[31mNo public keys found in project${String.fromCharCode(27)}[0m`,
+			)
+		})
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`exit(${code})`)
 		})
 
-		const deps: EncryptCommandDeps = {
-			validateEnvironmentName: () => ({ valid: true }),
-			encryptEnvironment: async () => {
-				throw new Error(
-					`${String.fromCharCode(27)}[31mNo public keys found in project${String.fromCharCode(27)}[0m`,
-				)
-			},
-			readStdin: async () => "API_KEY=abc123",
-			writeStdout,
-			logError,
-			exit,
-		}
-
 		await expect(
-			encryptCommand("development", { stdin: true }, undefined, deps),
+			encryptCommand("development", { stdin: true }),
 		).rejects.toThrow("exit(1)")
 
-		expect(logError).toHaveBeenCalledWith("No public keys found in project")
-		expect(writeStdout).not.toHaveBeenCalled()
+		expect(errSpy).toHaveBeenCalledWith("No public keys found in project")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 })

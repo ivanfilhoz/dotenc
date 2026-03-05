@@ -15,63 +15,31 @@ type Options = {
 	localOnly?: boolean
 }
 
-type RunCommandDeps = {
-	decryptEnvironmentData: typeof decryptEnvironmentData
-	getEnvironmentByPath: typeof getEnvironmentByPath
-	buildAncestorChain: typeof buildAncestorChain
-	resolveProjectRoot: typeof resolveProjectRoot
-	parseEnv: typeof parseEnv
-	validateEnvironmentName: typeof validateEnvironmentName
-	spawn: typeof spawn
-	existsSync: typeof existsSync
-	cwd: () => string
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultRunCommandDeps: RunCommandDeps = {
-	decryptEnvironmentData,
-	getEnvironmentByPath,
-	buildAncestorChain,
-	resolveProjectRoot,
-	parseEnv,
-	validateEnvironmentName,
-	spawn,
-	existsSync,
-	cwd: () => process.cwd(),
-	logError: (message) => console.error(message),
-	exit: (code) => process.exit(code),
-}
-
 export const runCommand = async (
 	command: string,
 	args: string[],
 	options: Options,
-	_command?: unknown,
-	deps: RunCommandDeps = defaultRunCommandDeps,
 ) => {
-	// Get the environment
 	const environmentName = options.env || process.env.DOTENC_ENV
 
 	if (!environmentName) {
-		deps.logError(
+		console.error(
 			'No environment provided. Use -e or set DOTENC_ENV to the environment you want to run the command in.\nTo initialize dotenc, run "dotenc init --name <your-name>". To add environments later, use "dotenc env create <environment>".',
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	const environments = environmentName.split(",")
 
 	for (const env of environments) {
-		const validation = deps.validateEnvironmentName(env)
+		const validation = validateEnvironmentName(env)
 		if (!validation.valid) {
-			deps.logError(`${chalk.red("Error:")} ${validation.reason}`)
-			deps.exit(1)
+			console.error(`${chalk.red("Error:")} ${validation.reason}`)
+			process.exit(1)
 		}
 	}
 
-	// Determine search directories
-	const invocationDir = deps.cwd()
+	const invocationDir = process.cwd()
 	let dirs: string[]
 
 	if (options.localOnly) {
@@ -79,29 +47,27 @@ export const runCommand = async (
 	} else {
 		let projectRoot: string
 		try {
-			projectRoot = deps.resolveProjectRoot(invocationDir, deps.existsSync)
+			projectRoot = resolveProjectRoot(invocationDir, existsSync)
 		} catch (error) {
-			deps.logError(
+			console.error(
 				error instanceof Error
 					? error.message
 					: "Failed to locate project root.",
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
-		dirs = deps.buildAncestorChain(projectRoot, invocationDir)
+		dirs = buildAncestorChain(projectRoot, invocationDir)
 	}
 
 	let failureCount = 0
 	const decryptedEnvs = await Promise.all(
 		environments.map(async (envName) => {
-			// Merge across ancestor chain: root → local (later/deeper wins)
 			let merged: Record<string, string> = {}
 			let foundAtAnyLevel = false
 
 			for (const dir of dirs) {
 				const filePath = path.join(dir, `.env.${envName}.enc`)
-				if (!deps.existsSync(filePath)) {
-					// Missing at this level is fine — continue up the chain
+				if (!existsSync(filePath)) {
 					continue
 				}
 
@@ -109,10 +75,10 @@ export const runCommand = async (
 
 				let content: string
 				try {
-					const envJson = await deps.getEnvironmentByPath(filePath)
-					content = await deps.decryptEnvironmentData(envName, envJson)
+					const envJson = await getEnvironmentByPath(filePath)
+					content = await decryptEnvironmentData(envName, envJson)
 				} catch (error: unknown) {
-					deps.logError(
+					console.error(
 						error instanceof Error
 							? error.message
 							: `Unknown error occurred while decrypting the environment ${envName} at ${dir}.`,
@@ -121,12 +87,12 @@ export const runCommand = async (
 					return {}
 				}
 
-				const vars = deps.parseEnv(content)
+				const vars = parseEnv(content)
 				merged = { ...merged, ...vars }
 			}
 
 			if (!foundAtAnyLevel) {
-				deps.logError(
+				console.error(
 					`${chalk.yellow("Warning:")} environment ${chalk.cyan(envName)} not found.`,
 				)
 				failureCount++
@@ -138,19 +104,19 @@ export const runCommand = async (
 	)
 
 	if (failureCount === environments.length) {
-		deps.logError(`${chalk.red("Error:")} All environments failed to load.`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} All environments failed to load.`)
+		process.exit(1)
 	}
 
 	if (failureCount > 0) {
 		if (options.strict) {
-			deps.logError(
+			console.error(
 				`${chalk.red("Error:")} ${failureCount} of ${environments.length} environment(s) failed to load and strict mode is enabled.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
-		deps.logError(
+		console.error(
 			`${chalk.yellow("Warning:")} ${failureCount} of ${environments.length} environment(s) failed to load.`,
 		)
 	}
@@ -159,17 +125,15 @@ export const runCommand = async (
 		return { ...acc, ...env }
 	}, {})
 
-	// Merge the environment variables and run the command.
-	// Strip DOTENC_PRIVATE_KEY so it is never exposed to child processes.
 	const { DOTENC_PRIVATE_KEY: _privateKey, ...baseEnv } = process.env
 	const mergedEnv = { ...baseEnv, ...decryptedEnv }
 
-	const child = deps.spawn(command, args, {
+	const child = spawn(command, args, {
 		env: mergedEnv,
 		stdio: "inherit",
 	})
 
 	child.on("exit", (code) => {
-		deps.exit(code ?? 0)
+		process.exit(code ?? 0)
 	})
 }

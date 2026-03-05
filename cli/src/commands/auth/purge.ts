@@ -10,10 +10,7 @@ import { resolveProjectRoot } from "../../helpers/resolveProjectRoot"
 import { validateKeyName } from "../../helpers/validateKeyName"
 import { confirmPrompt } from "../../prompts/confirm"
 
-export const authPurgeCommand = async (
-	publicKeyName: string,
-	yes: boolean,
-) => {
+export const authPurgeCommand = async (publicKeyName: string, yes: boolean) => {
 	const keyNameValidation = validateKeyName(publicKeyName)
 	if (!keyNameValidation.valid) {
 		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)

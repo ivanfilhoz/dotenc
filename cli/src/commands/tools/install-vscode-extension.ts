@@ -75,16 +75,14 @@ async function which(bin: string): Promise<boolean> {
 	}
 }
 
-async function detectEditors(): Promise<string[]> {
+export async function detectEditors(): Promise<string[]> {
 	const detected: string[] = []
 
-	// Check project-level directories first
 	if (existsSync(path.join(process.cwd(), ".cursor"))) detected.push("cursor")
 	if (existsSync(path.join(process.cwd(), ".windsurf")))
 		detected.push("windsurf")
 	if (existsSync(path.join(process.cwd(), ".vscode"))) detected.push("vscode")
 
-	// Also check system binaries (avoid duplicates)
 	const checks: Array<{ key: string; bins: string[] }> = [
 		{ key: "cursor", bins: ["cursor"] },
 		{ key: "windsurf", bins: ["windsurf"] },
@@ -93,7 +91,6 @@ async function detectEditors(): Promise<string[]> {
 	]
 
 	if (process.platform === "darwin") {
-		// macOS: also check /Applications
 		const macApps: Record<string, string> = {
 			cursor: "/Applications/Cursor.app",
 			windsurf: "/Applications/Windsurf.app",
@@ -130,9 +127,11 @@ async function openUrl(url: string): Promise<void> {
 	}
 }
 
+// Exported for testing — allows injecting getEditors and openUrl without
+// spawning real processes or depending on installed editors.
 export async function _runInstallVscodeExtension(
-	getEditors = detectEditors,
-	_openUrl = openUrl,
+	getEditors: () => Promise<string[]> = detectEditors,
+	_openUrl: (url: string) => Promise<void> = openUrl,
 ) {
 	const editors = await getEditors()
 
@@ -172,7 +171,6 @@ export async function _runInstallVscodeExtension(
 		return
 	}
 
-	// Multiple editors detected
 	console.log("\nInstall the extension in your editor:")
 	for (const editor of editors) {
 		const name = EDITOR_NAMES[editor] ?? editor
@@ -181,6 +179,6 @@ export async function _runInstallVscodeExtension(
 	}
 }
 
-export const installVscodeExtensionCommand = async () => {
+export async function installVscodeExtensionCommand() {
 	await _runInstallVscodeExtension()
 }

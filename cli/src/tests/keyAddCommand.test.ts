@@ -1,120 +1,186 @@
-import { describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
 import path from "node:path"
-import { _runKeyAddCommand } from "../commands/key/add"
 
-type RunKeyAddDeps = NonNullable<Parameters<typeof _runKeyAddCommand>[2]>
+const CWD = "/workspace"
+const HOME = "/home/tester"
+const SSH_KEY_PATH = path.join(HOME, ".ssh", "id_ed25519")
 
-type DepsFactoryResult = {
-	deps: RunKeyAddDeps
-	errors: string[]
-	infos: string[]
-	createdDirs: Set<string>
-	writes: Map<string, string>
-}
+// Per-test state
+let writes: Map<string, string>
+let createdDirs: Set<string>
+let existingPaths: Set<string>
+let readableFiles: Map<string, string>
 
-const makeDeps = (
-	overrides: Partial<RunKeyAddDeps> = {},
-): DepsFactoryResult => {
-	const cwd = "/workspace"
-	const home = "/home/tester"
-	const errors: string[] = []
-	const infos: string[] = []
-	const createdDirs = new Set<string>()
-	const writes = new Map<string, string>()
-	const readableFiles = new Map<string, string>()
-	const existingPaths = new Set<string>()
+// Module-level mocks
+const existsSyncMock = mock((_p: unknown) => false)
+const readFileMock = mock(async (_p: unknown, _enc?: unknown) => {
+	const value = readableFiles?.get(String(_p))
+	if (value === undefined) throw new Error(`ENOENT: ${String(_p)}`)
+	return value
+})
+const mkdirMock = mock(async (_p: unknown) => {
+	const normalized = String(_p)
+	createdDirs?.add(normalized)
+	existingPaths?.add(normalized)
+})
+const writeFileMock = mock(
+	async (_p: unknown, data: unknown, _opts?: unknown) => {
+		const normalized = String(_p)
+		writes?.set(normalized, String(data))
+		existingPaths?.add(normalized)
+	},
+)
 
-	const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519")
-	const publicPem = publicKey
-		.export({ type: "spki", format: "pem" })
-		.toString("utf-8")
+const resolveProjectRootMock = mock(() => CWD)
+const validateKeyNameMock = mock((_name: string) => ({
+	valid: true as boolean,
+	reason: undefined as string | undefined,
+}))
+const validatePublicKeyMock = mock((_key: unknown) => ({
+	valid: true as boolean,
+	reason: undefined as string | undefined,
+}))
+const isPassphraseProtectedMock = mock((_content: string) => false)
+const parseOpenSSHPrivateKeyMock = mock(
+	(_content: string) => null as crypto.KeyObject | null,
+)
+const choosePrivateKeyPromptMock = mock(async (_message: string) => {
+	const { privateKey } = crypto.generateKeyPairSync("ed25519")
+	return {
+		name: "id_ed25519",
+		privateKey,
+		fingerprint: "fingerprint",
+		algorithm: "ed25519" as const,
+		rawPublicKey: Buffer.alloc(32),
+	}
+})
+const inputKeyPromptMock = mock(async (_message: string) => "")
+const inputNamePromptMock = mock(async (_message: string) => "alice")
+const inquirerPromptMock = mock(async (_questions: unknown) => ({
+	mode: "paste",
+}))
+
+mock.module("node:fs", () => ({ existsSync: existsSyncMock }))
+mock.module("node:fs/promises", () => ({
+	default: {
+		readFile: readFileMock,
+		mkdir: mkdirMock,
+		writeFile: writeFileMock,
+	},
+}))
+mock.module("node:os", () => ({ default: { homedir: () => HOME } }))
+mock.module("../helpers/resolveProjectRoot", () => ({
+	resolveProjectRoot: resolveProjectRootMock,
+}))
+mock.module("../helpers/validateKeyName", () => ({
+	validateKeyName: validateKeyNameMock,
+}))
+mock.module("../helpers/validatePublicKey", () => ({
+	validatePublicKey: validatePublicKeyMock,
+}))
+mock.module("../helpers/isPassphraseProtected", () => ({
+	isPassphraseProtected: isPassphraseProtectedMock,
+}))
+mock.module("../helpers/parseOpenSSHKey", () => ({
+	parseOpenSSHPrivateKey: parseOpenSSHPrivateKeyMock,
+}))
+mock.module("../prompts/choosePrivateKey", () => ({
+	choosePrivateKeyPrompt: choosePrivateKeyPromptMock,
+}))
+mock.module("../prompts/inputKey", () => ({
+	inputKeyPrompt: inputKeyPromptMock,
+}))
+mock.module("../prompts/inputName", () => ({
+	inputNamePrompt: inputNamePromptMock,
+}))
+mock.module("inquirer", () => ({ default: { prompt: inquirerPromptMock } }))
+
+const { keyAddCommand } = await import("../commands/key/add")
+
+beforeEach(() => {
+	writes = new Map()
+	createdDirs = new Set()
+	existingPaths = new Set([SSH_KEY_PATH])
+	readableFiles = new Map()
+
+	const { privateKey } = crypto.generateKeyPairSync("ed25519")
 	const privatePem = privateKey
 		.export({ type: "pkcs8", format: "pem" })
 		.toString("utf-8")
+	readableFiles.set(SSH_KEY_PATH, privatePem)
 
-	const sshPath = path.join(home, ".ssh", "id_ed25519")
-	existingPaths.add(sshPath)
-	readableFiles.set(sshPath, privatePem)
-
-	const deps: RunKeyAddDeps = {
-		createPrivateKey: crypto.createPrivateKey,
-		createPublicKey: crypto.createPublicKey,
-		existsSync: (filePath) => existingPaths.has(String(filePath)),
-		readFile: (async (filePath: unknown) => {
-			const value = readableFiles.get(String(filePath))
-			if (value === undefined) {
-				throw new Error(`ENOENT: ${String(filePath)}`)
-			}
-			return value
-		}) as never,
-		mkdir: async (dirPath) => {
-			const normalized = String(dirPath)
-			createdDirs.add(normalized)
-			existingPaths.add(normalized)
-		},
-		writeFile: async (filePath, data) => {
-			const normalized = String(filePath)
-			writes.set(normalized, String(data))
-			existingPaths.add(normalized)
-		},
-		homedir: () => home,
-		cwd: () => cwd,
-		prompt: mock(async () => ({ mode: "paste" })) as never,
-		isPassphraseProtected: () => false,
-		parseOpenSSHPrivateKey: () => null,
-		validatePublicKey: () => ({ valid: true }),
-		validateKeyName: () => ({ valid: true }),
-		choosePrivateKeyPrompt: mock(async () => ({
+	existsSyncMock.mockImplementation((p) => existingPaths.has(String(p)))
+	readFileMock.mockImplementation(async (p, _enc) => {
+		const value = readableFiles.get(String(p))
+		if (value === undefined) throw new Error(`ENOENT: ${String(p)}`)
+		return value
+	})
+	mkdirMock.mockImplementation(async (p) => {
+		createdDirs.add(String(p))
+		existingPaths.add(String(p))
+	})
+	writeFileMock.mockImplementation(async (p, data, _opts) => {
+		writes.set(String(p), String(data))
+		existingPaths.add(String(p))
+	})
+	resolveProjectRootMock.mockImplementation(() => CWD)
+	validateKeyNameMock.mockImplementation(() => ({
+		valid: true,
+		reason: undefined,
+	}))
+	validatePublicKeyMock.mockImplementation(() => ({
+		valid: true,
+		reason: undefined,
+	}))
+	isPassphraseProtectedMock.mockImplementation(() => false)
+	parseOpenSSHPrivateKeyMock.mockImplementation(() => null)
+	choosePrivateKeyPromptMock.mockImplementation(async () => {
+		const { privateKey: pk } = crypto.generateKeyPairSync("ed25519")
+		return {
 			name: "id_ed25519",
-			privateKey,
+			privateKey: pk,
 			fingerprint: "fingerprint",
-			algorithm: "ed25519",
+			algorithm: "ed25519" as const,
 			rawPublicKey: Buffer.alloc(32),
-		})) as never,
-		inputKeyPrompt: mock(async () => publicPem) as never,
-		inputNamePrompt: mock(async () => "alice") as never,
-		logError: (message) => {
-			errors.push(message)
-		},
-		logInfo: (message) => {
-			infos.push(message)
-		},
-		privateKeyPassphrase: undefined,
-		exit: ((code: number): never => {
-			throw new Error(`exit(${code})`)
-		}) as never,
-		...overrides,
-	}
+		}
+	})
+	inputKeyPromptMock.mockImplementation(async () => "")
+	inputNamePromptMock.mockImplementation(async () => "alice")
+	inquirerPromptMock.mockImplementation(async () => ({ mode: "paste" }))
 
-	return {
-		deps,
-		errors,
-		infos,
-		createdDirs,
-		writes,
-	}
-}
+	delete process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
+})
 
 describe("keyAddCommand", () => {
 	test("rejects when --from-ssh path does not exist", async () => {
-		const { deps } = makeDeps({
-			existsSync: () => false,
+		existsSyncMock.mockImplementation(() => false)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_missing" }, deps),
+			keyAddCommand("alice", { fromSsh: "~/.ssh/id_missing" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("rejects passphrase-protected SSH key content", async () => {
-		const { deps } = makeDeps({
-			isPassphraseProtected: () => true,
+		isPassphraseProtectedMock.mockImplementation(() => true)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps),
+			keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("supports passphrase-protected --from-ssh when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
@@ -127,48 +193,51 @@ describe("keyAddCommand", () => {
 				passphrase: "secret",
 			})
 			.toString("utf-8")
-		const { deps, writes } = makeDeps({
-			readFile: (async () => encryptedPrivatePem) as never,
-			isPassphraseProtected: () => true,
-			privateKeyPassphrase: "secret",
-		})
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
-		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
-			true,
-		)
+		readableFiles.set(SSH_KEY_PATH, encryptedPrivatePem)
+		isPassphraseProtectedMock.mockImplementation(() => true)
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "secret"
+
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
+
+		expect(writes.has(path.join(CWD, ".dotenc", "alice.pub"))).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("accepts --from-ssh private key and writes normalized .pub file", async () => {
-		const { deps, writes, infos } = makeDeps()
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
-
-		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
-			true,
-		)
+		expect(writes.has(path.join(CWD, ".dotenc", "alice.pub"))).toBe(true)
 		expect(
-			infos.some((message) => message.includes("added successfully")),
+			logSpy.mock.calls.some((call) =>
+				String(call[0]).includes("added successfully"),
+			),
 		).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("falls back to parsed OpenSSH private key for --from-ssh", async () => {
 		const { privateKey } = crypto.generateKeyPairSync("ed25519")
-		const privatePem = privateKey
-			.export({ type: "pkcs8", format: "pem" })
-			.toString("utf-8")
+		readableFiles.set(SSH_KEY_PATH, "OPENSSH-PRIVATE-KEY")
 
-		const { deps, writes } = makeDeps({
-			readFile: (async () => "OPENSSH-PRIVATE-KEY") as never,
-			createPrivateKey: () => {
+		const origCreatePrivateKey = crypto.createPrivateKey.bind(crypto)
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("parse failed")
 			},
-			parseOpenSSHPrivateKey: () => crypto.createPrivateKey(privatePem),
-		})
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => privateKey)
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
 
 		expect(writes.size).toBe(1)
+		privKeySpy.mockRestore()
+		logSpy.mockRestore()
+		// Avoid unused variable warning
+		void origCreatePrivateKey
 	})
 
 	test("uses public-key fallback when --from-ssh private key parse fails", async () => {
@@ -177,52 +246,69 @@ describe("keyAddCommand", () => {
 			.export({ type: "spki", format: "pem" })
 			.toString("utf-8")
 
-		const { deps, writes } = makeDeps({
-			readFile: (async () => publicPem) as never,
-			createPrivateKey: () => {
+		readableFiles.set(SSH_KEY_PATH, publicPem)
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("not a private key")
 			},
-			parseOpenSSHPrivateKey: () => null,
-		})
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => null)
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
 
 		expect(writes.size).toBe(1)
+		privKeySpy.mockRestore()
+		logSpy.mockRestore()
 	})
 
 	test("logs details when --from-ssh content is invalid", async () => {
-		const { deps, errors } = makeDeps({
-			readFile: (async () => "not a key") as never,
-			createPrivateKey: () => {
+		readableFiles.set(SSH_KEY_PATH, "not a key")
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("private parse failed")
 			},
-			createPublicKey: () => {
+		)
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			() => {
 				throw new Error("public parse failed")
 			},
-			parseOpenSSHPrivateKey: () => null,
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => null)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps),
+			keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }),
 		).rejects.toThrow("exit(1)")
 
-		expect(
-			errors.some((message) => message.includes("Invalid SSH key format")),
-		).toBe(true)
-		expect(
-			errors.some((message) => message.includes("public parse failed")),
-		).toBe(true)
+		const errors = errSpy.mock.calls.map((c) => String(c[0]))
+		expect(errors.some((m) => m.includes("Invalid SSH key format"))).toBe(true)
+		expect(errors.some((m) => m.includes("public parse failed"))).toBe(true)
+		privKeySpy.mockRestore()
+		pubKeySpy.mockRestore()
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("rejects when --from-file path does not exist", async () => {
-		const { deps } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc"),
+		existsSyncMock.mockImplementation(
+			(p) => String(p) === path.join(CWD, ".dotenc"),
+		)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromFile: "/tmp/missing.pem" }, deps),
+			keyAddCommand("alice", { fromFile: "/tmp/missing.pem" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("rejects passphrase-protected --from-file keys", async () => {
@@ -232,17 +318,20 @@ describe("keyAddCommand", () => {
 			.toString("utf-8")
 		const fromFilePath = "/tmp/key.pem"
 
-		const { deps } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc") ||
-				String(filePath) === fromFilePath,
-			readFile: (async () => privatePem) as never,
-			isPassphraseProtected: () => true,
+		existingSyncSetup([path.join(CWD, ".dotenc"), fromFilePath])
+		readableFiles.set(fromFilePath, privatePem)
+		isPassphraseProtectedMock.mockImplementation(() => true)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromFile: fromFilePath }, deps),
+			keyAddCommand("alice", { fromFile: fromFilePath }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("supports passphrase-protected --from-file when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
@@ -257,19 +346,16 @@ describe("keyAddCommand", () => {
 			.toString("utf-8")
 		const fromFilePath = "/tmp/key.pem"
 
-		const { deps, writes } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc") ||
-				String(filePath) === fromFilePath,
-			readFile: (async () => encryptedPrivatePem) as never,
-			isPassphraseProtected: () => true,
-			privateKeyPassphrase: "secret",
-		})
+		existingSyncSetup([path.join(CWD, ".dotenc"), fromFilePath])
+		readableFiles.set(fromFilePath, encryptedPrivatePem)
+		isPassphraseProtectedMock.mockImplementation(() => true)
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "secret"
 
-		await _runKeyAddCommand("alice", { fromFile: fromFilePath }, deps)
-		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
-			true,
-		)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromFile: fromFilePath })
+
+		expect(writes.has(path.join(CWD, ".dotenc", "alice.pub"))).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("falls back to private key parse for --from-file", async () => {
@@ -278,26 +364,26 @@ describe("keyAddCommand", () => {
 			.export({ type: "pkcs8", format: "pem" })
 			.toString("utf-8")
 		const fromFilePath = "/tmp/key.pem"
-		const originalCreatePublicKey = crypto.createPublicKey
 
+		existingSyncSetup([path.join(CWD, ".dotenc"), fromFilePath])
+		readableFiles.set(fromFilePath, privatePem)
+
+		const originalCreatePublicKey = crypto.createPublicKey.bind(crypto)
 		let publicKeyCalls = 0
-		const { deps, writes } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc") ||
-				String(filePath) === fromFilePath,
-			readFile: (async () => privatePem) as never,
-			createPublicKey: ((input: string | crypto.KeyObject) => {
-				publicKeyCalls += 1
-				if (publicKeyCalls === 1) {
-					throw new Error("not public pem")
-				}
-				return originalCreatePublicKey(input)
-			}) as never,
-		})
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			(input: unknown) => {
+				publicKeyCalls++
+				if (publicKeyCalls === 1) throw new Error("not public pem")
+				return originalCreatePublicKey(input as crypto.KeyObject)
+			},
+		)
 
-		await _runKeyAddCommand("alice", { fromFile: fromFilePath }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromFile: fromFilePath })
 
 		expect(writes.size).toBe(1)
+		pubKeySpy.mockRestore()
+		logSpy.mockRestore()
 	})
 
 	test("falls back to OpenSSH parser for --from-file", async () => {
@@ -306,65 +392,89 @@ describe("keyAddCommand", () => {
 			.export({ type: "pkcs8", format: "pem" })
 			.toString("utf-8")
 		const fromFilePath = "/tmp/key.pem"
-		const originalCreatePublicKey = crypto.createPublicKey
-		let createPublicKeyCalls = 0
 
-		const { deps, writes } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc") ||
-				String(filePath) === fromFilePath,
-			readFile: (async () => "OPENSSH PRIVATE KEY") as never,
-			createPublicKey: ((input: string | crypto.KeyObject) => {
-				createPublicKeyCalls += 1
-				if (createPublicKeyCalls === 1) {
-					throw new Error("bad public key")
-				}
-				return originalCreatePublicKey(input)
-			}) as never,
-			createPrivateKey: () => {
+		existingSyncSetup([path.join(CWD, ".dotenc"), fromFilePath])
+		readableFiles.set(fromFilePath, "OPENSSH PRIVATE KEY")
+
+		// Create key object before spying so the mock can return it without calling the spy
+		const parsedKey = crypto.createPrivateKey(privatePem)
+
+		const originalCreatePublicKey = crypto.createPublicKey.bind(crypto)
+		let createPublicKeyCalls = 0
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			(input: unknown) => {
+				createPublicKeyCalls++
+				if (createPublicKeyCalls === 1) throw new Error("bad public key")
+				return originalCreatePublicKey(input as crypto.KeyObject)
+			},
+		)
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("bad private key")
 			},
-			parseOpenSSHPrivateKey: () => crypto.createPrivateKey(privatePem),
-		})
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => parsedKey)
 
-		await _runKeyAddCommand("alice", { fromFile: fromFilePath }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromFile: fromFilePath })
 
 		expect(writes.size).toBe(1)
+		pubKeySpy.mockRestore()
+		privKeySpy.mockRestore()
+		logSpy.mockRestore()
 	})
 
 	test("rejects invalid --from-file content", async () => {
 		const fromFilePath = "/tmp/key.pem"
-		const { deps, errors } = makeDeps({
-			existsSync: (filePath) =>
-				String(filePath) === path.join("/workspace", ".dotenc") ||
-				String(filePath) === fromFilePath,
-			readFile: (async () => "not a key") as never,
-			createPublicKey: () => {
+
+		existingSyncSetup([path.join(CWD, ".dotenc"), fromFilePath])
+		readableFiles.set(fromFilePath, "not a key")
+
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			() => {
 				throw new Error("bad public key")
 			},
-			createPrivateKey: () => {
+		)
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("bad private key")
 			},
-			parseOpenSSHPrivateKey: () => null,
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => null)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromFile: fromFilePath }, deps),
+			keyAddCommand("alice", { fromFile: fromFilePath }),
 		).rejects.toThrow("exit(1)")
 
 		expect(
-			errors.some((message) => message.includes("Invalid key format")),
+			errSpy.mock.calls.some((c) =>
+				String(c[0]).includes("Invalid key format"),
+			),
 		).toBe(true)
+		pubKeySpy.mockRestore()
+		privKeySpy.mockRestore()
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("rejects passphrase-protected --from-string key without passphrase", async () => {
-		const { deps } = makeDeps({
-			isPassphraseProtected: () => true,
+		isPassphraseProtectedMock.mockImplementation(() => true)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
-		await expect(
-			_runKeyAddCommand("alice", { fromString: "any" }, deps),
-		).rejects.toThrow("exit(1)")
+		await expect(keyAddCommand("alice", { fromString: "any" })).rejects.toThrow(
+			"exit(1)",
+		)
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("supports passphrase-protected --from-string when DOTENC_PRIVATE_KEY_PASSPHRASE is provided", async () => {
@@ -378,31 +488,41 @@ describe("keyAddCommand", () => {
 			})
 			.toString("utf-8")
 
-		const { deps, writes } = makeDeps({
-			isPassphraseProtected: () => true,
-			privateKeyPassphrase: "secret",
-		})
+		isPassphraseProtectedMock.mockImplementation(() => true)
+		process.env.DOTENC_PRIVATE_KEY_PASSPHRASE = "secret"
 
-		await _runKeyAddCommand("alice", { fromString: encryptedPrivatePem }, deps)
-		expect(writes.has(path.join("/workspace", ".dotenc", "alice.pub"))).toBe(
-			true,
-		)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromString: encryptedPrivatePem })
+
+		expect(writes.has(path.join(CWD, ".dotenc", "alice.pub"))).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("rejects invalid --from-string content", async () => {
-		const { deps } = makeDeps({
-			createPublicKey: () => {
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			() => {
 				throw new Error("bad public key")
 			},
-			createPrivateKey: () => {
+		)
+		const privKeySpy = spyOn(crypto, "createPrivateKey").mockImplementation(
+			() => {
 				throw new Error("bad private key")
 			},
-			parseOpenSSHPrivateKey: () => null,
+		)
+		parseOpenSSHPrivateKeyMock.mockImplementation(() => null)
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromString: "invalid" }, deps),
+			keyAddCommand("alice", { fromString: "invalid" }),
 		).rejects.toThrow("exit(1)")
+		pubKeySpy.mockRestore()
+		privKeySpy.mockRestore()
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("supports --from-string private keys", async () => {
@@ -410,135 +530,164 @@ describe("keyAddCommand", () => {
 		const privatePem = privateKey
 			.export({ type: "pkcs8", format: "pem" })
 			.toString("utf-8")
-		const originalCreatePublicKey = crypto.createPublicKey
 
+		const originalCreatePublicKey = crypto.createPublicKey.bind(crypto)
 		let call = 0
-		const { deps, writes } = makeDeps({
-			createPublicKey: ((input: string | crypto.KeyObject) => {
-				call += 1
-				if (call === 1) {
-					throw new Error("not a public pem")
-				}
-				return originalCreatePublicKey(input)
-			}) as never,
-		})
+		const pubKeySpy = spyOn(crypto, "createPublicKey").mockImplementation(
+			(input: unknown) => {
+				call++
+				if (call === 1) throw new Error("not a public pem")
+				return originalCreatePublicKey(input as crypto.KeyObject)
+			},
+		)
 
-		await _runKeyAddCommand("alice", { fromString: privatePem }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromString: privatePem })
 
 		expect(writes.size).toBe(1)
+		pubKeySpy.mockRestore()
+		logSpy.mockRestore()
 	})
 
 	test("interactive paste mode rejects empty input", async () => {
-		const { deps } = makeDeps({
-			prompt: mock(async () => ({ mode: "paste" })) as never,
-			inputKeyPrompt: mock(async () => "") as never,
+		inquirerPromptMock.mockImplementation(async () => ({ mode: "paste" }))
+		inputKeyPromptMock.mockImplementation(async () => "")
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
-		await expect(_runKeyAddCommand(undefined, undefined, deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		await expect(keyAddCommand(undefined, undefined)).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("interactive choose mode handles prompt errors", async () => {
-		const { deps } = makeDeps({
-			prompt: mock(async () => ({ mode: "choose" })) as never,
-			choosePrivateKeyPrompt: mock(async () => {
-				throw new Error("No private keys found")
-			}) as never,
+		inquirerPromptMock.mockImplementation(async () => ({ mode: "choose" }))
+		choosePrivateKeyPromptMock.mockImplementation(async () => {
+			throw new Error("No private keys found")
 		})
 
-		await expect(_runKeyAddCommand(undefined, undefined, deps)).rejects.toThrow(
-			"exit(1)",
-		)
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		await expect(keyAddCommand(undefined, undefined)).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("interactive choose mode uses selected key name when CLI name is missing", async () => {
 		const { privateKey } = crypto.generateKeyPairSync("ed25519")
-		const { deps, writes } = makeDeps({
-			prompt: mock(async () => ({ mode: "choose" })) as never,
-			choosePrivateKeyPrompt: mock(async () => ({
-				name: "selected_name",
-				privateKey,
-				fingerprint: "fingerprint",
-				algorithm: "ed25519",
-				rawSeed: Buffer.alloc(32),
-				rawPublicKey: Buffer.alloc(32),
-			})) as never,
-		})
 
-		await _runKeyAddCommand(undefined, undefined, deps)
+		inquirerPromptMock.mockImplementation(async () => ({ mode: "choose" }))
+		choosePrivateKeyPromptMock.mockImplementation(async () => ({
+			name: "selected_name",
+			privateKey,
+			fingerprint: "fingerprint",
+			algorithm: "ed25519" as const,
+			rawSeed: Buffer.alloc(32),
+			rawPublicKey: Buffer.alloc(32),
+		}))
 
-		expect(
-			writes.has(path.join("/workspace", ".dotenc", "selected_name.pub")),
-		).toBe(true)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand(undefined, undefined)
+
+		expect(writes.has(path.join(CWD, ".dotenc", "selected_name.pub"))).toBe(
+			true,
+		)
+		logSpy.mockRestore()
 	})
 
 	test("rejects when public key validation fails", async () => {
-		const { deps } = makeDeps({
-			validatePublicKey: () => ({
-				valid: false,
-				reason: "Invalid key: RSA key is too weak",
-			}),
+		validatePublicKeyMock.mockImplementation(() => ({
+			valid: false,
+			reason: "Invalid key: RSA key is too weak",
+		}))
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromString: "anything" }, deps),
+			keyAddCommand("alice", { fromString: "anything" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("rejects invalid normalized key names", async () => {
-		const { deps } = makeDeps({
-			validateKeyName: () => ({
-				valid: false,
-				reason: "invalid key name",
-			}),
+		validateKeyNameMock.mockImplementation(() => ({
+			valid: false,
+			reason: "invalid key name",
+		}))
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("invalid/../name", { fromString: "anything" }, deps),
+			keyAddCommand("invalid/../name", { fromString: "anything" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("creates .dotenc directory when absent", async () => {
-		const { deps, createdDirs } = makeDeps({
-			existsSync: (filePath) => {
-				const normalized = String(filePath)
-				return normalized === path.join("/home/tester", ".ssh", "id_ed25519")
-			},
-		})
+		existingSyncSetup([SSH_KEY_PATH])
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
 
-		expect(createdDirs.has(path.join("/workspace", ".dotenc"))).toBe(true)
+		expect(createdDirs.has(path.join(CWD, ".dotenc"))).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("rejects duplicate key names", async () => {
-		const duplicatePath = path.join("/workspace", ".dotenc", "alice.pub")
+		const duplicatePath = path.join(CWD, ".dotenc", "alice.pub")
 		const eexistError = Object.assign(new Error("EEXIST"), { code: "EEXIST" })
-		const { deps } = makeDeps({
-			writeFile: (async (filePath: unknown) => {
-				if (String(filePath) === duplicatePath) throw eexistError
-			}) as never,
+
+		writeFileMock.mockImplementation(async (p, _data, _opts) => {
+			if (String(p) === duplicatePath) throw eexistError
+		})
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
 		})
 
 		await expect(
-			_runKeyAddCommand("alice", { fromString: "anything" }, deps),
+			keyAddCommand("alice", { fromString: "anything" }),
 		).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("writes to projectRoot .dotenc when cwd is a subdir", async () => {
 		const projectRoot = "/workspace"
 		const subdir = path.join(projectRoot, "packages", "web")
-		const { deps, writes } = makeDeps({
-			cwd: () => subdir,
-			resolveProjectRoot: () => projectRoot,
-		})
 
-		await _runKeyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" }, deps)
+		const cwdSpy = spyOn(process, "cwd").mockReturnValue(subdir)
+		resolveProjectRootMock.mockImplementation(() => projectRoot)
+
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await keyAddCommand("alice", { fromSsh: "~/.ssh/id_ed25519" })
 
 		// Key should be written to projectRoot/.dotenc, not subdir/.dotenc
 		expect(writes.has(path.join(projectRoot, ".dotenc", "alice.pub"))).toBe(
 			true,
 		)
+		cwdSpy.mockRestore()
+		logSpy.mockRestore()
 	})
 })
+
+// Helper to set up existsSyncMock with specific paths
+function existingSyncSetup(paths: string[]) {
+	const pathSet = new Set(paths)
+	existsSyncMock.mockImplementation((p) => pathSet.has(String(p)))
+}

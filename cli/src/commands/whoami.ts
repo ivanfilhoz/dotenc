@@ -16,8 +16,7 @@ export const whoamiCommand = async () => {
 	}
 	const dotencDir = path.join(projectRoot, ".dotenc")
 
-	const { keys: privateKeys, passphraseProtectedKeys } =
-		await getPrivateKeys()
+	const { keys: privateKeys, passphraseProtectedKeys } = await getPrivateKeys()
 	const publicKeys = await getPublicKeys(dotencDir)
 
 	const privateFingerprints = new Set(privateKeys.map((k) => k.fingerprint))

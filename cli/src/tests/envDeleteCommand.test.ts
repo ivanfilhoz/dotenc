@@ -17,9 +17,14 @@ const fsUnlink = mock(async (_filePath: string) => {})
 
 mock.module("../prompts/chooseEnvironment", () => ({ chooseEnvironmentPrompt }))
 mock.module("../prompts/confirm", () => ({ confirmPrompt }))
-mock.module("../helpers/validateEnvironmentName", () => ({ validateEnvironmentName }))
+mock.module("../helpers/validateEnvironmentName", () => ({
+	validateEnvironmentName,
+}))
 mock.module("node:fs", () => ({ ...realFs, existsSync }))
-mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, unlink: fsUnlink } }))
+mock.module("node:fs/promises", () => ({
+	...realFsPromises,
+	default: { ...realFsPromises, unlink: fsUnlink },
+}))
 
 const { envDeleteCommand } = await import("../commands/env/delete")
 
@@ -39,7 +44,9 @@ describe("envDeleteCommand", () => {
 			throw new Error(`exit(${code})`)
 		})
 
-		await expect(envDeleteCommand("invalid!!", false)).rejects.toThrow("exit(1)")
+		await expect(envDeleteCommand("invalid!!", false)).rejects.toThrow(
+			"exit(1)",
+		)
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain(

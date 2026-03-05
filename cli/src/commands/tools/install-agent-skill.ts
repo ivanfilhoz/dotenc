@@ -8,18 +8,10 @@ type Options = {
 
 type Scope = "local" | "global"
 
-type InstallAgentSkillDeps = {
-	prompt: typeof inquirer.prompt
-	runNpx: (args: string[]) => Promise<number>
-	log: (message: string) => void
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
 const SKILL_SOURCE = "ivanfilhoz/dotenc"
 const SKILL_NAME = "dotenc"
 
-const runNpx = (args: string[], spawnImpl: typeof spawn = spawn) =>
+export const _runNpx = (args: string[], spawnImpl: typeof spawn = spawn) =>
 	new Promise<number>((resolve, reject) => {
 		const child = spawnImpl("npx", args, {
 			stdio: "inherit",
@@ -30,26 +22,8 @@ const runNpx = (args: string[], spawnImpl: typeof spawn = spawn) =>
 		child.on("exit", (code) => resolve(code ?? 1))
 	})
 
-export const _runNpx = runNpx
-
-const defaultDeps: InstallAgentSkillDeps = {
-	prompt: inquirer.prompt,
-	runNpx,
-	log: console.log,
-	logError: console.error,
-	exit: process.exit,
-}
-
-export const _runInstallAgentSkillCommand = async (
-	options: Options,
-	depsOverrides: Partial<InstallAgentSkillDeps> = {},
-) => {
-	const deps: InstallAgentSkillDeps = {
-		...defaultDeps,
-		...depsOverrides,
-	}
-
-	const { scope } = (await deps.prompt([
+export const installAgentSkillCommand = async (options: Options) => {
+	const { scope } = (await inquirer.prompt([
 		{
 			type: "list",
 			name: "scope",
@@ -67,7 +41,6 @@ export const _runInstallAgentSkillCommand = async (
 		args.push("-g")
 	}
 
-	// Keep backward compatibility with existing --force flag by mapping it to non-interactive mode.
 	if (options.force) {
 		args.push("-y")
 	}
@@ -76,30 +49,26 @@ export const _runInstallAgentSkillCommand = async (
 	let exitCode = 0
 
 	try {
-		exitCode = await deps.runNpx(args)
+		exitCode = await _runNpx(args)
 	} catch (error) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} failed to run ${chalk.gray(npxCommand)}.`,
 		)
-		deps.logError(
+		console.error(
 			`${chalk.red("Details:")} ${error instanceof Error ? error.message : String(error)}`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	if (exitCode !== 0) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} skill installation command exited with code ${exitCode}.`,
 		)
-		deps.exit(exitCode)
+		process.exit(exitCode)
 	}
 
-	deps.log(
+	console.log(
 		`${chalk.green("✓")} Agent skill installation completed via ${chalk.gray(npxCommand)}.`,
 	)
-	deps.log(`Run ${chalk.gray("/dotenc")} in your agent to use it.`)
-}
-
-export const installAgentSkillCommand = async (options: Options) => {
-	await _runInstallAgentSkillCommand(options)
+	console.log(`Run ${chalk.gray("/dotenc")} in your agent to use it.`)
 }

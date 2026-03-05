@@ -1,127 +1,71 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
-import { devCommand } from "../commands/dev"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
+
+const getCurrentKeyName = mock(async () => ["alice"])
+const runCommandMock = mock(async () => {})
+const inquirerPromptMock = mock(async () => ({ selected: "" }))
+
+mock.module("../helpers/getCurrentKeyName", () => ({ getCurrentKeyName }))
+mock.module("../commands/run", () => ({ runCommand: runCommandMock }))
+mock.module("inquirer", () => ({ default: { prompt: inquirerPromptMock } }))
+
+const { devCommand } = await import("../commands/dev")
+
+beforeEach(() => {
+	getCurrentKeyName.mockClear()
+	runCommandMock.mockClear()
+	inquirerPromptMock.mockClear()
+	getCurrentKeyName.mockImplementation(async () => ["alice"])
+	runCommandMock.mockImplementation(async () => {})
+	inquirerPromptMock.mockImplementation(async () => ({ selected: "" }))
+})
 
 describe("devCommand", () => {
-	let runCommandMock: ReturnType<typeof mock>
-	let logErrorMock: ReturnType<typeof mock>
-	let selectMock: ReturnType<typeof mock>
-
-	beforeEach(() => {
-		runCommandMock = mock(() => Promise.resolve())
-		logErrorMock = mock((_message: string) => {})
-		selectMock = mock(
-			(_message: string, _choices: { name: string; value: string }[]) =>
-				Promise.resolve(""),
-		)
-	})
-
 	test("delegates to runCommand with development,<keyName>", async () => {
-		const exit = (code: number): never => {
-			throw new Error(`Unexpected process.exit(${code})`)
-		}
-		const runCommand = ((...args: unknown[]) =>
-			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-		const logError = ((message: string) => logErrorMock(message)) as (
-			message: string,
-		) => void
-
-		await devCommand(
-			"node",
-			["app.js"],
-			{},
-			{
-				getCurrentKeyName: async () => ["alice"],
-				runCommand,
-				logError,
-				exit,
-				select: selectMock as typeof selectMock &
-					(<T>(
-						message: string,
-						choices: { name: string; value: T }[],
-					) => Promise<T>),
-			},
-		)
+		await devCommand("node", ["app.js"], {})
 
 		expect(runCommandMock).toHaveBeenCalledTimes(1)
 		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
 			env: "development,alice",
 			localOnly: undefined,
 		})
-		expect(logErrorMock).not.toHaveBeenCalled()
-		expect(selectMock).not.toHaveBeenCalled()
+		expect(inquirerPromptMock).not.toHaveBeenCalled()
 	})
 
 	test("prints error when no identity is found", async () => {
-		const exitMock = mock((code: number): never => {
+		getCurrentKeyName.mockImplementation(async () => [])
+
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
 			throw new Error(`process.exit(${code})`)
 		})
-		const runCommand = ((...args: unknown[]) =>
-			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-		const logError = ((message: string) => logErrorMock(message)) as (
-			message: string,
-		) => void
 
-		await expect(
-			devCommand(
-				"node",
-				["app.js"],
-				{},
-				{
-					getCurrentKeyName: async () => [],
-					runCommand,
-					logError,
-					exit: exitMock,
-					select: selectMock as typeof selectMock &
-						(<T>(
-							message: string,
-							choices: { name: string; value: T }[],
-						) => Promise<T>),
-				},
-			),
-		).rejects.toThrow("process.exit(1)")
+		await expect(devCommand("node", ["app.js"], {})).rejects.toThrow(
+			"process.exit(1)",
+		)
 
 		expect(runCommandMock).not.toHaveBeenCalled()
-		expect(exitMock).toHaveBeenCalledWith(1)
-		expect(logErrorMock).toHaveBeenCalledTimes(1)
-		const [errorMessage] = logErrorMock.mock.calls[0]
+		expect(exitSpy).toHaveBeenCalledWith(1)
+		expect(errSpy).toHaveBeenCalledTimes(1)
+		const [errorMessage] = errSpy.mock.calls[0] as [string]
 		expect(errorMessage).toContain("could not resolve your identity")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("prompts user to select identity when multiple keys match", async () => {
-		const exit = (code: number): never => {
-			throw new Error(`Unexpected process.exit(${code})`)
-		}
-		const runCommand = ((...args: unknown[]) =>
-			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-		const logError = ((message: string) => logErrorMock(message)) as (
-			message: string,
-		) => void
+		getCurrentKeyName.mockImplementation(async () => ["alice", "alice-deploy"])
+		inquirerPromptMock.mockImplementation(async () => ({
+			selected: "alice-deploy",
+		}))
 
-		const selectForTest = mock(
-			(_message: string, _choices: { name: string; value: string }[]) =>
-				Promise.resolve("alice-deploy"),
-		)
+		await devCommand("node", ["app.js"], {})
 
-		await devCommand(
-			"node",
-			["app.js"],
-			{},
-			{
-				getCurrentKeyName: async () => ["alice", "alice-deploy"],
-				runCommand,
-				logError,
-				exit,
-				select: selectForTest as typeof selectForTest &
-					(<T>(
-						message: string,
-						choices: { name: string; value: T }[],
-					) => Promise<T>),
-			},
-		)
-
-		expect(selectForTest).toHaveBeenCalledTimes(1)
-		expect(selectForTest.mock.calls[0][0]).toContain("Multiple identities")
-		expect(selectForTest.mock.calls[0][1]).toEqual([
+		expect(inquirerPromptMock).toHaveBeenCalledTimes(1)
+		const [promptArgs] = inquirerPromptMock.mock.calls[0] as unknown as [
+			Array<{ message: string; choices: { name: string; value: string }[] }>,
+		]
+		expect(promptArgs[0].message).toContain("Multiple identities")
+		expect(promptArgs[0].choices).toEqual([
 			{ name: "alice", value: "alice" },
 			{ name: "alice-deploy", value: "alice-deploy" },
 		])
@@ -133,28 +77,7 @@ describe("devCommand", () => {
 	})
 
 	test("forwards localOnly option to runCommand", async () => {
-		const exit = (code: number): never => {
-			throw new Error(`Unexpected process.exit(${code})`)
-		}
-		const runCommand = ((...args: unknown[]) =>
-			runCommandMock(...args)) as typeof import("../commands/run").runCommand
-
-		await devCommand(
-			"node",
-			["app.js"],
-			{ localOnly: true },
-			{
-				getCurrentKeyName: async () => ["alice"],
-				runCommand,
-				logError: logErrorMock,
-				exit,
-				select: selectMock as typeof selectMock &
-					(<T>(
-						message: string,
-						choices: { name: string; value: T }[],
-					) => Promise<T>),
-			},
-		)
+		await devCommand("node", ["app.js"], { localOnly: true })
 
 		expect(runCommandMock).toHaveBeenCalledWith("node", ["app.js"], {
 			env: "development,alice",

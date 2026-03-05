@@ -7,7 +7,9 @@ const chooseEnvironmentPrompt = mock(async (_msg: string) => "production")
 const choosePublicKeyPrompt = mock(async (_msg: string) => "alice")
 const decryptEnvironment = mock(async (_name: string) => "API_KEY=secret")
 const getPublicKeyByName = mock(async (_name: string) => ({}))
-const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const encryptEnvironment = mock(
+	async (_name: string, _content: string, _options?: object) => {},
+)
 const validateEnvironmentName = mock((name: string) =>
 	name === "invalid"
 		? { valid: false as const, reason: "invalid environment" }
@@ -16,10 +18,15 @@ const validateEnvironmentName = mock((name: string) =>
 
 mock.module("../prompts/chooseEnvironment", () => ({ chooseEnvironmentPrompt }))
 mock.module("../prompts/choosePublicKey", () => ({ choosePublicKeyPrompt }))
-mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironment, decryptEnvironmentData: decryptEnvironment }))
+mock.module("../helpers/decryptEnvironment", () => ({
+	decryptEnvironment,
+	decryptEnvironmentData: decryptEnvironment,
+}))
 mock.module("../helpers/getPublicKeyByName", () => ({ getPublicKeyByName }))
 mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
-mock.module("../helpers/validateEnvironmentName", () => ({ validateEnvironmentName }))
+mock.module("../helpers/validateEnvironmentName", () => ({
+	validateEnvironmentName,
+}))
 
 const { grantCommand } = await import("../commands/auth/grant")
 
@@ -85,7 +92,9 @@ describe("grantCommand", () => {
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(decryptEnvironment).not.toHaveBeenCalled()
-		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("invalid environment")
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain(
+			"invalid environment",
+		)
 		logErrorSpy.mockRestore()
 		exitSpy.mockRestore()
 		cwdSpy.mockRestore()

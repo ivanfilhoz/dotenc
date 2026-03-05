@@ -14,7 +14,9 @@ const makeEnvFile = (name: string, dir = ROOT): EnvFile => ({
 const chooseEnvironmentPrompt = mock(async (_msg: string) => "production")
 const confirmPrompt = mock(async (_msg: string) => true)
 const decryptEnvironmentData = mock(async () => "A=1")
-const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const encryptEnvironment = mock(
+	async (_name: string, _content: string, _options?: object) => {},
+)
 const findEnvironmentsRecursive = mock(async (_dir: string) => [
 	makeEnvFile("staging"),
 	makeEnvFile("production"),
@@ -34,11 +36,18 @@ const existsSync = mock((_p: string) => true)
 
 mock.module("../prompts/chooseEnvironment", () => ({ chooseEnvironmentPrompt }))
 mock.module("../prompts/confirm", () => ({ confirmPrompt }))
-mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData, decryptEnvironment: decryptEnvironmentData }))
+mock.module("../helpers/decryptEnvironment", () => ({
+	decryptEnvironmentData,
+	decryptEnvironment: decryptEnvironmentData,
+}))
 mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
-mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({
+	findEnvironmentsRecursive,
+}))
 mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
-mock.module("../helpers/validateEnvironmentName", () => ({ validateEnvironmentName }))
+mock.module("../helpers/validateEnvironmentName", () => ({
+	validateEnvironmentName,
+}))
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
 mock.module("node:fs", () => ({ ...realFs, existsSync }))
 
@@ -62,7 +71,11 @@ describe("rotateCommand (single)", () => {
 		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 		existsSync.mockImplementation(() => true)
 		chooseEnvironmentPrompt.mockImplementation(async () => "production")
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {})
 
@@ -71,7 +84,9 @@ describe("rotateCommand (single)", () => {
 		expect(chooseEnvironmentPrompt).toHaveBeenCalledTimes(1)
 		expect(decryptEnvironmentData).toHaveBeenCalledTimes(1)
 		expect(encryptEnvironment).toHaveBeenCalledTimes(1)
-		expect(String(logSpy.mock.calls[0]?.[0])).toContain("Data key for production")
+		expect(String(logSpy.mock.calls[0]?.[0])).toContain(
+			"Data key for production",
+		)
 		logSpy.mockRestore()
 		cwdSpy.mockRestore()
 	})
@@ -80,7 +95,11 @@ describe("rotateCommand (single)", () => {
 		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
 		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 		existsSync.mockImplementation(() => true)
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {})
 
@@ -100,11 +119,15 @@ describe("rotateCommand (single)", () => {
 			throw new Error(`exit(${code})`)
 		})
 
-		await expect(rotateCommand("invalid", false, false)).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("invalid", false, false)).rejects.toThrow(
+			"exit(1)",
+		)
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(decryptEnvironmentData).not.toHaveBeenCalled()
-		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("invalid environment")
+		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain(
+			"invalid environment",
+		)
 		logErrorSpy.mockRestore()
 		exitSpy.mockRestore()
 		cwdSpy.mockRestore()
@@ -118,7 +141,9 @@ describe("rotateCommand (single)", () => {
 		})
 		existsSync.mockImplementation(() => false)
 
-		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow(
+			"exit(1)",
+		)
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(String(logErrorSpy.mock.calls[0]?.[0])).toContain("not found")
@@ -134,12 +159,18 @@ describe("rotateCommand (single)", () => {
 			throw new Error(`exit(${code})`)
 		})
 		existsSync.mockImplementation(() => true)
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => {
 			throw new Error("decrypt failed")
 		})
 
-		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow(
+			"exit(1)",
+		)
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(logErrorSpy).toHaveBeenCalledWith("decrypt failed")
@@ -155,13 +186,19 @@ describe("rotateCommand (single)", () => {
 			throw new Error(`exit(${code})`)
 		})
 		existsSync.mockImplementation(() => true)
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {
 			throw new Error("encrypt failed")
 		})
 
-		await expect(rotateCommand("production", false, false)).rejects.toThrow("exit(1)")
+		await expect(rotateCommand("production", false, false)).rejects.toThrow(
+			"exit(1)",
+		)
 
 		expect(exitSpy).toHaveBeenCalledWith(1)
 		expect(logErrorSpy).toHaveBeenCalledWith("encrypt failed")
@@ -207,7 +244,11 @@ describe("rotateCommand --all", () => {
 			makeEnvFile("staging"),
 			makeEnvFile("production"),
 		])
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {})
 
@@ -244,7 +285,11 @@ describe("rotateCommand --all", () => {
 			makeEnvFile("staging"),
 			makeEnvFile("production"),
 		])
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {})
 
@@ -264,7 +309,11 @@ describe("rotateCommand --all", () => {
 			makeEnvFile("staging"),
 			makeEnvFile("production"),
 		])
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => {
 			throw new Error("decrypt failed")
 		})
@@ -287,7 +336,11 @@ describe("rotateCommand --all", () => {
 			makeEnvFile("staging"),
 			makeEnvFile("production"),
 		])
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async (_name: string) => {
 			if (_name === "production") throw new Error("encrypt failed")
@@ -314,7 +367,11 @@ describe("rotateCommand --all", () => {
 			makeEnvFile("staging", ROOT),
 			makeEnvFile("staging", subdir),
 		])
-		getEnvironmentByPath.mockImplementation(async () => ({ version: 2 as const, keys: [], encryptedContent: "" }))
+		getEnvironmentByPath.mockImplementation(async () => ({
+			version: 2 as const,
+			keys: [],
+			encryptedContent: "",
+		}))
 		decryptEnvironmentData.mockImplementation(async () => "A=1")
 		encryptEnvironment.mockImplementation(async () => {})
 

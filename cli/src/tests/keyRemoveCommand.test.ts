@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import * as realFs from "node:fs"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import * as realFsPromises from "node:fs/promises"
-import fs from "node:fs/promises"
+import fs, * as realFsPromises from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -13,16 +12,25 @@ const validateKeyNameMock = mock((name: string) =>
 		? { valid: false as const, reason: "invalid key name" }
 		: { valid: true as const },
 )
-const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => process.cwd())
+const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) =>
+	process.cwd(),
+)
 const fsUnlink = mock(async (_filePath: string) => {})
 const existsSync = mock((_p: string) => true)
 
 mock.module("../prompts/confirm", () => ({ confirmPrompt: confirmPromptMock }))
-mock.module("../prompts/choosePublicKey", () => ({ choosePublicKeyPrompt: choosePublicKeyPromptMock }))
-mock.module("../helpers/validateKeyName", () => ({ validateKeyName: validateKeyNameMock }))
+mock.module("../prompts/choosePublicKey", () => ({
+	choosePublicKeyPrompt: choosePublicKeyPromptMock,
+}))
+mock.module("../helpers/validateKeyName", () => ({
+	validateKeyName: validateKeyNameMock,
+}))
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
 mock.module("node:fs", () => ({ ...realFs, existsSync, default: realFs }))
-mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, unlink: fsUnlink } }))
+mock.module("node:fs/promises", () => ({
+	...realFsPromises,
+	default: { ...realFsPromises, unlink: fsUnlink },
+}))
 
 const { keyRemoveCommand } = await import("../commands/key/remove")
 

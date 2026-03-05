@@ -13,7 +13,9 @@ const makeKey = (name: string) => ({
 	rawPublicKey: Buffer.alloc(32),
 })
 
-const getPublicKeys = mock(async (_dotencDir: string) => [] as ReturnType<typeof makeKey>[])
+const getPublicKeys = mock(
+	async (_dotencDir: string) => [] as ReturnType<typeof makeKey>[],
+)
 const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
 const existsSync = mock((_p: string) => true)
 
@@ -48,7 +50,10 @@ describe("keyListCommand", () => {
 		const cwdSpy = spyOn(process, "cwd").mockReturnValue(ROOT)
 		const logSpy = spyOn(console, "log").mockImplementation(() => {})
 		resolveProjectRoot.mockImplementation(() => ROOT)
-		getPublicKeys.mockImplementation(async () => [makeKey("alice"), makeKey("bob")])
+		getPublicKeys.mockImplementation(async () => [
+			makeKey("alice"),
+			makeKey("bob"),
+		])
 
 		await keyListCommand()
 

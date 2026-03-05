@@ -6,12 +6,17 @@ const ROOT = "/workspace"
 const SUBDIR = path.join(ROOT, "packages", "web")
 
 const getEnvironments = mock(async (_dir?: string) => [] as string[])
-const findEnvironmentsRecursive = mock(async (_dir: string) => [] as Array<{ name: string; dir: string; filePath: string }>)
+const findEnvironmentsRecursive = mock(
+	async (_dir: string) =>
+		[] as Array<{ name: string; dir: string; filePath: string }>,
+)
 const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
 const existsSync = mock((_p: string) => true)
 
 mock.module("../helpers/getEnvironments", () => ({ getEnvironments }))
-mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({
+	findEnvironmentsRecursive,
+}))
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
 mock.module("node:fs", () => ({ ...realFs, existsSync }))
 

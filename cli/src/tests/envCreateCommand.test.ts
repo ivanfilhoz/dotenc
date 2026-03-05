@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
-import * as realFs from "node:fs"
 import * as realFsPromises from "node:fs/promises"
 
 const ROOT = "/workspace"
@@ -13,18 +12,30 @@ const makePublicKey = (name: string) => ({
 })
 
 const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
-const existsSync = mock((_p: string) => true)
 const environmentExists = mock((_name: string, _dir: string) => false)
-const getPublicKeys = mock(async (_dotencDir: string) => [makePublicKey("alice")])
-const fsWriteFile = mock(async (_path: unknown, _content: unknown, _options?: unknown) => {})
+const getPublicKeys = mock(async (_dotencDir: string) => [
+	makePublicKey("alice"),
+])
+const fsWriteFile = mock(
+	async (_path: unknown, _content: unknown, _options?: unknown) => {},
+)
+
+const getEnvironmentNameSuggestion = mock(() => "development")
 
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
-mock.module("node:fs", () => ({ ...realFs, existsSync }))
 mock.module("../helpers/environmentExists", () => ({ environmentExists }))
+mock.module("../helpers/getEnvironmentNameSuggestion", () => ({
+	getEnvironmentNameSuggestion,
+}))
 mock.module("../helpers/getPublicKeys", () => ({ getPublicKeys }))
-mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, writeFile: fsWriteFile } }))
+mock.module("node:fs/promises", () => ({
+	...realFsPromises,
+	default: { ...realFsPromises, writeFile: fsWriteFile },
+}))
 
-const { _normalizePublicKeyNamesForCreate, createCommand } = await import("../commands/env/create")
+const { _normalizePublicKeyNamesForCreate, createCommand } = await import(
+	"../commands/env/create"
+)
 
 describe("createCommand key selection normalization", () => {
 	test("normalizes a single selected key string into an array", () => {
@@ -48,7 +59,6 @@ describe("createCommand key selection normalization", () => {
 describe("createCommand location resolution", () => {
 	beforeEach(() => {
 		resolveProjectRoot.mockClear()
-		existsSync.mockClear()
 		environmentExists.mockClear()
 		getPublicKeys.mockClear()
 		fsWriteFile.mockClear()

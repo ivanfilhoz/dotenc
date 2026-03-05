@@ -1,4 +1,5 @@
 import { encryptEnvironment } from "../../helpers/encryptEnvironment"
+import { readStdin } from "../../helpers/readStdin"
 import { validateEnvironmentName } from "../../helpers/validateEnvironmentName"
 
 type EncryptOptions = {
@@ -28,36 +29,6 @@ type JsonFailure = {
 	}
 }
 
-type EncryptCommandDeps = {
-	validateEnvironmentName: typeof validateEnvironmentName
-	encryptEnvironment: typeof encryptEnvironment
-	readStdin: () => Promise<string>
-	writeStdout: (message: string) => void
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultEncryptCommandDeps: EncryptCommandDeps = {
-	validateEnvironmentName,
-	encryptEnvironment,
-	readStdin: () =>
-		new Promise<string>((resolve, reject) => {
-			let input = ""
-
-			process.stdin.setEncoding("utf-8")
-			process.stdin.on("data", (chunk) => {
-				input += chunk
-			})
-			process.stdin.on("end", () => {
-				resolve(input)
-			})
-			process.stdin.on("error", reject)
-		}),
-	writeStdout: (message) => process.stdout.write(message),
-	logError: (message) => console.error(message),
-	exit: (code) => process.exit(code),
-}
-
 const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g")
 const stripAnsi = (value: string) => value.replace(ansiPattern, "")
 
@@ -80,11 +51,8 @@ const mapErrorCode = (message: string): CliErrorCode => {
 	return "UNKNOWN"
 }
 
-const writeJson = (
-	message: JsonSuccess | JsonFailure,
-	deps: Pick<EncryptCommandDeps, "writeStdout">,
-) => {
-	deps.writeStdout(`${JSON.stringify(message)}\n`)
+const writeJson = (message: JsonSuccess | JsonFailure) => {
+	process.stdout.write(`${JSON.stringify(message)}\n`)
 }
 
 const runWithoutConsoleNoise = async (fn: () => Promise<void>) => {
@@ -104,60 +72,52 @@ const runWithoutConsoleNoise = async (fn: () => Promise<void>) => {
 export const encryptCommand = async (
 	environmentName: string,
 	options: EncryptOptions,
-	_command?: unknown,
-	deps: EncryptCommandDeps = defaultEncryptCommandDeps,
 ) => {
-	const validation = deps.validateEnvironmentName(environmentName)
+	const validation = validateEnvironmentName(environmentName)
 
 	if (!validation.valid) {
 		if (options.json) {
-			writeJson(
-				{
-					ok: false,
-					error: {
-						code: "INVALID_ENVIRONMENT_NAME",
-						message: validation.reason,
-					},
+			writeJson({
+				ok: false,
+				error: {
+					code: "INVALID_ENVIRONMENT_NAME",
+					message: validation.reason,
 				},
-				deps,
-			)
+			})
 		} else {
-			deps.logError(validation.reason)
+			console.error(validation.reason)
 		}
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	if (!options.stdin) {
 		const message =
 			'No input source provided. Use "--stdin" and pipe the plaintext content.'
 		if (options.json) {
-			writeJson(
-				{
-					ok: false,
-					error: {
-						code: "MISSING_STDIN",
-						message,
-					},
+			writeJson({
+				ok: false,
+				error: {
+					code: "MISSING_STDIN",
+					message,
 				},
-				deps,
-			)
+			})
 		} else {
-			deps.logError(message)
+			console.error(message)
 		}
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	try {
-		const content = await deps.readStdin()
+		const content = await readStdin()
 		if (options.json) {
 			await runWithoutConsoleNoise(async () => {
-				await deps.encryptEnvironment(environmentName, content)
+				await encryptEnvironment(environmentName, content)
 			})
-			writeJson({ ok: true }, deps)
+			writeJson({ ok: true })
 			return
 		}
 
-		await deps.encryptEnvironment(environmentName, content)
+		await encryptEnvironment(environmentName, content)
 	} catch (error: unknown) {
 		const rawMessage =
 			error instanceof Error
@@ -167,16 +127,13 @@ export const encryptCommand = async (
 		const code = mapErrorCode(message)
 
 		if (options.json) {
-			writeJson(
-				{
-					ok: false,
-					error: { code, message },
-				},
-				deps,
-			)
+			writeJson({
+				ok: false,
+				error: { code, message },
+			})
 		} else {
-			deps.logError(message)
+			console.error(message)
 		}
-		deps.exit(1)
+		process.exit(1)
 	}
 }

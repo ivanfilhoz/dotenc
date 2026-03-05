@@ -1,137 +1,108 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test"
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import { EventEmitter } from "node:events"
-import {
-	_runInstallAgentSkillCommand,
-	_runNpx,
-} from "../commands/tools/install-agent-skill"
+
+const inquirerPromptMock = mock(async () => ({
+	scope: "local" as "local" | "global",
+}))
+const spawnMock = mock(() => {
+	throw new Error("spawn not expected")
+})
+
+mock.module("inquirer", () => ({ default: { prompt: inquirerPromptMock } }))
+mock.module("node:child_process", () => ({ spawn: spawnMock }))
+
+const { installAgentSkillCommand, _runNpx } = await import(
+	"../commands/tools/install-agent-skill"
+)
+
+const makeSpawn = (exitCode: number) => {
+	const child = new EventEmitter()
+	queueMicrotask(() => child.emit("exit", exitCode))
+	return child as never
+}
+
+beforeEach(() => {
+	inquirerPromptMock.mockClear()
+	spawnMock.mockClear()
+	inquirerPromptMock.mockImplementation(async () => ({ scope: "local" }))
+	spawnMock.mockImplementation(() => {
+		throw new Error("spawn not expected")
+	})
+})
 
 describe("installAgentSkillCommand", () => {
-	let prompt: ReturnType<typeof mock>
-	let runNpx: ReturnType<typeof mock>
-	let log: ReturnType<typeof mock>
-	let logError: ReturnType<typeof mock>
-
-	beforeEach(() => {
-		prompt = mock(async () => ({ scope: "local" }))
-		runNpx = mock(async () => 0)
-		log = mock((_message: string) => {})
-		logError = mock((_message: string) => {})
-	})
-
 	test("runs npx skills add for local installation", async () => {
-		await _runInstallAgentSkillCommand(
-			{},
-			{
-				prompt: prompt as never,
-				runNpx,
-				log,
-				logError,
-				exit: (code: number): never => {
-					throw new Error(`unexpected exit(${code})`)
-				},
-			},
-		)
+		spawnMock.mockImplementation(() => makeSpawn(0))
 
-		expect(runNpx).toHaveBeenCalledWith([
-			"skills",
-			"add",
-			"ivanfilhoz/dotenc",
-			"--skill",
-			"dotenc",
-		])
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await installAgentSkillCommand({})
+
+		expect(spawnMock).toHaveBeenCalledWith(
+			"npx",
+			["skills", "add", "ivanfilhoz/dotenc", "--skill", "dotenc"],
+			expect.any(Object),
+		)
 		expect(
-			log.mock.calls.some((call) => String(call[0]).includes("/dotenc")),
+			logSpy.mock.calls.some((call) => String(call[0]).includes("/dotenc")),
 		).toBe(true)
+		logSpy.mockRestore()
 	})
 
 	test("adds -g for global installation", async () => {
-		prompt = mock(async () => ({ scope: "global" }))
+		inquirerPromptMock.mockImplementation(async () => ({ scope: "global" }))
+		spawnMock.mockImplementation(() => makeSpawn(0))
 
-		await _runInstallAgentSkillCommand(
-			{},
-			{
-				prompt: prompt as never,
-				runNpx,
-				log,
-				logError,
-				exit: (code: number): never => {
-					throw new Error(`unexpected exit(${code})`)
-				},
-			},
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await installAgentSkillCommand({})
+
+		expect(spawnMock).toHaveBeenCalledWith(
+			"npx",
+			["skills", "add", "ivanfilhoz/dotenc", "--skill", "dotenc", "-g"],
+			expect.any(Object),
 		)
-
-		expect(runNpx).toHaveBeenCalledWith([
-			"skills",
-			"add",
-			"ivanfilhoz/dotenc",
-			"--skill",
-			"dotenc",
-			"-g",
-		])
+		logSpy.mockRestore()
 	})
 
 	test("adds -y when --force is used", async () => {
-		await _runInstallAgentSkillCommand(
-			{ force: true },
-			{
-				prompt: prompt as never,
-				runNpx,
-				log,
-				logError,
-				exit: (code: number): never => {
-					throw new Error(`unexpected exit(${code})`)
-				},
-			},
-		)
+		spawnMock.mockImplementation(() => makeSpawn(0))
 
-		expect(runNpx).toHaveBeenCalledWith([
-			"skills",
-			"add",
-			"ivanfilhoz/dotenc",
-			"--skill",
-			"dotenc",
-			"-y",
-		])
+		const logSpy = spyOn(console, "log").mockImplementation(() => {})
+		await installAgentSkillCommand({ force: true })
+
+		expect(spawnMock).toHaveBeenCalledWith(
+			"npx",
+			["skills", "add", "ivanfilhoz/dotenc", "--skill", "dotenc", "-y"],
+			expect.any(Object),
+		)
+		logSpy.mockRestore()
 	})
 
 	test("exits with updater exit code when npx returns non-zero", async () => {
-		runNpx = mock(async () => 7)
+		spawnMock.mockImplementation(() => makeSpawn(7))
 
-		await expect(
-			_runInstallAgentSkillCommand(
-				{},
-				{
-					prompt: prompt as never,
-					runNpx,
-					log,
-					logError,
-					exit: (code: number): never => {
-						throw new Error(`exit(${code})`)
-					},
-				},
-			),
-		).rejects.toThrow("exit(7)")
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		await expect(installAgentSkillCommand({})).rejects.toThrow("exit(7)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 
 	test("exits with code 1 when npx command cannot be started", async () => {
-		runNpx = mock(async () => {
+		spawnMock.mockImplementation(() => {
 			throw new Error("spawn ENOENT")
 		})
 
-		await expect(
-			_runInstallAgentSkillCommand(
-				{},
-				{
-					prompt: prompt as never,
-					runNpx,
-					log,
-					logError,
-					exit: (code: number): never => {
-						throw new Error(`exit(${code})`)
-					},
-				},
-			),
-		).rejects.toThrow("exit(1)")
+		const errSpy = spyOn(console, "error").mockImplementation(() => {})
+		const exitSpy = spyOn(process, "exit").mockImplementation((code): never => {
+			throw new Error(`exit(${code})`)
+		})
+
+		await expect(installAgentSkillCommand({})).rejects.toThrow("exit(1)")
+		errSpy.mockRestore()
+		exitSpy.mockRestore()
 	})
 })
 

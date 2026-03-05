@@ -44,7 +44,9 @@ const getPrivateKeys = mock(async () => ({
 	keys: [] as ReturnType<typeof makePrivateKey>[],
 	passphraseProtectedKeys: [] as string[],
 }))
-const getPublicKeys = mock(async (_dotencDir: string) => [] as ReturnType<typeof makePublicKey>[])
+const getPublicKeys = mock(
+	async (_dotencDir: string) => [] as ReturnType<typeof makePublicKey>[],
+)
 const findEnvironmentsRecursive = mock(async (_dir: string) => [] as EnvFile[])
 const getEnvironmentByPath = mock(async (_filePath: string) => makeEnvJson(""))
 const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
@@ -52,7 +54,9 @@ const existsSync = mock((_p: string) => true)
 
 mock.module("../helpers/getPrivateKeys", () => ({ getPrivateKeys }))
 mock.module("../helpers/getPublicKeys", () => ({ getPublicKeys }))
-mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({
+	findEnvironmentsRecursive,
+}))
 mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
 mock.module("node:fs", () => ({ ...realFs, existsSync }))
@@ -76,7 +80,10 @@ describe("whoamiCommand", () => {
 			throw new Error(`exit(${code})`)
 		})
 		resolveProjectRoot.mockImplementation(() => ROOT)
-		getPrivateKeys.mockImplementation(async () => ({ keys: [], passphraseProtectedKeys: [] }))
+		getPrivateKeys.mockImplementation(async () => ({
+			keys: [],
+			passphraseProtectedKeys: [],
+		}))
 		getPublicKeys.mockImplementation(async () => [])
 		findEnvironmentsRecursive.mockImplementation(async () => [])
 
@@ -97,9 +104,15 @@ describe("whoamiCommand", () => {
 			keys: [makePrivateKey("id_ed25519", "SHA256:alice")],
 			passphraseProtectedKeys: [],
 		}))
-		getPublicKeys.mockImplementation(async () => [makePublicKey("alice", "SHA256:alice")])
-		findEnvironmentsRecursive.mockImplementation(async () => [makeEnvFile("staging")])
-		getEnvironmentByPath.mockImplementation(async () => makeEnvJson("SHA256:alice"))
+		getPublicKeys.mockImplementation(async () => [
+			makePublicKey("alice", "SHA256:alice"),
+		])
+		findEnvironmentsRecursive.mockImplementation(async () => [
+			makeEnvFile("staging"),
+		])
+		getEnvironmentByPath.mockImplementation(async () =>
+			makeEnvJson("SHA256:alice"),
+		)
 
 		await whoamiCommand()
 
@@ -144,12 +157,16 @@ describe("whoamiCommand", () => {
 			keys: [makePrivateKey("id_ed25519", "SHA256:alice")],
 			passphraseProtectedKeys: [],
 		}))
-		getPublicKeys.mockImplementation(async () => [makePublicKey("alice", "SHA256:alice")])
+		getPublicKeys.mockImplementation(async () => [
+			makePublicKey("alice", "SHA256:alice"),
+		])
 		findEnvironmentsRecursive.mockImplementation(async () => [
 			makeEnvFile("staging", ROOT),
 			makeEnvFile("staging", SUBDIR),
 		])
-		getEnvironmentByPath.mockImplementation(async () => makeEnvJson("SHA256:alice"))
+		getEnvironmentByPath.mockImplementation(async () =>
+			makeEnvJson("SHA256:alice"),
+		)
 
 		await whoamiCommand()
 

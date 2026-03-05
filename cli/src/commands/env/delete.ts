@@ -12,9 +12,7 @@ export const envDeleteCommand = async (
 ) => {
 	const environmentName =
 		environmentNameArg ||
-		(await chooseEnvironmentPrompt(
-			"Which environment do you want to delete?",
-		))
+		(await chooseEnvironmentPrompt("Which environment do you want to delete?"))
 
 	const validation = validateEnvironmentName(environmentName)
 	if (!validation.valid) {

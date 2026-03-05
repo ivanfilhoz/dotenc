@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 
-const getHomeConfig = mock(async () => ({} as Record<string, string | undefined>))
+const getHomeConfig = mock(
+	async () => ({}) as Record<string, string | undefined>,
+)
 const setHomeConfig = mock(async (_config: object) => {})
 
 mock.module("../helpers/homeConfig", () => ({

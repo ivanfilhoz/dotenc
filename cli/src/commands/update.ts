@@ -6,39 +6,6 @@ import {
 	type InstallMethod,
 } from "../helpers/update"
 
-type UpdateCommandDeps = {
-	detectInstallMethod: () => InstallMethod
-	runPackageManagerCommand: (command: string, args: string[]) => Promise<number>
-	log: (message: string) => void
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const runPackageManagerCommand = (
-	command: string,
-	args: string[],
-	spawnImpl: typeof spawn = spawn,
-) =>
-	new Promise<number>((resolve, reject) => {
-		const child = spawnImpl(command, args, {
-			stdio: "inherit",
-			shell: process.platform === "win32",
-		})
-
-		child.on("error", reject)
-		child.on("exit", (code) => resolve(code ?? 1))
-	})
-
-export const _runPackageManagerCommand = runPackageManagerCommand
-
-const defaultDeps: UpdateCommandDeps = {
-	detectInstallMethod,
-	runPackageManagerCommand,
-	log: console.log,
-	logError: console.error,
-	exit: process.exit,
-}
-
 const updateCommands: Record<
 	Extract<InstallMethod, "homebrew" | "scoop" | "npm">,
 	{ command: string; args: string[]; label: string }
@@ -60,83 +27,82 @@ const updateCommands: Record<
 	},
 }
 
-export const _runUpdateCommand = async (
-	depsOverrides: Partial<UpdateCommandDeps> = {},
-) => {
-	const deps: UpdateCommandDeps = {
-		...defaultDeps,
-		...depsOverrides,
-	}
+export const _runPackageManagerCommand = (
+	command: string,
+	args: string[],
+	spawnImpl: typeof spawn = spawn,
+) =>
+	new Promise<number>((resolve, reject) => {
+		const child = spawnImpl(command, args, {
+			stdio: "inherit",
+			shell: process.platform === "win32",
+		})
 
-	const method = deps.detectInstallMethod()
+		child.on("error", reject)
+		child.on("exit", (code) => resolve(code ?? 1))
+	})
+
+export const updateCommand = async () => {
+	const method = detectInstallMethod()
 
 	if (method === "binary") {
-		deps.log(
+		console.log(
 			`Standalone binary detected. Download the latest release at ${chalk.cyan(GITHUB_RELEASES_URL)}.`,
 		)
 		return
 	}
 
 	if (method === "unknown") {
-		deps.log("Could not determine installation method automatically.")
-		deps.log(`Try one of these commands:`)
-		deps.log(`  ${chalk.gray("brew update && brew upgrade dotenc")}`)
-		deps.log(`  ${chalk.gray("scoop update dotenc")}`)
-		deps.log(`  ${chalk.gray("npm install -g @dotenc/cli")}`)
-		deps.log(`Or download from ${chalk.cyan(GITHUB_RELEASES_URL)}.`)
+		console.log("Could not determine installation method automatically.")
+		console.log(`Try one of these commands:`)
+		console.log(`  ${chalk.gray("brew update && brew upgrade dotenc")}`)
+		console.log(`  ${chalk.gray("scoop update dotenc")}`)
+		console.log(`  ${chalk.gray("npm install -g @dotenc/cli")}`)
+		console.log(`Or download from ${chalk.cyan(GITHUB_RELEASES_URL)}.`)
 		return
 	}
 
 	const updater = updateCommands[method]
-	deps.log(`Updating dotenc via ${updater.label}...`)
+	console.log(`Updating dotenc via ${updater.label}...`)
 
 	if (method === "homebrew") {
 		try {
-			const brewUpdateCode = await deps.runPackageManagerCommand("brew", [
-				"update",
-			])
+			const brewUpdateCode = await _runPackageManagerCommand("brew", ["update"])
 
 			if (brewUpdateCode !== 0) {
-				deps.logError(
+				console.error(
 					`${chalk.red("Error:")} update command exited with code ${brewUpdateCode}.`,
 				)
-				deps.exit(brewUpdateCode)
+				process.exit(brewUpdateCode)
 			}
 		} catch (error) {
-			deps.logError(
+			console.error(
 				`${chalk.red("Error:")} failed to run ${chalk.gray("brew update")}.`,
 			)
-			deps.logError(
+			console.error(
 				`${chalk.red("Details:")} ${error instanceof Error ? error.message : String(error)}`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 	}
 
 	let exitCode = 0
 	try {
-		exitCode = await deps.runPackageManagerCommand(
-			updater.command,
-			updater.args,
-		)
+		exitCode = await _runPackageManagerCommand(updater.command, updater.args)
 	} catch (error) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} failed to run ${chalk.gray([updater.command, ...updater.args].join(" "))}.`,
 		)
-		deps.logError(
+		console.error(
 			`${chalk.red("Details:")} ${error instanceof Error ? error.message : String(error)}`,
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	if (exitCode !== 0) {
-		deps.logError(
+		console.error(
 			`${chalk.red("Error:")} update command exited with code ${exitCode}.`,
 		)
-		deps.exit(exitCode)
+		process.exit(exitCode)
 	}
-}
-
-export const updateCommand = async () => {
-	await _runUpdateCommand()
 }

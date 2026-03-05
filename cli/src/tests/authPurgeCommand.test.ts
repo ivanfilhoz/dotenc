@@ -21,7 +21,9 @@ const getEnvironmentByPath = mock(async (_filePath: string) => ({
 	keys: [{ name: "bob" }, { name: "alice" }],
 }))
 const decryptEnvironmentData = mock(async () => "SECRET=1")
-const encryptEnvironment = mock(async (_name: string, _content: string, _options?: object) => {})
+const encryptEnvironment = mock(
+	async (_name: string, _content: string, _options?: object) => {},
+)
 const resolveProjectRoot = mock((_dir: string, _existsSync: unknown) => ROOT)
 const validateKeyName = mock((name: string) =>
 	name.startsWith("../")
@@ -32,15 +34,23 @@ const confirmPrompt = mock(async (_msg: string) => true)
 const existsSync = mock((_p: string) => true)
 const fsUnlink = mock(async (_filePath: string) => {})
 
-mock.module("../helpers/findEnvironmentsRecursive", () => ({ findEnvironmentsRecursive }))
+mock.module("../helpers/findEnvironmentsRecursive", () => ({
+	findEnvironmentsRecursive,
+}))
 mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
-mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData, decryptEnvironment: decryptEnvironmentData }))
+mock.module("../helpers/decryptEnvironment", () => ({
+	decryptEnvironmentData,
+	decryptEnvironment: decryptEnvironmentData,
+}))
 mock.module("../helpers/encryptEnvironment", () => ({ encryptEnvironment }))
 mock.module("../helpers/resolveProjectRoot", () => ({ resolveProjectRoot }))
 mock.module("../helpers/validateKeyName", () => ({ validateKeyName }))
 mock.module("../prompts/confirm", () => ({ confirmPrompt }))
 mock.module("node:fs", () => ({ ...realFs, existsSync }))
-mock.module("node:fs/promises", () => ({ ...realFsPromises, default: { ...realFsPromises, unlink: fsUnlink } }))
+mock.module("node:fs/promises", () => ({
+	...realFsPromises,
+	default: { ...realFsPromises, unlink: fsUnlink },
+}))
 
 const { authPurgeCommand } = await import("../commands/auth/purge")
 

@@ -4,7 +4,6 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
-import inquirer from "inquirer"
 import { isPassphraseProtected } from "../../helpers/isPassphraseProtected"
 import { parseOpenSSHPrivateKey } from "../../helpers/parseOpenSSHKey"
 import { parsePassphraseProtectedPrivateKey } from "../../helpers/parsePassphraseProtectedPrivateKey"
@@ -21,169 +20,118 @@ type Options = {
 	fromString?: string
 }
 
-type KeyAddCommandDeps = {
-	createPrivateKey: typeof crypto.createPrivateKey
-	createPublicKey: typeof crypto.createPublicKey
-	existsSync: typeof existsSync
-	readFile: typeof fs.readFile
-	mkdir: typeof fs.mkdir
-	writeFile: typeof fs.writeFile
-	homedir: typeof os.homedir
-	cwd: typeof process.cwd
-	prompt: typeof inquirer.prompt
-	isPassphraseProtected: typeof isPassphraseProtected
-	parseOpenSSHPrivateKey: typeof parseOpenSSHPrivateKey
-	resolveProjectRoot: typeof resolveProjectRoot
-	validatePublicKey: typeof validatePublicKey
-	validateKeyName: typeof validateKeyName
-	choosePrivateKeyPrompt: typeof choosePrivateKeyPrompt
-	inputKeyPrompt: typeof inputKeyPrompt
-	inputNamePrompt: typeof inputNamePrompt
-	logError: (message: string) => void
-	logInfo: (message: string) => void
-	privateKeyPassphrase: string | undefined
-	exit: (code: number) => never
-}
+const parsePrivateKeyInput = async (
+	keyContent: string,
+	passphraseProtected: boolean,
+): Promise<KeyObject> => {
+	if (passphraseProtected) {
+		const passphrase = process.env.DOTENC_PRIVATE_KEY_PASSPHRASE
+		if (passphrase === undefined) {
+			throw new Error(
+				"passphrase-protected key cannot be parsed without a passphrase",
+			)
+		}
 
-const defaultDeps: KeyAddCommandDeps = {
-	createPrivateKey: crypto.createPrivateKey,
-	createPublicKey: crypto.createPublicKey,
-	existsSync,
-	readFile: fs.readFile,
-	mkdir: fs.mkdir,
-	writeFile: fs.writeFile,
-	homedir: os.homedir,
-	cwd: process.cwd,
-	prompt: inquirer.prompt,
-	isPassphraseProtected,
-	parseOpenSSHPrivateKey,
-	resolveProjectRoot,
-	validatePublicKey,
-	validateKeyName,
-	choosePrivateKeyPrompt,
-	inputKeyPrompt,
-	inputNamePrompt,
-	logError: (message) => console.error(message),
-	logInfo: (message) => console.log(message),
-	privateKeyPassphrase: process.env.DOTENC_PRIVATE_KEY_PASSPHRASE,
-	exit: (code: number) => process.exit(code),
-}
+		const privateKey = await parsePassphraseProtectedPrivateKey(
+			keyContent,
+			passphrase,
+		)
 
-export const _runKeyAddCommand = async (
-	nameArg?: string,
-	options?: Options,
-	depsOverrides: Partial<KeyAddCommandDeps> = {},
-) => {
-	const deps: KeyAddCommandDeps = {
-		...defaultDeps,
-		...depsOverrides,
+		if (!privateKey) {
+			throw new Error(
+				"failed to decrypt passphrase-protected key with DOTENC_PRIVATE_KEY_PASSPHRASE",
+			)
+		}
+
+		return privateKey
 	}
 
+	return crypto.createPrivateKey(keyContent)
+}
+
+export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 	let publicKey: KeyObject | undefined
 
-	const parsePrivateKeyInput = async (
-		keyContent: string,
-		passphraseProtected: boolean,
-	): Promise<KeyObject> => {
-		if (passphraseProtected) {
-			if (deps.privateKeyPassphrase === undefined) {
-				throw new Error(
-					"passphrase-protected key cannot be parsed without a passphrase",
-				)
-			}
-
-			const privateKey = await parsePassphraseProtectedPrivateKey(
-				keyContent,
-				deps.privateKeyPassphrase,
-			)
-
-			if (!privateKey) {
-				throw new Error(
-					"failed to decrypt passphrase-protected key with DOTENC_PRIVATE_KEY_PASSPHRASE",
-				)
-			}
-
-			return privateKey
-		}
-
-		return deps.createPrivateKey(keyContent)
-	}
-
 	if (options?.fromSsh) {
-		// Parse SSH key file (private or public)
 		const sshPath = options.fromSsh.startsWith("~")
-			? path.join(deps.homedir(), options.fromSsh.slice(1))
+			? path.join(os.homedir(), options.fromSsh.slice(1))
 			: options.fromSsh
 
-		if (!deps.existsSync(sshPath)) {
-			deps.logError(
+		if (!existsSync(sshPath)) {
+			console.error(
 				`File ${chalk.cyan(sshPath)} does not exist. Please provide a valid SSH key path.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
-		const keyContent = await deps.readFile(sshPath, "utf-8")
-		const passphraseProtected = deps.isPassphraseProtected(keyContent)
+		const keyContent = await fs.readFile(sshPath, "utf-8")
+		const passphraseProtected = isPassphraseProtected(keyContent)
 
-		if (passphraseProtected && deps.privateKeyPassphrase === undefined) {
-			deps.logError(
+		if (
+			passphraseProtected &&
+			process.env.DOTENC_PRIVATE_KEY_PASSPHRASE === undefined
+		) {
+			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected. Set ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")} to use it, or provide a passwordless key.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
 		try {
-			// Try as private key first, derive public key
 			const privateKey = await parsePrivateKeyInput(
 				keyContent,
 				passphraseProtected,
 			)
-			publicKey = deps.createPublicKey(privateKey)
+			publicKey = crypto.createPublicKey(privateKey)
 		} catch {
-			if (passphraseProtected && deps.privateKeyPassphrase !== undefined) {
-				deps.logError(
+			if (
+				passphraseProtected &&
+				process.env.DOTENC_PRIVATE_KEY_PASSPHRASE !== undefined
+			) {
+				console.error(
 					`${chalk.red("Error:")} failed to decrypt the provided key with ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")}. Please verify the passphrase.`,
 				)
-				deps.exit(1)
+				process.exit(1)
 			}
 
-			// Fallback: try OpenSSH private key format
-			const parsed = deps.parseOpenSSHPrivateKey(keyContent)
+			const parsed = parseOpenSSHPrivateKey(keyContent)
 			if (parsed) {
-				publicKey = deps.createPublicKey(parsed)
+				publicKey = crypto.createPublicKey(parsed)
 			} else {
 				try {
-					// Try as public key
-					publicKey = deps.createPublicKey(keyContent)
+					publicKey = crypto.createPublicKey(keyContent)
 				} catch (error) {
-					deps.logError(
+					console.error(
 						"Invalid SSH key format. Please provide a valid SSH key file.",
 					)
-					deps.logError(
+					console.error(
 						`Details: ${error instanceof Error ? error.message : error}`,
 					)
-					deps.exit(1)
+					process.exit(1)
 				}
 			}
 		}
 	}
 
 	if (options?.fromFile) {
-		if (!deps.existsSync(options.fromFile)) {
-			deps.logError(
+		if (!existsSync(options.fromFile)) {
+			console.error(
 				`File ${chalk.cyan(options.fromFile)} does not exist. Please provide a valid file path.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
-		const keyContent = await deps.readFile(options.fromFile, "utf-8")
-		const passphraseProtected = deps.isPassphraseProtected(keyContent)
+		const keyContent = await fs.readFile(options.fromFile, "utf-8")
+		const passphraseProtected = isPassphraseProtected(keyContent)
 
-		if (passphraseProtected && deps.privateKeyPassphrase === undefined) {
-			deps.logError(
+		if (
+			passphraseProtected &&
+			process.env.DOTENC_PRIVATE_KEY_PASSPHRASE === undefined
+		) {
+			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected. Set ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")} to use it, or provide a passwordless key.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
 		if (passphraseProtected) {
@@ -192,33 +140,32 @@ export const _runKeyAddCommand = async (
 					keyContent,
 					passphraseProtected,
 				)
-				publicKey = deps.createPublicKey(privateKey)
+				publicKey = crypto.createPublicKey(privateKey)
 			} catch {
-				deps.logError(
+				console.error(
 					`${chalk.red("Error:")} failed to decrypt the provided key with ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")}. Please verify the passphrase.`,
 				)
-				deps.exit(1)
+				process.exit(1)
 			}
 		} else {
 			try {
-				publicKey = deps.createPublicKey(keyContent)
+				publicKey = crypto.createPublicKey(keyContent)
 			} catch {
 				try {
 					const privateKey = await parsePrivateKeyInput(
 						keyContent,
 						passphraseProtected,
 					)
-					publicKey = deps.createPublicKey(privateKey)
+					publicKey = crypto.createPublicKey(privateKey)
 				} catch {
-					// Fallback: try OpenSSH private key format
-					const parsed = deps.parseOpenSSHPrivateKey(keyContent)
+					const parsed = parseOpenSSHPrivateKey(keyContent)
 					if (parsed) {
-						publicKey = deps.createPublicKey(parsed)
+						publicKey = crypto.createPublicKey(parsed)
 					} else {
-						deps.logError(
+						console.error(
 							"Invalid key format. Please provide a valid PEM formatted public or private key.",
 						)
-						deps.exit(1)
+						process.exit(1)
 					}
 				}
 			}
@@ -226,12 +173,15 @@ export const _runKeyAddCommand = async (
 	}
 
 	if (options?.fromString) {
-		const passphraseProtected = deps.isPassphraseProtected(options.fromString)
-		if (passphraseProtected && deps.privateKeyPassphrase === undefined) {
-			deps.logError(
+		const passphraseProtected = isPassphraseProtected(options.fromString)
+		if (
+			passphraseProtected &&
+			process.env.DOTENC_PRIVATE_KEY_PASSPHRASE === undefined
+		) {
+			console.error(
 				`${chalk.red("Error:")} the provided key is passphrase-protected. Set ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")} to use it, or provide a passwordless key.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 
 		if (passphraseProtected) {
@@ -240,104 +190,102 @@ export const _runKeyAddCommand = async (
 					options.fromString,
 					passphraseProtected,
 				)
-				publicKey = deps.createPublicKey(privateKey)
+				publicKey = crypto.createPublicKey(privateKey)
 			} catch {
-				deps.logError(
+				console.error(
 					`${chalk.red("Error:")} failed to decrypt the provided key with ${chalk.gray("DOTENC_PRIVATE_KEY_PASSPHRASE")}. Please verify the passphrase.`,
 				)
-				deps.exit(1)
+				process.exit(1)
 			}
 		} else {
 			try {
-				publicKey = deps.createPublicKey(options.fromString)
+				publicKey = crypto.createPublicKey(options.fromString)
 			} catch {
 				try {
 					const privateKey = await parsePrivateKeyInput(
 						options.fromString,
 						passphraseProtected,
 					)
-					publicKey = deps.createPublicKey(privateKey)
+					publicKey = crypto.createPublicKey(privateKey)
 				} catch {
-					// Fallback: try OpenSSH private key format
-					const parsed = deps.parseOpenSSHPrivateKey(options.fromString)
+					const parsed = parseOpenSSHPrivateKey(options.fromString)
 					if (parsed) {
-						publicKey = deps.createPublicKey(parsed)
+						publicKey = crypto.createPublicKey(parsed)
 					} else {
-						deps.logError(
+						console.error(
 							"Invalid key format. Please provide a valid PEM formatted public or private key.",
 						)
-						deps.exit(1)
+						process.exit(1)
 					}
 				}
 			}
 		}
 	}
 
-	// Interactive mode
 	if (!publicKey) {
-		const modePrompt = await deps.prompt({
-			type: "list",
-			name: "mode",
-			message:
-				"Would you like to add one of your SSH keys or paste a public key?",
-			choices: [
-				{ name: "Choose or create an SSH key", value: "choose" },
-				{ name: "Paste a public key (PEM format)", value: "paste" },
-			],
-		})
+		const modePrompt = await import("inquirer").then((m) =>
+			m.default.prompt({
+				type: "list",
+				name: "mode",
+				message:
+					"Would you like to add one of your SSH keys or paste a public key?",
+				choices: [
+					{ name: "Choose or create an SSH key", value: "choose" },
+					{ name: "Paste a public key (PEM format)", value: "paste" },
+				],
+			}),
+		)
 
 		if (modePrompt.mode === "paste") {
-			const publicKeyInput = await deps.inputKeyPrompt(
+			const publicKeyInput = await inputKeyPrompt(
 				"Please paste your public key (PEM format):",
 			)
 
 			if (!publicKeyInput) {
-				deps.logError("No public key provided. Add operation cancelled.")
-				deps.exit(1)
+				console.error("No public key provided. Add operation cancelled.")
+				process.exit(1)
 			}
 
 			try {
-				publicKey = deps.createPublicKey(publicKeyInput)
+				publicKey = crypto.createPublicKey(publicKeyInput)
 			} catch (error: unknown) {
-				deps.logError(
+				console.error(
 					"Invalid public key format. Please provide a valid PEM formatted public key.",
 				)
-				deps.logError(
+				console.error(
 					`Details: ${error instanceof Error ? error.message : error}`,
 				)
-				deps.exit(1)
+				process.exit(1)
 			}
 		} else {
 			let selectedKey: Awaited<ReturnType<typeof choosePrivateKeyPrompt>>
 			try {
-				selectedKey = await deps.choosePrivateKeyPrompt(
+				selectedKey = await choosePrivateKeyPrompt(
 					"Which SSH key do you want to add?",
 				)
 			} catch (error) {
-				deps.logError(error instanceof Error ? error.message : String(error))
-				deps.exit(1)
+				console.error(error instanceof Error ? error.message : String(error))
+				process.exit(1)
 			}
 
-			publicKey = deps.createPublicKey(selectedKey.privateKey)
-			// Use SSH key filename as default name if no nameArg
+			publicKey = crypto.createPublicKey(selectedKey.privateKey)
 			if (!nameArg) {
 				nameArg = selectedKey.name
 			}
 		}
 	}
 
-	// unexpected path
 	if (!publicKey) {
-		deps.logError(
+		console.error(
 			"An unexpected error occurred. No public key was inferred from the provided input.",
 		)
-		deps.exit(1)
+		process.exit(1)
 	}
 
-	const validation = deps.validatePublicKey(publicKey)
+	const validation = validatePublicKey(publicKey)
 	if (!validation.valid) {
-		deps.logError(validation.reason)
-		deps.exit(1)
+		console.error(validation.reason)
+		process.exit(1)
 	}
 
 	const publicKeyOutput = publicKey.export({
@@ -347,35 +295,33 @@ export const _runKeyAddCommand = async (
 
 	let projectRoot: string
 	try {
-		projectRoot = deps.resolveProjectRoot(deps.cwd(), deps.existsSync)
+		projectRoot = resolveProjectRoot(process.cwd(), existsSync)
 	} catch {
-		// Not yet in a project — fall back to cwd (init flow)
-		projectRoot = deps.cwd()
+		projectRoot = process.cwd()
 	}
 	const dotencDir = path.join(projectRoot, ".dotenc")
 
-	// Create folder if it doesn't exist
-	if (!deps.existsSync(dotencDir)) {
-		await deps.mkdir(dotencDir)
+	if (!existsSync(dotencDir)) {
+		await fs.mkdir(dotencDir)
 	}
 
 	let name = nameArg
 	if (!name) {
-		name = await deps.inputNamePrompt(
+		name = await inputNamePrompt(
 			"What name do you want to give to the new public key?",
 		)
 	}
 
-	const keyNameValidation = deps.validateKeyName(name)
+	const keyNameValidation = validateKeyName(name)
 	if (!keyNameValidation.valid) {
-		deps.logError(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
-		deps.exit(1)
+		console.error(`${chalk.red("Error:")} ${keyNameValidation.reason}`)
+		process.exit(1)
 	}
 
 	const keyOutputPath = path.join(dotencDir, `${name}.pub`)
 
 	try {
-		await deps.writeFile(keyOutputPath, publicKeyOutput, {
+		await fs.writeFile(keyOutputPath, publicKeyOutput, {
 			encoding: "utf-8",
 			flag: "wx",
 		})
@@ -384,16 +330,12 @@ export const _runKeyAddCommand = async (
 			error instanceof Error &&
 			(error as NodeJS.ErrnoException).code === "EEXIST"
 		) {
-			deps.logError(
+			console.error(
 				`A public key with name ${chalk.cyan(name)} already exists. Please choose a different name.`,
 			)
-			deps.exit(1)
+			process.exit(1)
 		}
 		throw error
 	}
-	deps.logInfo(`\nPublic key ${chalk.cyan(name)} added successfully!`)
-}
-
-export const keyAddCommand = async (nameArg?: string, options?: Options) => {
-	return _runKeyAddCommand(nameArg, options)
+	console.log(`\nPublic key ${chalk.cyan(name)} added successfully!`)
 }

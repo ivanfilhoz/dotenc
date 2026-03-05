@@ -28,24 +28,6 @@ type JsonFailure = {
 	}
 }
 
-type DecryptCommandDeps = {
-	validateEnvironmentName: typeof validateEnvironmentName
-	getEnvironmentByName: typeof getEnvironmentByName
-	decryptEnvironmentData: typeof decryptEnvironmentData
-	writeStdout: (message: string) => void
-	logError: (message: string) => void
-	exit: (code: number) => never
-}
-
-const defaultDecryptCommandDeps: DecryptCommandDeps = {
-	validateEnvironmentName,
-	getEnvironmentByName,
-	decryptEnvironmentData,
-	writeStdout: (message) => process.stdout.write(message),
-	logError: (message) => console.error(message),
-	exit: (code) => process.exit(code),
-}
-
 const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g")
 const stripAnsi = (value: string) => value.replace(ansiPattern, "")
 
@@ -65,45 +47,34 @@ const mapErrorCode = (message: string): CliErrorCode => {
 	return "UNKNOWN"
 }
 
-const writeJson = (
-	message: JsonSuccess | JsonFailure,
-	deps: Pick<DecryptCommandDeps, "writeStdout">,
-) => {
-	deps.writeStdout(`${JSON.stringify(message)}\n`)
+const writeJson = (message: JsonSuccess | JsonFailure) => {
+	process.stdout.write(`${JSON.stringify(message)}\n`)
 }
 
 export const decryptCommand = async (
 	environmentName: string,
 	options: DecryptOptions,
-	_command?: unknown,
-	deps: DecryptCommandDeps = defaultDecryptCommandDeps,
 ) => {
-	const validation = deps.validateEnvironmentName(environmentName)
+	const validation = validateEnvironmentName(environmentName)
 
 	if (!validation.valid) {
 		if (options.json) {
-			writeJson(
-				{
-					ok: false,
-					error: {
-						code: "INVALID_ENVIRONMENT_NAME",
-						message: validation.reason,
-					},
+			writeJson({
+				ok: false,
+				error: {
+					code: "INVALID_ENVIRONMENT_NAME",
+					message: validation.reason,
 				},
-				deps,
-			)
+			})
 		} else {
-			deps.logError(validation.reason)
+			console.error(validation.reason)
 		}
-		deps.exit(1)
+		process.exit(1)
 	}
 
 	try {
-		const environment = await deps.getEnvironmentByName(environmentName)
-		const plaintext = await deps.decryptEnvironmentData(
-			environmentName,
-			environment,
-		)
+		const environment = await getEnvironmentByName(environmentName)
+		const plaintext = await decryptEnvironmentData(environmentName, environment)
 		const grantedUsers = Array.from(
 			new Set(
 				environment.keys
@@ -113,9 +84,9 @@ export const decryptCommand = async (
 		)
 
 		if (options.json) {
-			writeJson({ ok: true, content: plaintext, grantedUsers }, deps)
+			writeJson({ ok: true, content: plaintext, grantedUsers })
 		} else {
-			deps.writeStdout(plaintext)
+			process.stdout.write(plaintext)
 		}
 	} catch (error: unknown) {
 		const rawMessage =
@@ -126,16 +97,10 @@ export const decryptCommand = async (
 		const code = mapErrorCode(message)
 
 		if (options.json) {
-			writeJson(
-				{
-					ok: false,
-					error: { code, message },
-				},
-				deps,
-			)
+			writeJson({ ok: false, error: { code, message } })
 		} else {
-			deps.logError(message)
+			console.error(message)
 		}
-		deps.exit(1)
+		process.exit(1)
 	}
 }
