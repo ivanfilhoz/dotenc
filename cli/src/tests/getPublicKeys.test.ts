@@ -5,6 +5,39 @@ import os from "node:os"
 import path from "node:path"
 import { getPublicKeys } from "../helpers/getPublicKeys"
 
+describe("getPublicKeys (subfolder resolution)", () => {
+	let rootDir: string
+	let subDir: string
+	let cwdSpy: ReturnType<typeof spyOn>
+
+	beforeAll(() => {
+		rootDir = mkdtempSync(path.join(os.tmpdir(), "test-pubkeys-root-"))
+		subDir = path.join(rootDir, "packages", "web")
+		mkdirSync(path.join(rootDir, ".dotenc"))
+		mkdirSync(subDir, { recursive: true })
+
+		const ed = crypto.generateKeyPairSync("ed25519")
+		writeFileSync(
+			path.join(rootDir, ".dotenc", "alice.pub"),
+			ed.publicKey.export({ type: "spki", format: "pem" }).toString(),
+			"utf-8",
+		)
+
+		cwdSpy = spyOn(process, "cwd").mockReturnValue(subDir)
+	})
+
+	afterAll(() => {
+		cwdSpy.mockRestore()
+		rmSync(rootDir, { recursive: true, force: true })
+	})
+
+	test("finds keys in ancestor .dotenc/ when called from a subfolder", async () => {
+		const keys = await getPublicKeys()
+		expect(keys).toHaveLength(1)
+		expect(keys[0].name).toBe("alice")
+	})
+})
+
 describe("getPublicKeys", () => {
 	let tmpDir: string
 	let cwdSpy: ReturnType<typeof spyOn>

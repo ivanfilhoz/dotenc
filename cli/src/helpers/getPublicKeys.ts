@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { getKeyFingerprint } from "./getKeyFingerprint"
+import { resolveProjectRoot } from "./resolveProjectRoot"
 
 export type PublicKeyEntry = {
 	name: string
@@ -27,7 +28,17 @@ function extractEd25519RawPublicKey(publicKey: crypto.KeyObject): Buffer {
 }
 
 export const getPublicKeys = async (dotencDir?: string) => {
-	const resolvedDotencDir = dotencDir ?? path.join(process.cwd(), ".dotenc")
+	let resolvedDotencDir: string
+	if (dotencDir !== undefined) {
+		resolvedDotencDir = dotencDir
+	} else {
+		try {
+			const projectRoot = resolveProjectRoot(process.cwd(), existsSync)
+			resolvedDotencDir = path.join(projectRoot, ".dotenc")
+		} catch {
+			return []
+		}
+	}
 
 	if (!existsSync(resolvedDotencDir)) {
 		return []

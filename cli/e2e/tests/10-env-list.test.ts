@@ -18,7 +18,7 @@ describe("Env List", () => {
 		runCli(home, workspace, ["init", "--name", "alice"])
 		runCli(home, workspace, ["env", "create", "staging", "alice"])
 		runCli(home, workspace, ["env", "create", "production", "alice"])
-	})
+	}, TIMEOUT)
 
 	afterAll(() => {
 		rmSync(home, { recursive: true, force: true })
