@@ -38,19 +38,21 @@ jobs:
         run: bun run typecheck
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.10'
 
       - name: Install dependencies
         run: bun install
 
       - name: Run unit tests
-        run: cd cli && bun test src/tests --coverage --coverage-reporter lcov --coverage-dir coverage
+        run: cd cli && bun run test:coverage
 
       - name: Run VS Code extension tests
         run: cd vscode-extension && bun run test:coverage
