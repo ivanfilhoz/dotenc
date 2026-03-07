@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import os from "node:os"
 import path from "node:path"
 import { resolveProjectRoot } from "../helpers/resolveProjectRoot"
 
@@ -32,6 +33,16 @@ describe("resolveProjectRoot", () => {
 		expect(() => resolveProjectRoot("/some/deep/dir", existsSync)).toThrow(
 			'Not in a dotenc project. Run "dotenc init" to initialize.',
 		)
+	})
+
+	test("ignores ~/.dotenc (home dir is reserved for global config)", () => {
+		const homeDir = os.homedir()
+		// Only ~/.dotenc exists — no project-level .dotenc
+		const existsSync = (p: string) => p === path.join(homeDir, ".dotenc")
+
+		expect(() =>
+			resolveProjectRoot(path.join(homeDir, "myproject"), existsSync),
+		).toThrow('Not in a dotenc project. Run "dotenc init" to initialize.')
 	})
 
 	test("resolves relative startDir before walking", () => {

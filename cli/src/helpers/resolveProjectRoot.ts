@@ -1,3 +1,4 @@
+import os from "node:os"
 import path from "node:path"
 
 export const resolveProjectRoot = (
@@ -8,7 +9,8 @@ export const resolveProjectRoot = (
 
 	// eslint-disable-next-line no-constant-condition
 	while (true) {
-		if (existsSync(path.join(dir, ".dotenc"))) {
+		// Skip the home directory — ~/.dotenc is reserved for global config, not projects
+		if (dir !== os.homedir() && existsSync(path.join(dir, ".dotenc"))) {
 			return dir
 		}
 
