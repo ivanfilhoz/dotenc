@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
+import * as realFs from "node:fs"
+import * as realFsPromises from "node:fs/promises"
+import realOs from "node:os"
 import path from "node:path"
 
 const CWD = "/workspace"
@@ -33,7 +36,7 @@ const createCommandMock = mock(
 mock.module("../prompts/inputName", () => ({
 	inputNamePrompt: inputNamePromptMock,
 }))
-mock.module("node:os", () => ({ default: { userInfo: userInfoMock } }))
+mock.module("node:os", () => ({ default: { ...realOs, userInfo: userInfoMock } }))
 mock.module("../prompts/choosePrivateKey", () => ({
 	choosePrivateKeyPrompt: choosePrivateKeyPromptMock,
 }))
@@ -43,9 +46,10 @@ mock.module("../commands/key/add", () => ({
 mock.module("../helpers/setupGitDiff", () => ({
 	setupGitDiff: setupGitDiffMock,
 }))
-mock.module("node:fs", () => ({ existsSync: existsSyncMock }))
+mock.module("node:fs", () => ({ ...realFs, existsSync: existsSyncMock }))
 mock.module("node:fs/promises", () => ({
-	default: { readFile: readFileMock, unlink: unlinkMock },
+	...realFsPromises,
+	default: { ...realFsPromises, readFile: readFileMock, unlink: unlinkMock },
 }))
 mock.module("../commands/env/create", () => ({
 	createCommand: createCommandMock,

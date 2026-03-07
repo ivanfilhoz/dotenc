@@ -7,6 +7,7 @@ import {
 	spyOn,
 	test,
 } from "bun:test"
+import * as realFs from "node:fs"
 import path from "node:path"
 
 const ROOT = "/workspace"
@@ -35,7 +36,7 @@ const buildAncestorChain = mock((_root: string, _inv: string) => [ROOT])
 const resolveProjectRoot = mock(() => ROOT)
 
 mock.module("node:child_process", () => ({ spawn: spawnMock }))
-mock.module("node:fs", () => ({ existsSync: existsSyncMock }))
+mock.module("node:fs", () => ({ ...realFs, existsSync: existsSyncMock }))
 mock.module("../helpers/decryptEnvironment", () => ({ decryptEnvironmentData }))
 mock.module("../helpers/getEnvironmentByPath", () => ({ getEnvironmentByPath }))
 mock.module("../helpers/parseEnv", () => ({ parseEnv }))

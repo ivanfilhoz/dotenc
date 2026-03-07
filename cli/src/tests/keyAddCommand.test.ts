@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test"
 import crypto from "node:crypto"
+import * as realFs from "node:fs"
+import * as realFsPromises from "node:fs/promises"
+import realOs from "node:os"
 import path from "node:path"
 
 const CWD = "/workspace"
@@ -61,15 +64,17 @@ const inquirerPromptMock = mock(async (_questions: unknown) => ({
 	mode: "paste",
 }))
 
-mock.module("node:fs", () => ({ existsSync: existsSyncMock }))
+mock.module("node:fs", () => ({ ...realFs, existsSync: existsSyncMock }))
 mock.module("node:fs/promises", () => ({
+	...realFsPromises,
 	default: {
+		...realFsPromises,
 		readFile: readFileMock,
 		mkdir: mkdirMock,
 		writeFile: writeFileMock,
 	},
 }))
-mock.module("node:os", () => ({ default: { homedir: () => HOME } }))
+mock.module("node:os", () => ({ default: { ...realOs, homedir: () => HOME } }))
 mock.module("../helpers/resolveProjectRoot", () => ({
 	resolveProjectRoot: resolveProjectRootMock,
 }))
