@@ -36,7 +36,9 @@ const createCommandMock = mock(
 mock.module("../prompts/inputName", () => ({
 	inputNamePrompt: inputNamePromptMock,
 }))
-mock.module("node:os", () => ({ default: { ...realOs, userInfo: userInfoMock } }))
+mock.module("node:os", () => ({
+	default: { ...realOs, userInfo: userInfoMock },
+}))
 mock.module("../prompts/choosePrivateKey", () => ({
 	choosePrivateKeyPrompt: choosePrivateKeyPromptMock,
 }))
