@@ -268,4 +268,11 @@ program
 
 await maybeNotifyAboutUpdate()
 
-program.parse()
+try {
+	await program.parseAsync()
+} catch (error) {
+	if (error instanceof Error && error.name === "ExitPromptError") {
+		process.exit(0)
+	}
+	throw error
+}

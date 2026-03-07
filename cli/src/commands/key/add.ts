@@ -13,6 +13,7 @@ import { validatePublicKey } from "../../helpers/validatePublicKey"
 import { choosePrivateKeyPrompt } from "../../prompts/choosePrivateKey"
 import { inputKeyPrompt } from "../../prompts/inputKey"
 import { inputNamePrompt } from "../../prompts/inputName"
+import { prompt } from "../../prompts/prompt"
 
 type Options = {
 	fromSsh?: string
@@ -223,18 +224,16 @@ export const keyAddCommand = async (nameArg?: string, options?: Options) => {
 	}
 
 	if (!publicKey) {
-		const modePrompt = await import("inquirer").then((m) =>
-			m.default.prompt({
-				type: "list",
-				name: "mode",
-				message:
-					"Would you like to add one of your SSH keys or paste a public key?",
-				choices: [
-					{ name: "Choose or create an SSH key", value: "choose" },
-					{ name: "Paste a public key (PEM format)", value: "paste" },
-				],
-			}),
-		)
+		const modePrompt = await prompt({
+			type: "list",
+			name: "mode",
+			message:
+				"Would you like to add one of your SSH keys or paste a public key?",
+			choices: [
+				{ name: "Choose or create an SSH key", value: "choose" },
+				{ name: "Paste a public key (PEM format)", value: "paste" },
+			],
+		})
 
 		if (modePrompt.mode === "paste") {
 			const publicKeyInput = await inputKeyPrompt(

@@ -1,5 +1,6 @@
-import inquirer from "inquirer"
+import type inquirer from "inquirer"
 import { getPublicKeys } from "../helpers/getPublicKeys"
+import { prompt } from "./prompt"
 
 type ChoosePublicKeyPromptDeps = {
 	prompt: typeof inquirer.prompt
@@ -7,7 +8,7 @@ type ChoosePublicKeyPromptDeps = {
 }
 
 const defaultDeps: ChoosePublicKeyPromptDeps = {
-	prompt: inquirer.prompt,
+	prompt,
 	getPublicKeys,
 }
 

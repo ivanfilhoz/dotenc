@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 import chalk from "chalk"
-import inquirer from "inquirer"
+import type inquirer from "inquirer"
 import { createEd25519SshKey } from "../helpers/createEd25519SshKey"
 import { createPasswordlessSshKeyCopy } from "../helpers/createPasswordlessSshKeyCopy"
 import { passphraseProtectedKeyError } from "../helpers/errors"
@@ -12,6 +12,7 @@ import {
 	type UnsupportedPrivateKeyEntry,
 } from "../helpers/getPrivateKeys"
 import { validatePublicKey } from "../helpers/validatePublicKey"
+import { prompt } from "./prompt"
 
 export const CREATE_NEW_PRIVATE_KEY_CHOICE = "__dotenc_create_new_private_key__"
 const PASSPHRASE_PROTECTED_KEY_CHOICE_PREFIX =
@@ -36,7 +37,7 @@ type ChoosePrivateKeyPromptDeps = {
 
 const defaultChoosePrivateKeyPromptDeps: ChoosePrivateKeyPromptDeps = {
 	getPrivateKeys,
-	prompt: inquirer.prompt,
+	prompt,
 	createEd25519SshKey,
 	createPasswordlessSshKeyCopy,
 	homedir: os.homedir,

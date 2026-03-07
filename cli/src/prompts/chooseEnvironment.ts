@@ -1,5 +1,6 @@
-import inquirer from "inquirer"
+import type inquirer from "inquirer"
 import { getEnvironments } from "../helpers/getEnvironments"
+import { prompt } from "./prompt"
 
 type ChooseEnvironmentPromptDeps = {
 	getEnvironments: typeof getEnvironments
@@ -9,7 +10,7 @@ type ChooseEnvironmentPromptDeps = {
 
 const defaultDeps: ChooseEnvironmentPromptDeps = {
 	getEnvironments,
-	prompt: inquirer.prompt,
+	prompt,
 	logInfo: (message) => console.log(message),
 }
 

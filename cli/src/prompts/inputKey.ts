@@ -1,10 +1,10 @@
-import inquirer from "inquirer"
+import { prompt } from "./prompt"
 
 export const inputKeyPrompt = async (
 	message: string,
 	defaultValue?: string,
 ) => {
-	const result = await inquirer.prompt([
+	const result = await prompt([
 		{
 			type: "password",
 			name: "key",

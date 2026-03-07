@@ -1,7 +1,7 @@
-import inquirer from "inquirer"
+import { prompt } from "./prompt"
 
 export const confirmPrompt = async (message: string) => {
-	const result = await inquirer.prompt([
+	const result = await prompt([
 		{
 			type: "confirm",
 			name: "confirm",
