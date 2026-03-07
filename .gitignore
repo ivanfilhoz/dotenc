@@ -1,4 +1,5 @@
 /node_modules
+.DS_Store
 # Ignore local environment file
 .env
 # Website build output
