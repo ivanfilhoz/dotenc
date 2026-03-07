@@ -1,4 +1,5 @@
 /node_modules
-.DS_Store# Website build output
+.DS_Store
+# Website build output
 website/dist
 website/public/styles.css
